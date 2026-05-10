@@ -616,14 +616,44 @@ private struct FeedBrowseList: View {
         .navigationBarTitleDisplayMode(isRoot ? .large : .inline)
     }
 
-    // MARK: - Header (selected pills + counter)
+    // MARK: - Per-root limit helpers
 
-    private var atLimit: Bool { draft.count >= 5 }
+    /// Limit applies per top-level category (sports, news, tech, …). Picking
+    /// 5 sports teams + 5 tech topics + 5 news topics is fine; what we
+    /// disallow is 6 of the SAME root category.
+    static let perRootLimit = 5
+
+    static func rootCategoryId(of id: String) -> String {
+        String(id.split(separator: ".").first ?? Substring(id))
+    }
+
+    static func rootCategoryLabel(for rootId: String) -> String {
+        FeedNode.root.first(where: { $0.id == rootId })?.label ?? rootId
+    }
+
+    /// When drilled into a category (`isRoot == false`), all nodes in this
+    /// list share the same root prefix. That root is what the counter and
+    /// at-limit hint refer to.
+    private var contextualRootId: String? {
+        guard !isRoot else { return nil }
+        return nodes.first.map { Self.rootCategoryId(of: $0.id) }
+    }
+
+    private var contextualRootCount: Int {
+        guard let rootId = contextualRootId else { return draft.count }
+        return draft.filter { Self.rootCategoryId(of: $0.id) == rootId }.count
+    }
+
+    private var atLimit: Bool {
+        contextualRootId != nil && contextualRootCount >= Self.perRootLimit
+    }
+
+    // MARK: - Header (selected pills + counter)
 
     private var counterRow: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                Text("\(draft.count) מתוך 5")
+                Text(counterText)
                     .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundStyle(atLimit ? .red : .limorIndigo)
                 Spacer(minLength: 16)
@@ -636,14 +666,21 @@ private struct FeedBrowseList: View {
             // padding wouldn't separate it from the screen edges.
             .frame(maxWidth: .infinity)
 
-            if atLimit {
-                Text("הגעת למקסימום של 5 — הסר נושא כדי להוסיף עוד")
+            if atLimit, let rootId = contextualRootId {
+                Text("הגעת למקסימום של \(Self.perRootLimit) ב\(Self.rootCategoryLabel(for: rootId)) — הסר נושא כדי להוסיף עוד")
                     .font(.caption2)
                     .foregroundStyle(.red.opacity(0.85))
             }
         }
         .padding(.horizontal, 20)
         .padding(.top, 8)
+    }
+
+    private var counterText: String {
+        if let rootId = contextualRootId {
+            return "\(contextualRootCount) מתוך \(Self.perRootLimit) ב\(Self.rootCategoryLabel(for: rootId))"
+        }
+        return "\(draft.count) נבחרו · עד \(Self.perRootLimit) לכל קטגוריה"
     }
 
     private var selectedPills: some View {
@@ -896,12 +933,16 @@ private struct FeedBrowseList: View {
 
     private func leafRow(label: String, icon: String, tint: Color, topic: FeedTopic) -> some View {
         let selected = draft.contains { $0.id == topic.id || $0.label == topic.label }
-        let disabled = !selected && draft.count >= 5
+        // Disable based on this leaf's own root category, not the global
+        // count — so picking 5 sports topics doesn't grey out tech/news.
+        let leafRoot = Self.rootCategoryId(of: topic.id)
+        let countInLeafRoot = draft.filter { Self.rootCategoryId(of: $0.id) == leafRoot }.count
+        let disabled = !selected && countInLeafRoot >= Self.perRootLimit
         return Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             if selected {
                 draft.removeAll { $0.id == topic.id || $0.label == topic.label }
-            } else if draft.count < 5 {
+            } else if countInLeafRoot < Self.perRootLimit {
                 draft.append(topic)
             }
         } label: {
