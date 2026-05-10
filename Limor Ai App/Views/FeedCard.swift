@@ -341,21 +341,28 @@ private struct FeedBrowseList: View {
     private var atLimit: Bool { draft.count >= 5 }
 
     private var counterRow: some View {
-        HStack(spacing: 6) {
-            Text("\(draft.count) מתוך 5")
-                .font(.caption.weight(.semibold).monospacedDigit())
-                .foregroundStyle(atLimit ? .red : .limorIndigo)
-            if atLimit {
-                Text("• הגעת למקסימום")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.red)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text("\(draft.count) מתוך 5")
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(atLimit ? .red : .limorIndigo)
+                Spacer(minLength: 16)
+                Button("נקה הכל") { draft.removeAll() }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.limorMuted)
             }
-            Spacer()
-            Button("נקה הכל") { draft.removeAll() }
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.limorMuted)
+            // Without an explicit max-width here, the HStack inside a
+            // .leading-aligned VStack would size to its content and the
+            // padding wouldn't separate it from the screen edges.
+            .frame(maxWidth: .infinity)
+
+            if atLimit {
+                Text("הגעת למקסימום של 5 — הסר נושא כדי להוסיף עוד")
+                    .font(.caption2)
+                    .foregroundStyle(.red.opacity(0.85))
+            }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 20)
         .padding(.top, 8)
     }
 
