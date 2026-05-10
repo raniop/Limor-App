@@ -307,8 +307,16 @@ private struct FeedBrowseList: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    // Counter visible at every level so the user knows their
+                    // 5-topic budget no matter how deep they drill.
+                    if !draft.isEmpty {
+                        counterRow
+                    }
+                    // Pills only at root — sub-pages already feel busy with
+                    // the per-row icons, and the user manages selections from
+                    // the root anyway.
                     if isRoot, !draft.isEmpty {
-                        selectedSection
+                        selectedPills
                     }
 
                     searchBar
@@ -330,42 +338,51 @@ private struct FeedBrowseList: View {
 
     // MARK: - Header (selected pills + counter)
 
-    private var selectedSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("\(draft.count) מתוך 5")
-                    .font(.caption.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(.limorIndigo)
-                Spacer()
-                Button("נקה הכל") { draft.removeAll() }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.limorMuted)
+    private var atLimit: Bool { draft.count >= 5 }
+
+    private var counterRow: some View {
+        HStack(spacing: 6) {
+            Text("\(draft.count) מתוך 5")
+                .font(.caption.weight(.semibold).monospacedDigit())
+                .foregroundStyle(atLimit ? .red : .limorIndigo)
+            if atLimit {
+                Text("• הגעת למקסימום")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.red)
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(draft) { topic in
-                        Button {
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            draft.removeAll { $0.id == topic.id }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text(topic.label).font(.caption.weight(.semibold)).lineLimit(1)
-                                Image(systemName: "xmark.circle.fill").font(.caption2.weight(.bold))
-                            }
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 12).padding(.vertical, 7)
-                            .background(Capsule().fill(LinearGradient(
-                                colors: [Color.limorIndigo, Color.limorViolet],
-                                startPoint: .leading, endPoint: .trailing
-                            )))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
+            Spacer()
+            Button("נקה הכל") { draft.removeAll() }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.limorMuted)
         }
+        .padding(.horizontal, 16)
         .padding(.top, 8)
+    }
+
+    private var selectedPills: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(draft) { topic in
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        draft.removeAll { $0.id == topic.id }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(topic.label).font(.caption.weight(.semibold)).lineLimit(1)
+                            Image(systemName: "xmark.circle.fill").font(.caption2.weight(.bold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .background(Capsule().fill(LinearGradient(
+                            colors: [Color.limorIndigo, Color.limorViolet],
+                            startPoint: .leading, endPoint: .trailing
+                        )))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
     }
 
     // MARK: - Search bar (root only)
