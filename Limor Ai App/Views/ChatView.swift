@@ -89,8 +89,12 @@ struct ChatView: View {
                         }
                     }
                 }
-                if let usage {
-                    ToolbarItem(placement: .topBarTrailing) {
+                // ToolbarItemGroup keeps the toolbar shape constant so iOS
+                // doesn't have to reconfigure the trailing slot every time
+                // `usage` flips from nil → some — that reconfiguration is
+                // a known crasher on iOS 18+ when combined with .principal.
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if let usage {
                         UsageBadge(usage: usage)
                     }
                 }
@@ -431,6 +435,7 @@ struct ChatView: View {
         await send()
     }
 
+    @MainActor
     private func send() async {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || attachmentData != nil else { return }
@@ -458,7 +463,12 @@ struct ChatView: View {
             localAttachmentImageData: optimisticImage,
             localAttachmentFilename: optimisticFilename
         )
-        withAnimation(.spring) { messages.append(optimistic) }
+        // Use the explicit spring form — `.spring` shorthand combined with a
+        // state mutation that triggers .toolbar reconfiguration was crashing
+        // on iOS 18+ in the chat ("every question crashes" report).
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+            messages.append(optimistic)
+        }
 
         isSending = true
         defer { isSending = false }
@@ -472,7 +482,7 @@ struct ChatView: View {
                 attachment: attachmentForServer
             )
             usage = reply.usage
-            withAnimation(.spring) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
                 messages.append(ChatMessage(
                     role: .assistant,
                     content: reply.reply,
