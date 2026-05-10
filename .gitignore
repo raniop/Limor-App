@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Xcode build / user state
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Packages/
+Package.resolved
+
+# Backup directories
+*.template-backup/
+
+# Claude Code local overrides
+.claude/settings.local.json

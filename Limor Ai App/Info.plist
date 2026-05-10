@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Limor</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.1043813835619-j123901uoudhqjqlip0aqm8b3idm6f0s</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LIMOR_API_BASE_URL</key>
+	<string>$(LIMOR_API_BASE_URL)</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>לימור צריכה גישה ליומן כדי לעזור לך לנהל פגישות, להציע תזכורות חכמות, ולענות על "מה ביומן שלי".</string>
+	<key>NSContactsUsageDescription</key>
+	<string>לימור צריכה גישה לאנשי הקשר כדי שתוכל למצוא טלפונים ולהבין על מי אתה מדבר.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>לימור משתמשת בנתוני הבריאות שלך (צעדים, קלוריות, פעילות) כדי להציג סיכום יומי ולענות על שאלות על הכושר שלך.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>לימור לא כותבת נתונים ל-Apple Health. המפתח קיים רק כי מסגרת HealthKit דורשת אותו. גישת קריאה בלבד.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>לימור משתמשת במיקום שלך כדי להציג מזג אוויר רלוונטי.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>כדי שתוכל לדבר עם לימור בקול במקום להקליד.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>כדי לבחור תמונת פרופיל מהאלבום.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>לימור שומרת תזכורות גם באפליקציית Reminders של אפל כדי שתראה אותן בכל מקום.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>כדי להמיר את מה שאתה אומר לטקסט ולשלוח את זה ללימור.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+</dict>
+</plist>

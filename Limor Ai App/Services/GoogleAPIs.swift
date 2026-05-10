@@ -1,0 +1,440 @@
+import FirebaseCore
+import Foundation
+import GoogleSignIn
+import UIKit
+
+/// REST client for Google Calendar + Gmail using the OAuth access token from
+/// `GIDSignIn`. Each call refreshes the token if needed (via the SDK's helper)
+/// before issuing the request.
+@MainActor
+struct GoogleAPIs {
+
+    static let calendarReadOnlyScope = "https://www.googleapis.com/auth/calendar.readonly"
+    static let gmailReadOnlyScope    = "https://www.googleapis.com/auth/gmail.readonly"
+
+    enum APIError: LocalizedError {
+        case notSignedInWithGoogle
+        case googleConfigMissing
+        case missingScope(String)
+        case http(status: Int, body: String)
+        case decodingFailed(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .notSignedInWithGoogle: return "לא הצלחתי לפתוח את חלון ההתחברות של Google."
+            case .googleConfigMissing:   return "הגדרת Google חסרה. ודא שיש GoogleService-Info.plist."
+            case .missingScope(let s):   return "Google לא אישר את ההרשאה הנדרשת (\(s))."
+            case .http(let status, _):   return "Google API החזיר \(status)."
+            case .decodingFailed(let s): return "כשל בפענוח תשובה: \(s)"
+            }
+        }
+    }
+
+    // MARK: - Scope management
+
+    static func grantedScopes() -> Set<String> {
+        Set(GIDSignIn.sharedInstance.currentUser?.grantedScopes ?? [])
+    }
+
+    static func ensureScopes(_ scopes: [String]) async throws {
+        // Case 1: no Google session at all (user signed in with Apple) — kick off
+        // a fresh Google sign-in that already requests the desired scopes.
+        guard let user = GIDSignIn.sharedInstance.currentUser else {
+            try await startGoogleSignIn(scopes: scopes)
+            return
+        }
+
+        // Case 2: Google session exists but missing some scopes — incremental.
+        let granted = grantedScopes()
+        let missing = scopes.filter { !granted.contains($0) }
+        guard !missing.isEmpty else { return }
+
+        guard let presenting = topViewController() else {
+            throw APIError.notSignedInWithGoogle
+        }
+        let result = try await user.addScopes(missing, presenting: presenting)
+        let nowGranted = Set(result.user.grantedScopes ?? [])
+        for s in missing where !nowGranted.contains(s) {
+            throw APIError.missingScope(s)
+        }
+    }
+
+    /// Starts a fresh Google OAuth flow with `additionalScopes` already requested.
+    /// Used when the user is signed into Firebase via Apple but wants to read
+    /// Gmail / Google Calendar — we connect a Google account on the side just
+    /// for API access (no link to Firebase auth).
+    private static func startGoogleSignIn(scopes: [String]) async throws {
+        guard let clientID = FirebaseApp.app()?.options.clientID else {
+            throw APIError.googleConfigMissing
+        }
+        GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+
+        guard let presenting = topViewController() else {
+            throw APIError.notSignedInWithGoogle
+        }
+
+        let result = try await GIDSignIn.sharedInstance.signIn(
+            withPresenting: presenting,
+            hint: nil,
+            additionalScopes: scopes
+        )
+        let granted = Set(result.user.grantedScopes ?? [])
+        for s in scopes where !granted.contains(s) {
+            throw APIError.missingScope(s)
+        }
+    }
+
+    // MARK: - Calendar
+
+    static func fetchCalendarEvents(daysAhead: Int = 60) async throws -> [CalendarEventDTO] {
+        try await ensureScopes([calendarReadOnlyScope])
+
+        let now = Date()
+        let end = Calendar.current.date(byAdding: .day, value: daysAhead, to: now) ?? now
+        let formatter = ISO8601DateFormatter.limor
+
+        var components = URLComponents(string: "https://www.googleapis.com/calendar/v3/calendars/primary/events")!
+        components.queryItems = [
+            .init(name: "timeMin", value: formatter.string(from: now)),
+            .init(name: "timeMax", value: formatter.string(from: end)),
+            .init(name: "singleEvents", value: "true"),
+            .init(name: "orderBy", value: "startTime"),
+            .init(name: "maxResults", value: "200"),
+        ]
+
+        let data = try await get(components.url!)
+        let response = try decode(GoogleCalendarListResponse.self, from: data)
+        return response.items.compactMap { item in
+            guard let start = item.start.normalized, let end = item.end.normalized else { return nil }
+            return CalendarEventDTO(
+                event_id: item.id,
+                title: item.summary ?? "(ללא כותרת)",
+                notes: item.description,
+                location: item.location,
+                start_at: formatter.string(from: start.date),
+                end_at: formatter.string(from: end.date),
+                is_all_day: start.isAllDay,
+                calendar_name: "Google"
+            )
+        }
+    }
+
+    // MARK: - Gmail
+
+    /// Recent messages from the user's mailbox — last `daysBack` days, up to
+    /// `limit`. Excludes promotions/social so we don't drown Claude in noise,
+    /// but keeps archived emails (booking confirmations are often archived).
+    /// For emails matching travel keywords we ALSO fetch the full body so the
+    /// insights extractor has more than a 150-char snippet to work with.
+    static func fetchRecentEmails(daysBack: Int = 60, limit: Int = 60) async throws -> [EmailDTO] {
+        try await ensureScopes([gmailReadOnlyScope])
+
+        // Wide search: include archived emails (no `in:inbox`), exclude obvious noise.
+        let query = "newer_than:\(daysBack)d -category:promotions -category:social"
+        var listComponents = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages")!
+        listComponents.queryItems = [
+            .init(name: "q", value: query),
+            .init(name: "maxResults", value: String(limit)),
+        ]
+        let listData = try await get(listComponents.url!)
+        let listResponse = try decode(GmailListResponse.self, from: listData)
+        guard let messages = listResponse.messages, !messages.isEmpty else { return [] }
+
+        // Step 1: parallel metadata fetch. We use a non-throwing TaskGroup and
+        // swallow per-fetch errors — a single transient network error must not
+        // truncate the whole batch (which would cause the insights snapshot to
+        // get overwritten with stale data).
+        var out: [EmailDTO] = []
+        await withTaskGroup(of: EmailDTO?.self) { group in
+            for ref in messages {
+                group.addTask {
+                    do { return try await fetchEmailMetadata(id: ref.id) }
+                    catch { return nil }
+                }
+            }
+            for await dto in group {
+                if let dto { out.append(dto) }
+            }
+        }
+
+        // Newest first.
+        out.sort { $0.received_at > $1.received_at }
+
+        // Step 2: for the (up to 8) emails that look travel-related, fetch the
+        // full body and replace the DTO with a body_text-augmented version.
+        let travelIndices = out.indices
+            .filter { isTravelLikely(out[$0]) }
+            .prefix(8)
+
+        await withTaskGroup(of: (Int, String?).self) { group in
+            for idx in travelIndices {
+                let id = out[idx].message_id
+                group.addTask {
+                    let body = try? await fetchEmailFullBody(id: id)
+                    return (idx, body)
+                }
+            }
+            for await (idx, body) in group {
+                guard let body else { continue }
+                let trimmed = String(body.prefix(8000))   // keep DB write small
+                out[idx] = out[idx].withBody(trimmed)
+            }
+        }
+
+        return out
+    }
+
+    /// Heuristic — same spirit as the backend keyword check, kept light here.
+    private static func isTravelLikely(_ e: EmailDTO) -> Bool {
+        let h = "\(e.subject) \(e.from_name ?? "") \(e.from) \(e.snippet)".lowercased()
+        let keys = [
+            "flight", "ticket", "boarding", "itinerary", "reservation",
+            "e-ticket", "etix", "pnr", "confirmation",
+            "טיסה", "כרטיס", "אישור הזמנה",
+            "airways", "airlines", "bluebird", "blue bird",
+            "el al", "אל על", "easyjet", "ryanair", "wizz",
+            "booking.com", "trip.com", "kiwi", "issta",
+        ]
+        return keys.contains { h.contains($0) }
+    }
+
+    /// Pull the full message in `format=full` and decode the first text part.
+    private static func fetchEmailFullBody(id: String) async throws -> String? {
+        var components = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages/\(id)")!
+        components.queryItems = [.init(name: "format", value: "full")]
+        let data = try await get(components.url!)
+        let msg = try decode(GmailFullMessage.self, from: data)
+        return extractPlainText(from: msg.payload)
+    }
+
+    private static func extractPlainText(from payload: GmailPayloadFull?) -> String? {
+        guard let payload else { return nil }
+        // Direct text body
+        if payload.mimeType == "text/plain", let raw = payload.body?.data,
+           let decoded = decodeBase64Url(raw) {
+            return decoded
+        }
+        // Multipart — prefer text/plain, fall back to stripped text/html, recurse for nested.
+        if let parts = payload.parts {
+            for p in parts where p.mimeType == "text/plain" {
+                if let raw = p.body?.data, let decoded = decodeBase64Url(raw) {
+                    return decoded
+                }
+            }
+            for p in parts where p.mimeType == "text/html" {
+                if let raw = p.body?.data, let decoded = decodeBase64Url(raw) {
+                    return stripHTML(decoded)
+                }
+            }
+            for p in parts where (p.mimeType ?? "").hasPrefix("multipart/") {
+                if let nested = extractPlainText(from: p) {
+                    return nested
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func decodeBase64Url(_ s: String) -> String? {
+        var base64 = s.replacingOccurrences(of: "-", with: "+")
+                      .replacingOccurrences(of: "_", with: "/")
+        let padding = (4 - base64.count % 4) % 4
+        base64 += String(repeating: "=", count: padding)
+        guard let data = Data(base64Encoded: base64) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func stripHTML(_ html: String) -> String {
+        var s = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+        s = s.replacingOccurrences(of: "&nbsp;", with: " ")
+        s = s.replacingOccurrences(of: "&amp;", with: "&")
+        s = s.replacingOccurrences(of: "&lt;", with: "<")
+        s = s.replacingOccurrences(of: "&gt;", with: ">")
+        s = s.replacingOccurrences(of: "&#39;", with: "'")
+        s = s.replacingOccurrences(of: "&quot;", with: "\"")
+        s = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func fetchEmailMetadata(id: String) async throws -> EmailDTO? {
+        var components = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages/\(id)")!
+        components.queryItems = [
+            .init(name: "format", value: "metadata"),
+            .init(name: "metadataHeaders", value: "From"),
+            .init(name: "metadataHeaders", value: "Subject"),
+            .init(name: "metadataHeaders", value: "Date"),
+        ]
+        let data = try await get(components.url!)
+        let msg = try decode(GmailMessage.self, from: data)
+        let headers = msg.payload?.headers ?? []
+        let from = headers.first { $0.name.lowercased() == "from" }?.value ?? ""
+        let subject = headers.first { $0.name.lowercased() == "subject" }?.value ?? "(ללא נושא)"
+        let dateHeader = headers.first { $0.name.lowercased() == "date" }?.value ?? ""
+
+        let received: Date
+        if let internalDate = Int(msg.internalDate ?? "") {
+            received = Date(timeIntervalSince1970: TimeInterval(internalDate) / 1000)
+        } else if let parsed = parseRFC2822(dateHeader) {
+            received = parsed
+        } else {
+            received = Date()
+        }
+
+        let (fromName, fromEmail) = parseFromHeader(from)
+
+        return EmailDTO(
+            message_id: msg.id,
+            from: fromEmail,
+            from_name: fromName,
+            subject: subject,
+            snippet: msg.snippet ?? "",
+            received_at: ISO8601DateFormatter.limor.string(from: received),
+            is_unread: (msg.labelIds ?? []).contains("UNREAD"),
+            labels: msg.labelIds ?? [],
+            body_text: nil
+        )
+    }
+
+    // MARK: - HTTP
+
+    private static func get(_ url: URL) async throws -> Data {
+        guard let user = GIDSignIn.sharedInstance.currentUser else {
+            throw APIError.notSignedInWithGoogle
+        }
+        // Refresh access token if needed.
+        let _ = try await user.refreshTokensIfNeeded()
+        let token = GIDSignIn.sharedInstance.currentUser?.accessToken.tokenString ?? ""
+
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.http(status: 0, body: "no response")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw APIError.http(status: http.statusCode, body: body)
+        }
+        return data
+    }
+
+    private static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+        do { return try JSONDecoder().decode(T.self, from: data) }
+        catch { throw APIError.decodingFailed(String(describing: error)) }
+    }
+
+    private static func topViewController() -> UIViewController? {
+        let scenes = UIApplication.shared.connectedScenes
+        let windowScene = scenes.first { $0.activationState == .foregroundActive } as? UIWindowScene
+            ?? scenes.first as? UIWindowScene
+        guard let root = windowScene?.windows.first(where: { $0.isKeyWindow })?.rootViewController
+            ?? windowScene?.windows.first?.rootViewController else { return nil }
+        var current = root
+        while let presented = current.presentedViewController { current = presented }
+        return current
+    }
+
+    // MARK: - Helpers
+
+    private static func parseFromHeader(_ raw: String) -> (name: String?, email: String) {
+        // "Display Name <a@b.com>" → ("Display Name", "a@b.com")
+        if let lt = raw.firstIndex(of: "<"), let gt = raw.firstIndex(of: ">"), lt < gt {
+            let name = raw[..<lt].trimmingCharacters(in: .whitespacesAndNewlines.union(.init(charactersIn: "\"")))
+            let email = String(raw[raw.index(after: lt)..<gt])
+            return (name.isEmpty ? nil : name, email)
+        }
+        return (nil, raw.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private static func parseRFC2822(_ s: String) -> Date? {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "EEE, dd MMM yyyy HH:mm:ss Z"
+        return f.date(from: s)
+    }
+}
+
+// MARK: - Google Calendar response shapes
+
+private struct GoogleCalendarListResponse: Decodable { let items: [GoogleCalendarItem] }
+private struct GoogleCalendarItem: Decodable {
+    let id: String
+    let summary: String?
+    let description: String?
+    let location: String?
+    let start: GoogleCalendarTime
+    let end: GoogleCalendarTime
+}
+private struct GoogleCalendarTime: Decodable {
+    let dateTime: String?
+    let date: String?
+
+    var normalized: (date: Date, isAllDay: Bool)? {
+        if let dt = dateTime, let parsed = ISO8601DateFormatter.limor.date(from: dt) ?? ISO8601DateFormatter().date(from: dt) {
+            return (parsed, false)
+        }
+        if let d = date {
+            let f = DateFormatter()
+            f.dateFormat = "yyyy-MM-dd"
+            f.timeZone = TimeZone.current
+            if let parsed = f.date(from: d) { return (parsed, true) }
+        }
+        return nil
+    }
+}
+
+// MARK: - Gmail response shapes
+
+private struct GmailListResponse: Decodable {
+    let messages: [GmailMessageRef]?
+}
+private struct GmailMessageRef: Decodable { let id: String }
+
+private struct GmailMessage: Decodable {
+    let id: String
+    let snippet: String?
+    let internalDate: String?
+    let labelIds: [String]?
+    let payload: GmailPayload?
+}
+private struct GmailPayload: Decodable {
+    let headers: [GmailHeader]?
+}
+private struct GmailHeader: Decodable {
+    let name: String
+    let value: String
+}
+
+// Full-format response (`format=full`) — has body data + nested parts.
+private struct GmailFullMessage: Decodable {
+    let payload: GmailPayloadFull?
+}
+struct GmailPayloadFull: Decodable {
+    let mimeType: String?
+    let body: GmailBody?
+    let parts: [GmailPayloadFull]?
+}
+struct GmailBody: Decodable {
+    let data: String?
+    let size: Int?
+}
+
+// MARK: - EmailDTO body builder
+
+private extension EmailDTO {
+    func withBody(_ body: String) -> EmailDTO {
+        EmailDTO(
+            message_id: message_id,
+            from: from,
+            from_name: from_name,
+            subject: subject,
+            snippet: snippet,
+            received_at: received_at,
+            is_unread: is_unread,
+            labels: labels,
+            body_text: body
+        )
+    }
+}
