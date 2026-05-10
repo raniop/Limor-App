@@ -13,11 +13,6 @@ struct FeedCard: View {
     @State private var refreshing = false
     @State private var detailItem: FeedItem?
 
-    /// Seconds between auto-advances. Long enough to read a 2-line preview,
-    /// short enough that the second-best topic surfaces before the user
-    /// scrolls away.
-    private static let rotationInterval: TimeInterval = 7
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
@@ -75,24 +70,27 @@ struct FeedCard: View {
                     .padding(.horizontal, 2)
                 }
             }
-            // Use our own dots (LimorPageDots) below — UIKit's page indicators
-            // don't match the rest of the brand and were the visual odd-one-
-            // out among carousels.
+            // Page-indicator + side chevrons sit below — UIKit's default
+            // page-style dots don't match the brand. Auto-rotation removed
+            // so the user is always in control; swipe still works natively.
             .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(height: 190)
-            .onReceive(Timer.publish(every: Self.rotationInterval, on: .main, in: .common).autoconnect()) { _ in
-                // Don't auto-advance while the detail sheet is open — coming
-                // back and seeing a different headline than the one they
-                // tapped is disorienting.
-                guard detailItem == nil, pairs.count > 1 else { return }
-                withAnimation(.easeInOut(duration: 0.45)) {
-                    currentIndex = (currentIndex + 1) % pairs.count
-                }
-            }
 
             if pairs.count > 1 {
-                LimorPageDots(count: pairs.count, index: currentIndex)
+                LimorPageControls(
+                    count: pairs.count,
+                    index: currentIndex,
+                    onBack: { advance(by: -1, count: pairs.count) },
+                    onForward: { advance(by: 1, count: pairs.count) }
+                )
             }
+        }
+    }
+
+    private func advance(by step: Int, count: Int) {
+        guard count > 0 else { return }
+        withAnimation(.easeInOut(duration: 0.35)) {
+            currentIndex = (currentIndex + step + count) % count
         }
     }
 

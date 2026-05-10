@@ -229,6 +229,37 @@ struct LimorPageDots: View {
     }
 }
 
+/// Page-indicator + tap-to-navigate chevrons. Used on carousels that no
+/// longer auto-advance — the chevrons flag manual navigation as a thing
+/// the user can do, in addition to swiping. Wraps around at both ends so
+/// the user never hits a "dead" arrow.
+struct LimorPageControls: View {
+    let count: Int
+    let index: Int
+    let onBack: () -> Void
+    let onForward: () -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            chevronButton(symbol: "chevron.backward", action: onBack)
+            LimorPageDots(count: count, index: index)
+            chevronButton(symbol: "chevron.forward", action: onForward)
+        }
+    }
+
+    private func chevronButton(symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.limorIndigo)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(Color.limorIndigo.opacity(0.10)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - Empty state
 
 struct LimorEmptyState: View {

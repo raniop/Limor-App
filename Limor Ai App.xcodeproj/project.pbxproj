@@ -513,6 +513,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 3;
 				INFOPLIST_FILE = "Limor Ai App/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Limor AI";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -555,6 +556,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 3;
 				INFOPLIST_FILE = "Limor Ai App/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Limor AI";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

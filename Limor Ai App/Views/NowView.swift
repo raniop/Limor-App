@@ -934,10 +934,6 @@ private struct RecommendationsCard: View {
     let recommendations: [Recommendation]
     @State private var index: Int = 0
 
-    /// Auto-rotate every 6s so the user sees all the recs without swiping.
-    /// Long enough to actually read 1-2 lines of Hebrew, short enough to feel alive.
-    private let autoAdvance = Timer.publish(every: 6, on: .main, in: .common).autoconnect()
-
     var body: some View {
         let count = recommendations.count
         VStack(alignment: .trailing, spacing: 12) {
@@ -968,8 +964,13 @@ private struct RecommendationsCard: View {
             .animation(.easeInOut(duration: 0.35), value: index)
 
             if count > 1 {
-                LimorPageDots(count: count, index: index)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                LimorPageControls(
+                    count: count,
+                    index: index,
+                    onBack: { advance(by: -1, count: count) },
+                    onForward: { advance(by: 1, count: count) }
+                )
+                .frame(maxWidth: .infinity, alignment: .center)
             }
         }
         .padding(18)
@@ -982,11 +983,12 @@ private struct RecommendationsCard: View {
                 .foregroundStyle(Color.limorViolet.opacity(0.35))
                 .padding(.top, 12).padding(.trailing, 12)
         }
-        .onReceive(autoAdvance) { _ in
-            guard count > 1 else { return }
-            withAnimation(.easeInOut(duration: 0.35)) {
-                index = (index + 1) % count
-            }
+    }
+
+    private func advance(by step: Int, count: Int) {
+        guard count > 0 else { return }
+        withAnimation(.easeInOut(duration: 0.35)) {
+            index = (index + step + count) % count
         }
     }
 
