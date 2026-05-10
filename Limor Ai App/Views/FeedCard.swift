@@ -255,8 +255,12 @@ private struct FeedSlide: View {
     }
 }
 
-// MARK: - Detail sheet (full body + sources)
+// MARK: - Topic hub (Limor's synthesis + the underlying articles)
 
+/// Acts as a "topic page": Limor's synthesised lead at the top, then the
+/// individual source articles as cards underneath. Tapping an article card
+/// opens that publisher's URL — matches the user's mental model of "I
+/// landed on a topic page, now I'll pick which article to read."
 struct FeedDetailView: View {
     let item: FeedItem
     @Environment(\.dismiss) private var dismiss
@@ -267,67 +271,17 @@ struct FeedDetailView: View {
                 LiquidBackdrop()
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text(item.topic_label)
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.limorIndigo)
-                            .padding(.horizontal, 10).padding(.vertical, 4)
-                            .background(Capsule().fill(Color.limorIndigo.opacity(0.12)))
-
-                        Text(item.headline)
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(.limorInk)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        if !item.body.isEmpty {
-                            Text(item.body)
-                                .font(.body)
-                                .foregroundStyle(.limorInk.opacity(0.85))
-                                .multilineTextAlignment(.leading)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                    VStack(alignment: .leading, spacing: 22) {
+                        leadSummaryCard
 
                         if !item.sources.isEmpty {
-                            Divider().opacity(0.4).padding(.vertical, 4)
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("מקורות")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.limorMuted)
-                                ForEach(item.sources, id: \.url) { src in
-                                    if let url = URL(string: src.url) {
-                                        Link(destination: url) {
-                                            HStack(spacing: 8) {
-                                                Image(systemName: "link.circle.fill")
-                                                    .font(.body.weight(.semibold))
-                                                Text(src.title)
-                                                    .font(.subheadline.weight(.medium))
-                                                    .lineLimit(2)
-                                                    .multilineTextAlignment(.leading)
-                                                Spacer(minLength: 8)
-                                                Image(systemName: "arrow.up.forward")
-                                                    .font(.caption.weight(.bold))
-                                            }
-                                            .foregroundStyle(.limorIndigo)
-                                            .padding(12)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .fill(Color.limorIndigo.opacity(0.08))
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                            articlesSection
                         }
 
                         if let when = parseIso(item.generated_at) {
                             Text("עודכן \(relative(when))")
                                 .font(.caption2)
                                 .foregroundStyle(.limorMuted)
-                                .padding(.top, 4)
                         }
                     }
                     .padding(20)
@@ -344,6 +298,113 @@ struct FeedDetailView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Lead synthesis card
+
+    private var leadSummaryCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.caption.weight(.bold))
+                Text("סיכום של לימור")
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(.limorIndigo)
+
+            Text(item.headline)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.limorInk)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !item.body.isEmpty {
+                Text(item.body)
+                    .font(.subheadline)
+                    .foregroundStyle(.limorInk.opacity(0.85))
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(LinearGradient(
+                    colors: [
+                        Color.limorIndigo.opacity(0.10),
+                        Color.limorViolet.opacity(0.05)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+        )
+    }
+
+    // MARK: - Articles list
+
+    private var articlesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Text("כתבות בנושא")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.limorInk)
+                Text("\(item.sources.count)")
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(.limorMuted)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(Capsule().fill(Color.limorMuted.opacity(0.15)))
+                Spacer()
+            }
+
+            ForEach(item.sources, id: \.url) { src in
+                if let url = URL(string: src.url) {
+                    Link(destination: url) {
+                        articleCard(source: src, url: url)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func articleCard(source: FeedSource, url: URL) -> some View {
+        let host = (url.host ?? "")
+            .replacingOccurrences(of: "www.", with: "")
+        return VStack(alignment: .leading, spacing: 8) {
+            if !host.isEmpty {
+                Text(host)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.limorMuted)
+                    .textCase(.lowercase)
+            }
+            Text(source.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.limorInk)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 4) {
+                Spacer()
+                Text("פתח את הכתבה")
+                    .font(.caption.weight(.semibold))
+                Image(systemName: "arrow.up.forward")
+                    .font(.caption.weight(.bold))
+            }
+            .foregroundStyle(.limorIndigo)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.limorMuted.opacity(0.15), lineWidth: 0.5)
+        )
     }
 
     private func parseIso(_ s: String?) -> Date? {
