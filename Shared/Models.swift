@@ -308,6 +308,23 @@ struct FeedBundle: Codable {
     let generated_at: String?
 }
 
+/// One real article on the topic-detail page. Distinct from `FeedItem`
+/// (which is a synthesised summary across multiple sources) — each
+/// `TopicArticle` is a single publisher's piece, with one source URL.
+struct TopicArticle: Codable, Identifiable, Hashable {
+    var id: String { source.url }
+    let headline: String
+    let summary: String
+    let source: FeedSource
+    let generated_at: String
+}
+
+struct TopicArticlesResponse: Decodable {
+    let topic: FeedTopic
+    let articles: [TopicArticle]
+    let generated_at: String?
+}
+
 // MARK: - Calendar / Contacts (synced to backend)
 
 struct CalendarEventDTO: Codable, Identifiable, Hashable {

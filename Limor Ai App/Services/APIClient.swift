@@ -172,6 +172,12 @@ struct APIClient {
         return try await post(path, body: Empty())
     }
 
+    func topicArticles(topicId: String, force: Bool = false) async throws -> TopicArticlesResponse {
+        let escaped = topicId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? topicId
+        let path = "/api/feed/topic/\(escaped)/articles" + (force ? "?force=1" : "")
+        return try await get(path)
+    }
+
     func suggestFeedTopics(query: String) async throws -> [FeedTopic] {
         struct Suggestion: Decodable { let label: String; let query: String }
         struct Resp: Decodable { let suggestions: [Suggestion] }
