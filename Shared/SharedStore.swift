@@ -22,6 +22,7 @@ enum SharedStore {
         static let onboardingCompleted = "limor.onboardingCompleted"
         static let remindersListId = "limor.remindersListId"
         static let homeCardOrder = "limor.homeCardOrder"
+        static let homeCardHidden = "limor.homeCardHidden"
     }
 
     static var bearer: String? {
@@ -113,6 +114,14 @@ enum SharedStore {
     static var homeCardOrder: [String] {
         get { defaults.stringArray(forKey: Keys.homeCardOrder) ?? [] }
         set { defaults.set(newValue, forKey: Keys.homeCardOrder) }
+    }
+
+    /// Cards the user explicitly hid from the home screen. Stored separately
+    /// from `homeCardOrder` so the original positions stick around — un-hiding
+    /// a card later puts it right back where it was.
+    static var homeCardHidden: [String] {
+        get { defaults.stringArray(forKey: Keys.homeCardHidden) ?? [] }
+        set { defaults.set(newValue, forKey: Keys.homeCardHidden) }
     }
 
     static func clear() {

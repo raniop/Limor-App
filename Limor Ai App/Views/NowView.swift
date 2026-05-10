@@ -12,6 +12,7 @@ struct NowView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var cardOrder: [HomeCardKind] = HomeCardOrder.load()
+    @State private var hiddenCards: Set<HomeCardKind> = HomeCardOrder.loadHidden()
     @State private var showingCustomize = false
 
     private var tod: LimorTimeOfDay { .current }
@@ -24,7 +25,7 @@ struct NowView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 18) {
                         greetingHeader
-                        ForEach(cardOrder) { card in
+                        ForEach(cardOrder.filter { !hiddenCards.contains($0) }) { card in
                             cardView(for: card)
                         }
 
@@ -67,9 +68,14 @@ struct NowView: View {
                 }
             }
             .sheet(isPresented: $showingCustomize) {
-                CustomizeHomeSheet(currentOrder: cardOrder) { newOrder in
+                CustomizeHomeSheet(
+                    currentOrder: cardOrder,
+                    currentHidden: hiddenCards
+                ) { newOrder, newHidden in
                     cardOrder = newOrder
+                    hiddenCards = newHidden
                     HomeCardOrder.save(newOrder)
+                    HomeCardOrder.saveHidden(newHidden)
                 }
                 .presentationDetents([.medium, .large])
             }

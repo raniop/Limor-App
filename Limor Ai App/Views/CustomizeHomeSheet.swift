@@ -1,16 +1,22 @@
 import SwiftUI
 
-/// Sheet that lets the user reorder the home-screen cards. Standard
-/// `.editMode = .active` List with drag handles, plus icon + title per row.
-/// Saves to SharedStore on dismiss.
+/// Sheet that lets the user reorder AND hide home-screen cards. Standard
+/// `.editMode = .active` List with drag handles for reorder, plus an eye
+/// toggle per row to hide/show. Saves both order and hidden set on dismiss.
 struct CustomizeHomeSheet: View {
     @Environment(\.dismiss) private var dismiss
-    var onSave: ([HomeCardKind]) -> Void
+    var onSave: ([HomeCardKind], Set<HomeCardKind>) -> Void
 
     @State private var order: [HomeCardKind]
+    @State private var hidden: Set<HomeCardKind>
 
-    init(currentOrder: [HomeCardKind], onSave: @escaping ([HomeCardKind]) -> Void) {
+    init(
+        currentOrder: [HomeCardKind],
+        currentHidden: Set<HomeCardKind>,
+        onSave: @escaping ([HomeCardKind], Set<HomeCardKind>) -> Void
+    ) {
         _order = State(initialValue: currentOrder)
+        _hidden = State(initialValue: currentHidden)
         self.onSave = onSave
     }
 
@@ -25,7 +31,7 @@ struct CustomizeHomeSheet: View {
                         order.move(fromOffsets: indices, toOffset: newOffset)
                     }
                 } header: {
-                    Text("גרור לסידור מחדש")
+                    Text("גרור לסידור מחדש, ולחץ על העין כדי להסתיר או להציג")
                         .font(.caption)
                         .foregroundStyle(.limorMuted)
                 } footer: {
@@ -46,7 +52,7 @@ struct CustomizeHomeSheet: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        onSave(order)
+                        onSave(order, hidden)
                         dismiss()
                     } label: {
                         Text("שמור").font(.body.weight(.semibold))
@@ -58,7 +64,8 @@ struct CustomizeHomeSheet: View {
     }
 
     private func row(for card: HomeCardKind) -> some View {
-        HStack(spacing: 14) {
+        let isHidden = hidden.contains(card)
+        return HStack(spacing: 14) {
             ZStack {
                 Circle()
                     .fill(card.tint.opacity(0.18))
@@ -71,7 +78,24 @@ struct CustomizeHomeSheet: View {
                 .font(.body.weight(.medium))
                 .foregroundStyle(.limorInk)
             Spacer()
+            Button {
+                if isHidden {
+                    hidden.remove(card)
+                } else {
+                    hidden.insert(card)
+                }
+            } label: {
+                Image(systemName: isHidden ? "eye.slash.fill" : "eye.fill")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(isHidden ? .limorMuted : .limorIndigo)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            // Borderless so the row's drag handle (added by editMode) doesn't
+            // swallow the tap as part of List selection behaviour.
+            .buttonStyle(.borderless)
         }
         .padding(.vertical, 4)
+        .opacity(isHidden ? 0.55 : 1)
     }
 }

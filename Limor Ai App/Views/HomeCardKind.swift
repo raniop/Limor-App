@@ -78,4 +78,12 @@ enum HomeCardOrder {
     static func save(_ order: [HomeCardKind]) {
         SharedStore.homeCardOrder = order.map(\.rawValue)
     }
+
+    static func loadHidden() -> Set<HomeCardKind> {
+        Set(SharedStore.homeCardHidden.compactMap { HomeCardKind(rawValue: $0) })
+    }
+
+    static func saveHidden(_ hidden: Set<HomeCardKind>) {
+        SharedStore.homeCardHidden = hidden.map(\.rawValue)
+    }
 }
