@@ -65,25 +65,33 @@ struct FeedCard: View {
 
     private var pagedFeed: some View {
         let pairs = slides
-        return TabView(selection: $currentIndex) {
-            ForEach(Array(pairs.enumerated()), id: \.offset) { index, pair in
-                FeedSlide(topic: pair.topic, item: pair.item) {
-                    if let item = pair.item { detailItem = item }
+        return VStack(spacing: 8) {
+            TabView(selection: $currentIndex) {
+                ForEach(Array(pairs.enumerated()), id: \.offset) { index, pair in
+                    FeedSlide(topic: pair.topic, item: pair.item) {
+                        if let item = pair.item { detailItem = item }
+                    }
+                    .tag(index)
+                    .padding(.horizontal, 2)
                 }
-                .tag(index)
-                .padding(.horizontal, 2)
             }
-        }
-        .tabViewStyle(.page(indexDisplayMode: pairs.count > 1 ? .always : .never))
-        .indexViewStyle(.page(backgroundDisplayMode: .always))
-        .frame(height: 210)
-        .onReceive(Timer.publish(every: Self.rotationInterval, on: .main, in: .common).autoconnect()) { _ in
-            // Don't auto-advance while the detail sheet is open — coming back
-            // and seeing a different headline than the one they tapped is
-            // disorienting.
-            guard detailItem == nil, pairs.count > 1 else { return }
-            withAnimation(.easeInOut(duration: 0.45)) {
-                currentIndex = (currentIndex + 1) % pairs.count
+            // Use our own dots (LimorPageDots) below — UIKit's page indicators
+            // don't match the rest of the brand and were the visual odd-one-
+            // out among carousels.
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(height: 190)
+            .onReceive(Timer.publish(every: Self.rotationInterval, on: .main, in: .common).autoconnect()) { _ in
+                // Don't auto-advance while the detail sheet is open — coming
+                // back and seeing a different headline than the one they
+                // tapped is disorienting.
+                guard detailItem == nil, pairs.count > 1 else { return }
+                withAnimation(.easeInOut(duration: 0.45)) {
+                    currentIndex = (currentIndex + 1) % pairs.count
+                }
+            }
+
+            if pairs.count > 1 {
+                LimorPageDots(count: pairs.count, index: currentIndex)
             }
         }
     }
@@ -246,9 +254,6 @@ private struct FeedSlide: View {
                 .foregroundStyle(item == nil ? .limorMuted : .limorIndigo)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            // Bottom inset clears the page-indicator dots that TabView's page
-            // style draws inside the same frame.
-            .padding(.bottom, 28)
         }
         .buttonStyle(.plain)
         .disabled(item == nil)

@@ -206,6 +206,29 @@ struct LimorAvatar: View {
     }
 }
 
+// MARK: - Page indicator dots
+
+/// Small page-indicator used by carousels (RecommendationsCard, FeedCard,
+/// etc.). Matches the visual the rest of the app uses instead of UIKit's
+/// default page-style dots.
+struct LimorPageDots: View {
+    let count: Int
+    let index: Int
+    var activeColor: Color = .limorIndigo
+    var inactiveColor: Color = .limorMuted
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<count, id: \.self) { i in
+                Circle()
+                    .fill(i == index ? activeColor : inactiveColor.opacity(0.35))
+                    .frame(width: 6, height: 6)
+                    .animation(.easeInOut(duration: 0.25), value: index)
+            }
+        }
+    }
+}
+
 // MARK: - Empty state
 
 struct LimorEmptyState: View {

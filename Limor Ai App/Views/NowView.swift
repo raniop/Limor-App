@@ -952,16 +952,6 @@ private struct RecommendationsCard: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.limorInk)
                 Spacer()
-                if count > 1 {
-                    HStack(spacing: 4) {
-                        ForEach(0..<count, id: \.self) { i in
-                            Circle()
-                                .fill(i == index ? Color.limorIndigo : Color.limorMuted.opacity(0.35))
-                                .frame(width: 6, height: 6)
-                                .animation(.easeInOut(duration: 0.25), value: index)
-                        }
-                    }
-                }
             }
 
             // Swipeable carousel when there are multiple recs.
@@ -971,12 +961,16 @@ private struct RecommendationsCard: View {
                 ForEach(Array(recommendations.enumerated()), id: \.element.id) { i, rec in
                     RecommendationContent(rec: rec)
                         .tag(i)
-                        .padding(.bottom, count > 1 ? 8 : 0)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(height: cardHeight)
             .animation(.easeInOut(duration: 0.35), value: index)
+
+            if count > 1 {
+                LimorPageDots(count: count, index: index)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
