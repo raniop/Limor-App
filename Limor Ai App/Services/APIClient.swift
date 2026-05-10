@@ -17,7 +17,11 @@ struct APIClient {
 
     private let session: URLSession = {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 20
+        // Most endpoints come back in under a second, but a few hit Anthropic
+        // with web_search and can take 30-60s (e.g. /api/feed/topic/:id/articles
+        // runs Sonnet + up to 4 web searches). 90s leaves margin without
+        // making genuine network failures feel hung forever.
+        config.timeoutIntervalForRequest = 90
         return URLSession(configuration: config)
     }()
 
