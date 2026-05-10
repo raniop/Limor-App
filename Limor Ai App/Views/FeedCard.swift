@@ -48,6 +48,11 @@ struct FeedCard: View {
                 }
             )
             .presentationDetents([.large])
+            // Sheets present in a fresh UIHostingController and don't always
+            // inherit layoutDirection from the presenter — re-apply here so
+            // the navbar back button + toolbar buttons flip correctly.
+            .environment(\.layoutDirection, .rightToLeft)
+            .environment(\.locale, Locale(identifier: "he_IL"))
         }
     }
 
@@ -292,22 +297,25 @@ private struct FeedBrowseList: View {
     @State private var searchTask: Task<Void, Never>?
     @FocusState private var searchFocused: Bool
 
+    private var trimmedSearch: String {
+        search.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     var body: some View {
         ZStack {
             LiquidBackdrop()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    if isRoot {
-                        if !draft.isEmpty {
-                            selectedSection
-                        }
-                        searchBar
-                            .padding(.horizontal, 16)
-                            .padding(.top, 4)
+                    if isRoot, !draft.isEmpty {
+                        selectedSection
                     }
 
-                    if isRoot && !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    searchBar
+                        .padding(.horizontal, 16)
+                        .padding(.top, 4)
+
+                    if !trimmedSearch.isEmpty {
                         searchResultsSection
                     } else {
                         nodesSection
@@ -362,12 +370,16 @@ private struct FeedBrowseList: View {
 
     // MARK: - Search bar (root only)
 
+    private var searchPlaceholder: String {
+        isRoot ? "חפש כל נושא — הפועל, אפל, מלחמה…" : "חפש ב\(title)"
+    }
+
     private var searchBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .font(.body.weight(.semibold))
                 .foregroundStyle(searchFocused ? .limorIndigo : .limorMuted)
-            TextField("חפש כל נושא — הפועל, אפל, מלחמה…", text: $search)
+            TextField(searchPlaceholder, text: $search)
                 .focused($searchFocused)
                 .submitLabel(.search)
                 .onChange(of: search) { _, newValue in scheduleSearch(newValue) }
@@ -396,6 +408,17 @@ private struct FeedBrowseList: View {
 
     @ViewBuilder
     private var searchResultsSection: some View {
+        if isRoot {
+            rootSearchResults
+        } else {
+            localSearchResults
+        }
+    }
+
+    /// Root-level search uses the LLM `/api/feed/suggest` endpoint so the user
+    /// can ask for any topic, even one not in the static catalog.
+    @ViewBuilder
+    private var rootSearchResults: some View {
         VStack(alignment: .leading, spacing: 10) {
             if searching {
                 ForEach(0..<3, id: \.self) { _ in skeletonRow }
@@ -417,6 +440,50 @@ private struct FeedBrowseList: View {
         }
     }
 
+    /// Sub-level search filters the current subtree's leaves locally — keeps
+    /// drilling-in focused on the category the user is browsing.
+    @ViewBuilder
+    private var localSearchResults: some View {
+        let matches = filteredLocalLeaves(trimmedSearch)
+        VStack(alignment: .leading, spacing: 10) {
+            if matches.isEmpty {
+                Text("לא נמצא ב\(title). נסה ניסוח אחר או חזור וחפש מהראשי.")
+                    .font(.subheadline)
+                    .foregroundStyle(.limorMuted)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+            } else {
+                Text("\(matches.count) תוצאות ב\(title)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.limorMuted)
+                    .padding(.horizontal, 20)
+                ForEach(matches) { node in
+                    if let topic = node.topic {
+                        leafRow(label: node.label, icon: node.icon, tint: node.tint, topic: topic)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Walks the current `nodes` tree and returns leaves whose label or
+    /// underlying query contains `query` (case-insensitive substring).
+    private func filteredLocalLeaves(_ query: String) -> [FeedNode] {
+        let q = query.lowercased()
+        guard !q.isEmpty else { return [] }
+        func walk(_ list: [FeedNode]) -> [FeedNode] {
+            list.flatMap { n -> [FeedNode] in
+                if n.isLeaf {
+                    let labelMatch = n.label.lowercased().contains(q)
+                    let queryMatch = n.topic?.query.lowercased().contains(q) ?? false
+                    return (labelMatch || queryMatch) ? [n] : []
+                }
+                return walk(n.children)
+            }
+        }
+        return walk(nodes)
+    }
+
     private var skeletonRow: some View {
         HStack(spacing: 14) {
             Circle().fill(Color.limorMuted.opacity(0.18)).frame(width: 44, height: 44)
@@ -433,6 +500,12 @@ private struct FeedBrowseList: View {
     private func scheduleSearch(_ value: String) {
         searchTask?.cancel()
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Sub-level search is local-only — no network call needed.
+        guard isRoot else {
+            liveResults = []
+            searching = false
+            return
+        }
         if trimmed.count < 2 {
             liveResults = []
             searching = false

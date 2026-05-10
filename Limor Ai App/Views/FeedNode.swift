@@ -54,10 +54,12 @@ extension FeedNode {
         tint: .green,
         subtitle: "כדורגל, כדורסל, F1 ועוד",
         children: [
+            .leaf(id: "sports.general", label: "ספורט (כללי)", query: "general sports news today highlights", icon: "list.bullet", tint: .green),
             footballRoot,
             basketballRoot,
             FeedNode(id: "sports.tennis", label: "טניס", icon: "tennis.racket", tint: .yellow,
                      children: [
+                        .leaf(id: "sports.tennis.general", label: "טניס (כללי)", query: "tennis news latest results", icon: "list.bullet", tint: .yellow),
                         .leaf(id: "sports.tennis.atp", label: "טור ATP", query: "ATP tennis tour latest news", icon: "tennis.racket", tint: .yellow),
                         .leaf(id: "sports.tennis.grand_slams", label: "גרנד סלאם", query: "tennis grand slam latest news", icon: "trophy.fill", tint: .yellow),
                      ]),
@@ -73,6 +75,7 @@ extension FeedNode {
         icon: "soccerball",
         tint: .green,
         children: [
+            .leaf(id: "sports.football.general", label: "כדורגל (כללי)", query: "world football soccer news today", icon: "list.bullet", tint: .green),
             FeedNode(id: "sports.football.il", label: "ישראל", icon: "star.fill", tint: .blue,
                 children: [
                     .leaf(id: "sports.football.il.hapoel_ta", label: "הפועל תל אביב", query: "Hapoel Tel Aviv FC football latest news", icon: "tshirt.fill", tint: .red),
@@ -110,6 +113,7 @@ extension FeedNode {
         icon: "basketball.fill",
         tint: .orange,
         children: [
+            .leaf(id: "sports.basketball.general", label: "כדורסל (כללי)", query: "basketball news today scores", icon: "list.bullet", tint: .orange),
             FeedNode(id: "sports.bball.il", label: "ישראל", icon: "star.fill", tint: .blue,
                 children: [
                     .leaf(id: "sports.bball.il.maccabi_ta", label: "מכבי תל אביב", query: "Maccabi Tel Aviv basketball latest news", icon: "tshirt.fill", tint: .yellow),
@@ -139,9 +143,11 @@ extension FeedNode {
         tint: .indigo,
         subtitle: "ישראל, מזרח תיכון, עולם",
         children: [
+            .leaf(id: "news.general", label: "חדשות (כללי)", query: "top news stories today", icon: "list.bullet", tint: .indigo),
             .leaf(id: "news.il", label: "ישראל", query: "Israel news today", icon: "star.fill", tint: .blue),
             FeedNode(id: "news.wars", label: "מלחמות וסכסוכים", icon: "shield.fill", tint: .red,
                 children: [
+                    .leaf(id: "news.wars.general", label: "מלחמות (כללי)", query: "wars and conflicts latest news today", icon: "list.bullet", tint: .red),
                     .leaf(id: "news.wars.gaza", label: "המלחמה בעזה", query: "Gaza war latest news", icon: "exclamationmark.triangle.fill", tint: .red),
                     .leaf(id: "news.wars.lebanon", label: "צפון / לבנון", query: "Lebanon Israel border conflict latest news", icon: "exclamationmark.triangle.fill", tint: .orange),
                     .leaf(id: "news.wars.iran", label: "איראן", query: "Iran Israel conflict latest news", icon: "exclamationmark.triangle.fill", tint: .red),
@@ -163,6 +169,7 @@ extension FeedNode {
         tint: .purple,
         subtitle: "AI, אפל, סטארטאפים",
         children: [
+            .leaf(id: "tech.general", label: "טק (כללי)", query: "tech industry news today", icon: "list.bullet", tint: .purple),
             .leaf(id: "tech.ai", label: "AI ו-LLM", query: "AI and LLM news this week", icon: "brain.head.profile", tint: .purple),
             .leaf(id: "tech.apple", label: "אפל", query: "Apple latest news products", icon: "apple.logo", tint: .gray),
             .leaf(id: "tech.tesla", label: "טסלה / מאסק", query: "Tesla and Elon Musk news", icon: "car.fill", tint: .red),
@@ -181,6 +188,7 @@ extension FeedNode {
         tint: .mint,
         subtitle: "שווקים, קריפטו, מניות",
         children: [
+            .leaf(id: "finance.general", label: "פיננסי (כללי)", query: "financial markets economy news today", icon: "list.bullet", tint: .mint),
             .leaf(id: "finance.us_markets", label: "שווקים אמריקאים", query: "US stock market today nasdaq sp500", icon: "chart.line.uptrend.xyaxis", tint: .green),
             .leaf(id: "finance.il_markets", label: "שווקים ישראליים", query: "Tel Aviv stock exchange TA125 latest", icon: "chart.line.uptrend.xyaxis", tint: .blue),
             FeedNode(id: "finance.crypto", label: "קריפטו", icon: "bitcoinsign.circle.fill", tint: .orange,
@@ -201,6 +209,7 @@ extension FeedNode {
         tint: .pink,
         subtitle: "סדרות, סרטים, מוזיקה",
         children: [
+            .leaf(id: "culture.general", label: "תרבות (כללי)", query: "culture entertainment news this week", icon: "list.bullet", tint: .pink),
             .leaf(id: "culture.tv", label: "סדרות וסרטים", query: "new TV shows movies releases this week", icon: "tv.fill", tint: .pink),
             .leaf(id: "culture.music", label: "מוזיקה", query: "music news new releases this week", icon: "music.note", tint: .purple),
             .leaf(id: "culture.books", label: "ספרים", query: "new book releases reviews", icon: "book.fill", tint: .brown),
