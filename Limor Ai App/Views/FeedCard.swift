@@ -1,15 +1,22 @@
 import SwiftUI
 
-/// User-curated news feed card on NowView. Shows up to 5 topics; tap a row
-/// to expand the body + sources, tap the "•••" menu to manage topics.
+/// User-curated news feed card on NowView. Shows ONE topic at a time on a
+/// page view that auto-advances every few seconds; tapping a slide opens a
+/// dedicated detail sheet with the full body + sources.
 struct FeedCard: View {
     @Binding var bundle: FeedBundle
     var onRefresh: () async -> Void
     var onSaveTopics: ([FeedTopic]) async -> Void
 
-    @State private var expandedItemId: String?
+    @State private var currentIndex: Int = 0
     @State private var showingTopicEditor = false
     @State private var refreshing = false
+    @State private var detailItem: FeedItem?
+
+    /// Seconds between auto-advances. Long enough to read a 2-line preview,
+    /// short enough that the second-best topic surfaces before the user
+    /// scrolls away.
+    private static let rotationInterval: TimeInterval = 7
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -18,23 +25,7 @@ struct FeedCard: View {
             if bundle.topics.isEmpty {
                 emptyState
             } else {
-                ForEach(itemsInTopicOrder, id: \.0) { pair in
-                    let topic = pair.1
-                    let item = bundle.items.first { $0.topic_id == topic.id }
-                    FeedRow(
-                        topic: topic,
-                        item: item,
-                        expanded: expandedItemId == topic.id,
-                        onTap: {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                expandedItemId = expandedItemId == topic.id ? nil : topic.id
-                            }
-                        }
-                    )
-                    if topic.id != bundle.topics.last?.id {
-                        Divider().opacity(0.5)
-                    }
-                }
+                pagedFeed
             }
         }
         .padding(18)
@@ -54,10 +45,47 @@ struct FeedCard: View {
             .environment(\.layoutDirection, .rightToLeft)
             .environment(\.locale, Locale(identifier: "he_IL"))
         }
+        .sheet(item: $detailItem) { item in
+            FeedDetailView(item: item)
+                .environment(\.layoutDirection, .rightToLeft)
+                .environment(\.locale, Locale(identifier: "he_IL"))
+        }
+        .onChange(of: bundle.topics.map(\.id)) { _, _ in
+            if currentIndex >= bundle.topics.count { currentIndex = 0 }
+        }
     }
 
-    private var itemsInTopicOrder: [(String, FeedTopic)] {
-        bundle.topics.map { ($0.id, $0) }
+    // MARK: - Paged feed
+
+    private var slides: [(topic: FeedTopic, item: FeedItem?)] {
+        bundle.topics.map { topic in
+            (topic, bundle.items.first { $0.topic_id == topic.id })
+        }
+    }
+
+    private var pagedFeed: some View {
+        let pairs = slides
+        return TabView(selection: $currentIndex) {
+            ForEach(Array(pairs.enumerated()), id: \.offset) { index, pair in
+                FeedSlide(topic: pair.topic, item: pair.item) {
+                    if let item = pair.item { detailItem = item }
+                }
+                .tag(index)
+                .padding(.horizontal, 2)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: pairs.count > 1 ? .always : .never))
+        .indexViewStyle(.page(backgroundDisplayMode: .always))
+        .frame(height: 210)
+        .onReceive(Timer.publish(every: Self.rotationInterval, on: .main, in: .common).autoconnect()) { _ in
+            // Don't auto-advance while the detail sheet is open — coming back
+            // and seeing a different headline than the one they tapped is
+            // disorienting.
+            guard detailItem == nil, pairs.count > 1 else { return }
+            withAnimation(.easeInOut(duration: 0.45)) {
+                currentIndex = (currentIndex + 1) % pairs.count
+            }
+        }
     }
 
     // MARK: - Header
@@ -166,76 +194,168 @@ struct FeedCard: View {
     }
 }
 
-// MARK: - Single feed row (collapsible)
+// MARK: - Single feed slide (one item visible at a time)
 
-private struct FeedRow: View {
+private struct FeedSlide: View {
     let topic: FeedTopic
     let item: FeedItem?
-    let expanded: Bool
     let onTap: () -> Void
 
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top, spacing: 10) {
-                    Text(topic.label)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.limorIndigo)
-                        .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Capsule().fill(Color.limorIndigo.opacity(0.12)))
+            VStack(alignment: .leading, spacing: 10) {
+                Text(topic.label)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.limorIndigo)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(Capsule().fill(Color.limorIndigo.opacity(0.12)))
 
-                    if let item, !item.headline.isEmpty {
+                if let item, !item.headline.isEmpty {
+                    Text(item.headline)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.limorInk)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if !item.body.isEmpty {
+                        Text(item.body)
+                            .font(.subheadline)
+                            .foregroundStyle(.limorInk.opacity(0.7))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                } else {
+                    Text("עוד לא נטען מידע — לחץ רענון")
+                        .font(.subheadline)
+                        .foregroundStyle(.limorMuted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Spacer(minLength: 4)
+
+                HStack(spacing: 4) {
+                    Spacer()
+                    Text("פתח לקריאה")
+                        .font(.caption.weight(.semibold))
+                    Image(systemName: "chevron.left")
+                        .font(.caption.weight(.bold))
+                }
+                .foregroundStyle(item == nil ? .limorMuted : .limorIndigo)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // Bottom inset clears the page-indicator dots that TabView's page
+            // style draws inside the same frame.
+            .padding(.bottom, 28)
+        }
+        .buttonStyle(.plain)
+        .disabled(item == nil)
+    }
+}
+
+// MARK: - Detail sheet (full body + sources)
+
+struct FeedDetailView: View {
+    let item: FeedItem
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                LiquidBackdrop()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(item.topic_label)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.limorIndigo)
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(Capsule().fill(Color.limorIndigo.opacity(0.12)))
+
                         Text(item.headline)
-                            .font(.subheadline.weight(.semibold))
+                            .font(.title2.weight(.bold))
                             .foregroundStyle(.limorInk)
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        Text("עוד לא נטען מידע — לחץ רענון")
-                            .font(.subheadline)
-                            .foregroundStyle(.limorMuted)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
 
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.limorMuted)
-                }
+                        if !item.body.isEmpty {
+                            Text(item.body)
+                                .font(.body)
+                                .foregroundStyle(.limorInk.opacity(0.85))
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
 
-                if expanded, let item, !item.body.isEmpty {
-                    Text(item.body)
-                        .font(.subheadline)
-                        .foregroundStyle(.limorInk.opacity(0.78))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if !item.sources.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("מקורות")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.limorMuted)
-                            ForEach(item.sources, id: \.url) { src in
-                                if let url = URL(string: src.url) {
-                                    Link(destination: url) {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "link")
-                                                .font(.caption2.weight(.bold))
-                                            Text(src.title)
-                                                .lineLimit(1)
+                        if !item.sources.isEmpty {
+                            Divider().opacity(0.4).padding(.vertical, 4)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("מקורות")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.limorMuted)
+                                ForEach(item.sources, id: \.url) { src in
+                                    if let url = URL(string: src.url) {
+                                        Link(destination: url) {
+                                            HStack(spacing: 8) {
+                                                Image(systemName: "link.circle.fill")
+                                                    .font(.body.weight(.semibold))
+                                                Text(src.title)
+                                                    .font(.subheadline.weight(.medium))
+                                                    .lineLimit(2)
+                                                    .multilineTextAlignment(.leading)
+                                                Spacer(minLength: 8)
+                                                Image(systemName: "arrow.up.forward")
+                                                    .font(.caption.weight(.bold))
+                                            }
+                                            .foregroundStyle(.limorIndigo)
+                                            .padding(12)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .fill(Color.limorIndigo.opacity(0.08))
+                                            )
                                         }
-                                        .font(.caption.weight(.medium))
-                                        .foregroundStyle(.limorIndigo)
                                     }
                                 }
                             }
                         }
-                        .padding(.top, 2)
+
+                        if let when = parseIso(item.generated_at) {
+                            Text("עודכן \(relative(when))")
+                                .font(.caption2)
+                                .foregroundStyle(.limorMuted)
+                                .padding(.top, 4)
+                        }
                     }
+                    .padding(20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .padding(.vertical, 6)
+            .navigationTitle(item.topic_label)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("סגור") { dismiss() }
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.limorIndigo)
+                }
+            }
         }
-        .buttonStyle(.plain)
+    }
+
+    private func parseIso(_ s: String?) -> Date? {
+        guard let s else { return nil }
+        return ISO8601DateFormatter.limor.date(from: s) ?? ISO8601DateFormatter().date(from: s)
+    }
+
+    private func relative(_ date: Date) -> String {
+        let f = RelativeDateTimeFormatter()
+        f.locale = Locale(identifier: "he_IL")
+        f.unitsStyle = .short
+        return f.localizedString(for: date, relativeTo: Date())
     }
 }
 
