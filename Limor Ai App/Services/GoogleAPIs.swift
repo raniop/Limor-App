@@ -36,6 +36,19 @@ struct GoogleAPIs {
         Set(GIDSignIn.sharedInstance.currentUser?.grantedScopes ?? [])
     }
 
+    /// Throw if any of the requested scopes is missing — but never present
+    /// UI. Use this from background sync paths so a revoked scope doesn't
+    /// blast the user with a Google sign-in sheet every time the app
+    /// foregrounds. The interactive paths (Settings toggle, onboarding
+    /// "Connect Gmail" button) should keep calling `ensureScopes` which
+    /// IS allowed to prompt.
+    static func requireScopes(_ scopes: [String]) throws {
+        let granted = grantedScopes()
+        for s in scopes where !granted.contains(s) {
+            throw APIError.missingScope(s)
+        }
+    }
+
     static func ensureScopes(_ scopes: [String]) async throws {
         // GIDGoogleUser.addScopes internally goes through GIDSignIn's
         // signInWithOptions: which crashes hard ("No active configuration.
@@ -98,7 +111,9 @@ struct GoogleAPIs {
     // MARK: - Calendar
 
     static func fetchCalendarEvents(daysAhead: Int = 60) async throws -> [CalendarEventDTO] {
-        try await ensureScopes([calendarReadOnlyScope])
+        // requireScopes (no prompt) — sync paths must fail silently when
+        // the scope is missing rather than bouncing the user to Google.
+        try requireScopes([calendarReadOnlyScope])
 
         let now = Date()
         let end = Calendar.current.date(byAdding: .day, value: daysAhead, to: now) ?? now
@@ -138,7 +153,9 @@ struct GoogleAPIs {
     /// For emails matching travel keywords we ALSO fetch the full body so the
     /// insights extractor has more than a 150-char snippet to work with.
     static func fetchRecentEmails(daysBack: Int = 60, limit: Int = 60) async throws -> [EmailDTO] {
-        try await ensureScopes([gmailReadOnlyScope])
+        // requireScopes (no prompt) — sync paths must fail silently when
+        // the scope is missing rather than bouncing the user to Google.
+        try requireScopes([gmailReadOnlyScope])
 
         // Wide search: include archived emails (no `in:inbox`), exclude obvious noise.
         let query = "newer_than:\(daysBack)d -category:promotions -category:social"
