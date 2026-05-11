@@ -80,7 +80,11 @@ struct LimorIntroChatView: View {
                                     .id("q-\(i)")
                                 userBubble(text: answers[i])
                                     .id("a-\(i)")
-                                if i < answers.count - 1 {
+                                // Hide the latest answer's ack while Limor is
+                                // "typing" so the natural order is:
+                                //   user answer → typing → ack → next question
+                                let isLatest = i == answers.count - 1
+                                if !isLatest || !typingLimor {
                                     limorBubble(text: ackForAnswer(at: i))
                                         .id("ack-\(i)")
                                 }
