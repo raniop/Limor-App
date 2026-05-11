@@ -155,8 +155,48 @@ struct MicrosoftAPIs {
         }
         let webParams = MSALWebviewParameters(authPresentationViewController: presenting)
         let params = MSALInteractiveTokenParameters(scopes: scopes, webviewParameters: webParams)
-        let result = try await app.acquireToken(with: params)
-        rememberGrantedScopes(result.scopes + scopes)
+        do {
+            let result = try await app.acquireToken(with: params)
+            rememberGrantedScopes(result.scopes + scopes)
+        } catch {
+            // MSAL's `localizedDescription` is just "The operation couldn't
+            // be completed. (MSALErrorDomain error -50000.)" — useless for
+            // diagnosing config issues. Dig into userInfo and surface a real
+            // message so the user (and the console) can tell whether it's a
+            // bad redirect URI, missing scope consent, network problem, etc.
+            logMSALError(error, where: "interactive")
+            throw NSError(
+                domain: "limor.microsoft",
+                code: (error as NSError).code,
+                userInfo: [NSLocalizedDescriptionKey: friendlyMSALMessage(error)]
+            )
+        }
+    }
+
+    private static func logMSALError(_ error: Error, where context: String) {
+        let ns = error as NSError
+        print("[microsoft] \(context) failed — domain=\(ns.domain) code=\(ns.code)")
+        for (k, v) in ns.userInfo {
+            print("    \(k) = \(v)")
+        }
+    }
+
+    private static func friendlyMSALMessage(_ error: Error) -> String {
+        let ns = error as NSError
+        var bits: [String] = []
+        if let desc = ns.userInfo["MSALErrorDescriptionKey"] as? String, !desc.isEmpty {
+            bits.append(desc)
+        } else if let desc = ns.userInfo[NSLocalizedDescriptionKey] as? String, !desc.isEmpty {
+            bits.append(desc)
+        }
+        if let oauth = ns.userInfo["MSALOAuthErrorKey"] as? String, !oauth.isEmpty {
+            bits.append("oauth=\(oauth)")
+        }
+        if let internalCode = ns.userInfo["MSALInternalErrorCodeKey"] as? Int {
+            bits.append("internal=\(internalCode)")
+        }
+        bits.append("(code \(ns.code))")
+        return "Microsoft: " + bits.joined(separator: " — ")
     }
 
     static func signOut() {
