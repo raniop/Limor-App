@@ -425,6 +425,7 @@ struct ChatView: View {
 
     @MainActor
     private func send(text rawText: String) async {
+        NSLog("[send] 4 enter")
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || attachmentData != nil else { return }
 
@@ -439,9 +440,11 @@ struct ChatView: View {
         }()
         let optimisticImage = attachmentImagePreview?.jpegData(compressionQuality: 0.5)
         let optimisticFilename = attachmentFilename
+        NSLog("[send] 5 payload built")
 
         // Reset attachment state immediately so the user sees their action took effect.
         clearAttachment()
+        NSLog("[send] 6 clearAttachment")
 
         let optimistic = ChatMessage(
             role: .user,
@@ -456,25 +459,37 @@ struct ChatView: View {
         // the renderer to the point of a watchdog freeze. The
         // `.transition(.opacity)` on MessageBubble still fades the new
         // bubble in via SwiftUI's default implicit animation.
+        NSLog("[send] 7 before append user")
         messages.append(optimistic)
+        NSLog("[send] 8 after append user")
 
         isSending = true
-        defer { isSending = false }
+        NSLog("[send] 9 isSending=true")
+        defer {
+            NSLog("[send] D defer")
+            isSending = false
+        }
 
         do {
+            let lat = location.coordinate?.latitude
+            let lng = location.coordinate?.longitude
+            NSLog("[send] 10 before sendChat (lat?=\(lat != nil))")
             let reply = try await APIClient.shared.sendChat(
                 token: auth.token ?? "",
                 message: payloadText,
-                lat: location.coordinate?.latitude,
-                lng: location.coordinate?.longitude,
+                lat: lat,
+                lng: lng,
                 attachment: attachmentForServer
             )
+            NSLog("[send] 11 after sendChat")
             usage = reply.usage
+            NSLog("[send] 12 before append reply")
             messages.append(ChatMessage(
                 role: .assistant,
                 content: reply.reply,
                 created_at: ISO8601DateFormatter.limor.string(from: Date())
             ))
+            NSLog("[send] 13 after append reply")
             // If the user sent this message via the voice sheet, speak the
             // reply back so the conversation stays hands-free.
             if expectVoiceReply {
@@ -482,6 +497,7 @@ struct ChatView: View {
                 VoiceService.shared.speak(reply.reply)
             }
         } catch {
+            NSLog("[send] E catch: \(error)")
             errorMessage = error.localizedDescription
             await loadHistory()
         }
@@ -545,12 +561,15 @@ private struct ChatComposerInput: View {
                 )
 
             Button {
+                NSLog("[send] 1 tap")
                 let toSend = draft.trimmingCharacters(in: .whitespacesAndNewlines)
                 // Clear immediately for instant visual feedback; parent
                 // may decide to substitute defaultPromptForAttachment if
                 // we passed empty text + an attachment.
                 draft = ""
+                NSLog("[send] 2 draft cleared")
                 onSend(toSend)
+                NSLog("[send] 3 onSend returned")
             } label: {
                 ZStack {
                     if canSend {
