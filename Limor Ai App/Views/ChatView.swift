@@ -710,24 +710,28 @@ private struct MessageBubble: View, Equatable {
 // MARK: - Typing indicator
 
 private struct TypingIndicator: View {
-    @State private var animating = false
-
+    /// Use a TimelineView for the dot pulse instead of SwiftUI's
+    /// `.repeatForever(autoreverses:)` — the latter has a known habit of
+    /// leaking animation tickers when the view is removed from the tree,
+    /// which compounds with each Limor reply (typing indicator appears →
+    /// disappears → next message it appears again on top of a still-
+    /// running animation from the previous round). TimelineView is bound
+    /// to the view lifecycle and stops cleanly when the view goes away.
     var body: some View {
         HStack(spacing: 8) {
             LimorAvatar(size: 28)
-            HStack(spacing: 5) {
-                ForEach(0..<3) { i in
-                    Circle()
-                        .fill(Color.limorIndigo.opacity(0.7))
-                        .frame(width: 8, height: 8)
-                        .scaleEffect(animating ? 1.0 : 0.55)
-                        .opacity(animating ? 1.0 : 0.45)
-                        .animation(
-                            .easeInOut(duration: 0.55)
-                                .repeatForever(autoreverses: true)
-                                .delay(Double(i) * 0.18),
-                            value: animating
-                        )
+            TimelineView(.periodic(from: .now, by: 0.18)) { context in
+                let tick = Int(context.date.timeIntervalSinceReferenceDate / 0.18)
+                HStack(spacing: 5) {
+                    ForEach(0..<3) { i in
+                        let on = ((tick + i) % 3) == 0
+                        Circle()
+                            .fill(Color.limorIndigo.opacity(0.7))
+                            .frame(width: 8, height: 8)
+                            .scaleEffect(on ? 1.0 : 0.55)
+                            .opacity(on ? 1.0 : 0.45)
+                            .animation(.easeInOut(duration: 0.4), value: on)
+                    }
                 }
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
@@ -740,9 +744,6 @@ private struct TypingIndicator: View {
                     .stroke(.white.opacity(0.4), lineWidth: 0.5)
             )
             Spacer(minLength: 32)
-        }
-        .onAppear {
-            DispatchQueue.main.async { animating = true }
         }
     }
 }
