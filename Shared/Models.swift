@@ -369,6 +369,31 @@ struct ContactDTO: Codable, Identifiable, Hashable {
     let aliases: [String]?
 }
 
+// MARK: - Daily notifications
+
+/// Each preset notification the user can configure. Server fires at the
+/// scheduled local time (Asia/Jerusalem) and dedupes per day via
+/// `last_sent_date`, which the iOS side just reads.
+enum NotificationKind: String, Codable, Hashable, CaseIterable {
+    case morning_brief
+    case evening_recap
+    case feed_digest
+}
+
+struct NotificationPref: Codable, Hashable, Identifiable {
+    var id: String { kind.rawValue }
+    let kind: NotificationKind
+    var enabled: Bool
+    var hour: Int
+    var minute: Int
+    let last_sent_date: String?
+}
+
+struct NotificationPrefsDoc: Codable {
+    var master_enabled: Bool
+    var prefs: [NotificationPref]
+}
+
 // MARK: - User profile (what Limor knows about you)
 
 /// One stable fact Limor remembers about the user — seeded by the

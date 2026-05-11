@@ -26,6 +26,7 @@ struct SettingsView: View {
                     VStack(spacing: 16) {
                         profileCard
                         memoryCard
+                        notificationsCard
                         sourcesCard
                         remindersListCard
                         permissionsCard
@@ -175,6 +176,41 @@ struct SettingsView: View {
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.limorInk)
                         Text("הצג, ערוך או הסר פרטים שלימור זוכרת")
+                            .font(.caption)
+                            .foregroundStyle(.limorMuted)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.left")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.limorMuted)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Daily notifications
+
+    private var notificationsCard: some View {
+        NavigationLink {
+            NotificationsSettingsView()
+        } label: {
+            GlassCard {
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.limorIndigo.opacity(0.18))
+                            .frame(width: 38, height: 38)
+                        Image(systemName: "bell.fill")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.limorIndigo)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("התראות יומיות")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.limorInk)
+                        Text("בוקר טוב, סיכום ערב, ופיד יומי")
                             .font(.caption)
                             .foregroundStyle(.limorMuted)
                             .lineLimit(1)

@@ -50,6 +50,7 @@
 		D10EB884647A3890000FDDB3 /* FeedNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C14813798F555401055250B /* FeedNode.swift */; };
 		D3EBD1DC243A3A675E42DFBE /* RemindersWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B54FB305BDEB96228F61AB55 /* RemindersWriter.swift */; };
 		D52DBA079C74B34E651AFEEC /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70396FD611F130F479EC2B84 /* Components.swift */; };
+		E6C2F9E4BE150CB26ABF7A5E /* NotificationsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3720B9F23F3177BDEAE1F4B7 /* NotificationsSettingsView.swift */; };
 		E7DEFBA29167CE5B97D89A16 /* SyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B58A40BF66B16677563B90 /* SyncManager.swift */; };
 		EA6C1B260BC00F2763775067 /* ReminderLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BDC1EAA445B4E2AA5340AF /* ReminderLiveActivity.swift */; };
 		EBDD4CEE77B4BE59DDD50A90 /* LimorLogoMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833DCEA3F6B5E318E0DF0E61 /* LimorLogoMark.swift */; };
@@ -101,6 +102,7 @@
 		2C14813798F555401055250B /* FeedNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedNode.swift; sourceTree = "<group>"; };
 		2FEA6C80C01305F2D1B2D993 /* CalendarManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarManager.swift; sourceTree = "<group>"; };
 		30076B044722A8FFD18B9866 /* HomeCardKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeCardKind.swift; sourceTree = "<group>"; };
+		3720B9F23F3177BDEAE1F4B7 /* NotificationsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsSettingsView.swift; sourceTree = "<group>"; };
 		3A828CE65F6E915FA08837DA /* CustomizeHomeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizeHomeSheet.swift; sourceTree = "<group>"; };
 		3C1DD35067CE05EE90665BFF /* FeedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCard.swift; sourceTree = "<group>"; };
 		41866BA79E18FA404BFCFD96 /* PushManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushManager.swift; sourceTree = "<group>"; };
@@ -219,6 +221,7 @@
 				F7D91250B8286E7E09A1FFCA /* HealthDetailView.swift */,
 				30076B044722A8FFD18B9866 /* HomeCardKind.swift */,
 				269CDD3F0374EC093CFB2851 /* LimorIntroChatView.swift */,
+				3720B9F23F3177BDEAE1F4B7 /* NotificationsSettingsView.swift */,
 				040FFCD9DC418611AA006C63 /* NowView.swift */,
 				1AB17F49E0B92D41CBEB78F2 /* OnboardingView.swift */,
 				260CD9022ECCA8236F6CC88E /* ProfileFactsView.swift */,
@@ -388,6 +391,7 @@
 				0EDB95E57BF4900C05283F56 /* LimorReminderAttributes.swift in Sources */,
 				67EADCA834C4AE1B9E2682CF /* LocationManager.swift in Sources */,
 				4183176520FB49FE6F75B493 /* Models.swift in Sources */,
+				E6C2F9E4BE150CB26ABF7A5E /* NotificationsSettingsView.swift in Sources */,
 				C355EB2FF013CA1DDA4D4436 /* NowView.swift in Sources */,
 				FCFCC920CA55C69481D97D7E /* OnboardingView.swift in Sources */,
 				A8F273771B99CC4C0A008867 /* ProfileFactsView.swift in Sources */,

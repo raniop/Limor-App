@@ -193,6 +193,16 @@ struct APIClient {
         }
     }
 
+    // MARK: - Daily notifications
+
+    func notificationPrefs() async throws -> NotificationPrefsDoc {
+        try await get("/api/notifications/prefs")
+    }
+
+    func saveNotificationPrefs(_ prefs: NotificationPrefsDoc) async throws -> NotificationPrefsDoc {
+        try await post("/api/notifications/prefs", body: prefs)
+    }
+
     // MARK: - Profile (long-term memory)
 
     func profileFacts() async throws -> ProfileFactsResponse {
