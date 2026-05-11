@@ -13,11 +13,22 @@ struct ChatView: View {
     @State private var isSending = false
     @State private var errorMessage: String?
 
-    // Voice-message gesture state (press-and-hold the mic to record,
-    // drag left past the threshold to cancel, release to send).
+    // Voice-message gesture state.
+    //
+    // The mic supports two modes:
+    //   • Press-and-hold (touch > 0.4s): record while pressed, release to
+    //     send, drag left past `voiceCancelThreshold` to cancel.
+    //   • Quick tap (touch < 0.4s, no real drag): "locks" the recording —
+    //     the user can release their finger and the recording keeps going
+    //     until they tap the mic again to send (or the cancel button in
+    //     the banner to discard).
     @State private var voiceGestureActive = false
     @State private var voiceGestureOffset: CGFloat = 0
+    @State private var voiceGestureStartedAt: Date?
+    @State private var voiceLocked = false
     private let voiceCancelThreshold: CGFloat = 80
+    private let voiceTapMaxDuration: TimeInterval = 0.4
+    private let voiceTapMaxMovement: CGFloat = 20
 
     /// One-shot seed for the composer's internal `draft`. Parent writes to
     /// it (suggestion tap, queued pending message) and the composer picks
@@ -35,10 +46,6 @@ struct ChatView: View {
     @State private var attachmentImagePreview: UIImage?
     @State private var preparingAttachment = false
 
-    /// True when the most recent send was a voice message — the next reply
-    /// should be spoken aloud automatically so the conversation stays
-    /// hands-free, the way it does in WhatsApp / iMessage dictation.
-    @State private var expectVoiceReply = false
 
     private let suggestions: [ChatSuggestion] = [
         .init(icon: "bell.fill",          tint: .limorCoral,   text: "תזכירי לי בעוד שעה לבדוק דואר"),
@@ -241,14 +248,18 @@ struct ChatView: View {
         )
     }
 
-    /// Press-and-hold mic button. The gesture both starts/stops the
-    /// recording (via VoiceService) and surfaces drag distance so the
-    /// banner above can show a "release to cancel" state once the user
-    /// has dragged far enough.
+    /// Mic button that drives the voice-message gesture. Two modes:
+    ///   • Idle: shows the mic glyph; gesture below decides between a
+    ///     quick tap (→ locked recording) and a long press (→ release-
+    ///     to-send).
+    ///   • Recording (locked or held): turns purple/red and the glyph
+    ///     flips to "arrow.up" once we're in locked mode — at that point
+    ///     a tap sends the clip.
     private var micButton: some View {
         let recording = voice.isRecordingVoiceMessage
+        let locked = voiceLocked
         let cancelling = voiceGestureActive && voiceGestureOffset < -voiceCancelThreshold
-        return Image(systemName: "mic.fill")
+        return Image(systemName: locked ? "arrow.up" : "mic.fill")
             .font(.body.weight(.semibold))
             .foregroundStyle(recording ? .white : Color.limorViolet)
             .frame(width: 38, height: 38)
@@ -262,9 +273,10 @@ struct ChatView: View {
             .scaleEffect(recording ? 1.25 : 1)
             .animation(.easeInOut(duration: 0.15), value: recording)
             .animation(.easeInOut(duration: 0.15), value: cancelling)
+            .animation(.easeInOut(duration: 0.15), value: locked)
             .contentShape(Circle())
             .gesture(voiceGesture)
-            .accessibilityLabel("הקלטת הודעה קולית")
+            .accessibilityLabel(locked ? "שלח הודעה קולית" : "הקלטת הודעה קולית")
     }
 
     private var voiceGesture: some Gesture {
@@ -272,18 +284,46 @@ struct ChatView: View {
             .onChanged { value in
                 if !voiceGestureActive {
                     voiceGestureActive = true
+                    voiceGestureStartedAt = Date()
                     // Don't start a recording while still sending the
                     // previous message — would step on its audio session.
                     guard !isSending, !preparingAttachment else { return }
+                    // If already in locked-recording mode, this touch is
+                    // the user about to tap "send"; do not kick off a new
+                    // recording on top of the running one.
+                    guard !voiceLocked else { return }
                     Task { await voice.startVoiceMessage() }
                 }
                 voiceGestureOffset = value.translation.width
             }
             .onEnded { value in
+                let duration = voiceGestureStartedAt.map { Date().timeIntervalSince($0) } ?? 0
+                let movement = max(abs(value.translation.width), abs(value.translation.height))
                 let cancel = value.translation.width < -voiceCancelThreshold
+                let quickTap = duration < voiceTapMaxDuration && movement < voiceTapMaxMovement
+
                 voiceGestureActive = false
                 voiceGestureOffset = 0
-                let result = voice.stopVoiceMessage(cancel: cancel)
+                voiceGestureStartedAt = nil
+
+                if cancel {
+                    _ = voice.stopVoiceMessage(cancel: true)
+                    voiceLocked = false
+                    return
+                }
+
+                if quickTap && !voiceLocked {
+                    // First quick tap → enter locked recording. Keep the
+                    // recorder running, user can now release their finger
+                    // and tap the mic again to send.
+                    voiceLocked = true
+                    return
+                }
+
+                // Either a long-press release, or the locked-mode "send"
+                // tap. Stop the recorder and ship it.
+                let result = voice.stopVoiceMessage(cancel: false)
+                voiceLocked = false
                 if let result {
                     Task { await sendVoiceMessage(audioURL: result.url, duration: result.duration) }
                 }
@@ -291,8 +331,10 @@ struct ChatView: View {
     }
 
     /// Recording banner shown above the composer while the user holds the
-    /// mic. Pulsing red dot + timer on the leading side, "החלק לבטל" hint
-    /// that flips to "שחרר לביטול" once the user has dragged far enough.
+    /// mic (or has locked the recording with a quick tap). Pulsing red dot +
+    /// timer on the leading side; the trailing side flips between the
+    /// "החלק לבטל" / "שחרר לביטול" press-and-hold hint and a tappable trash
+    /// button + send hint for locked mode.
     private var voiceRecordingBanner: some View {
         let cancelling = voiceGestureActive && voiceGestureOffset < -voiceCancelThreshold
         return HStack(spacing: 10) {
@@ -308,13 +350,31 @@ struct ChatView: View {
 
             Spacer(minLength: 8)
 
-            HStack(spacing: 6) {
-                Image(systemName: cancelling ? "trash.fill" : "chevron.left")
-                    .font(.caption.weight(.bold))
-                Text(cancelling ? "שחרר לביטול" : "החלק לבטל")
-                    .font(.caption.weight(.semibold))
+            if voiceLocked {
+                Button {
+                    _ = voice.stopVoiceMessage(cancel: true)
+                    voiceLocked = false
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "trash.fill")
+                            .font(.caption.weight(.bold))
+                        Text("ביטול")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(.limorDanger)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Capsule().fill(Color.limorDanger.opacity(0.16)))
+                }
+                .buttonStyle(.plain)
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: cancelling ? "trash.fill" : "chevron.left")
+                        .font(.caption.weight(.bold))
+                    Text(cancelling ? "שחרר לביטול" : "החלק לבטל")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(cancelling ? .limorDanger : .limorMuted)
             }
-            .foregroundStyle(cancelling ? .limorDanger : .limorMuted)
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .background(
@@ -552,12 +612,6 @@ struct ChatView: View {
                     created_at: ISO8601DateFormatter.limor.string(from: Date())
                 ))
             }
-            // If the user sent this message via the voice sheet, speak the
-            // reply back so the conversation stays hands-free.
-            if expectVoiceReply {
-                expectVoiceReply = false
-                VoiceService.shared.speak(reply.reply)
-            }
         } catch {
             errorMessage = error.localizedDescription
             await loadHistory()
@@ -589,10 +643,6 @@ struct ChatView: View {
             localAudioDuration: duration
         )
         messages.append(optimistic)
-
-        // Voice send → speak Limor's reply aloud so the conversation
-        // stays hands-free.
-        expectVoiceReply = true
 
         // Transcribe on-device first, *then* flip the typing indicator on
         // — otherwise the user would stare at "typing…" while we're still
@@ -631,10 +681,6 @@ struct ChatView: View {
                     content: reply.reply,
                     created_at: ISO8601DateFormatter.limor.string(from: Date())
                 ))
-            }
-            if expectVoiceReply {
-                expectVoiceReply = false
-                VoiceService.shared.speak(reply.reply)
             }
         } catch {
             errorMessage = error.localizedDescription
