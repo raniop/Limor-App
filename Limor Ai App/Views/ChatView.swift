@@ -89,6 +89,22 @@ struct ChatView: View {
                                         // this entrance plays only for
                                         // the assistant.
                                         .transition(.scale(scale: 0.9).combined(with: .opacity))
+                                        .contextMenu {
+                                            // Long-press → "Copy". Skip on
+                                            // voice messages whose textual
+                                            // content is just an
+                                            // auto-transcript the user
+                                            // didn't ask to see (the
+                                            // optimistic user-side bubble
+                                            // has content="").
+                                            if !msg.content.isEmpty {
+                                                Button {
+                                                    UIPasteboard.general.string = msg.content
+                                                } label: {
+                                                    Label("העתק", systemImage: "doc.on.doc")
+                                                }
+                                            }
+                                        }
                                 }
                                 if isSending {
                                     TypingIndicator().transition(.opacity).id("typing")
