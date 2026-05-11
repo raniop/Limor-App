@@ -21,6 +21,7 @@ enum SharedStore {
         static let syncedReminderIds = "limor.syncedReminderIds"
         static let onboardingCompleted = "limor.onboardingCompleted"
         static let introCompleted = "limor.introCompleted"
+        static let notificationPrefsAsked = "limor.notificationPrefsAsked"
         static let remindersListId = "limor.remindersListId"
         static let homeCardOrder = "limor.homeCardOrder"
         static let homeCardHidden = "limor.homeCardHidden"
@@ -109,6 +110,14 @@ enum SharedStore {
     static var introCompleted: Bool {
         get { defaults.bool(forKey: Keys.introCompleted) }
         set { defaults.set(newValue, forKey: Keys.introCompleted) }
+    }
+
+    /// True once the user has been shown the daily-notifications onboarding
+    /// step (between permissions and the meet-Limor chat). Local only —
+    /// the server has the actual prefs; this flag only gates the prompt.
+    static var notificationPrefsAsked: Bool {
+        get { defaults.bool(forKey: Keys.notificationPrefsAsked) }
+        set { defaults.set(newValue, forKey: Keys.notificationPrefsAsked) }
     }
 
     /// The EKCalendar identifier the user has chosen for Limor reminders.

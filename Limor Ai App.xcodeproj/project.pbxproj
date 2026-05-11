@@ -39,6 +39,7 @@
 		7F5AA7209F01C34C3BEB90A3 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E07C0CEB4AD38CED9FBE3231 /* AuthManager.swift */; };
 		80B9DFE8EBA69C8081268633 /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B202F02E4586363CB10439EC /* SharedStore.swift */; };
 		80D0D4111FB1C5FAB7F113A9 /* HealthDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D91250B8286E7E09A1FFCA /* HealthDetailView.swift */; };
+		823B6C53BB8E1F79DC82F866 /* NotificationPrefsOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9231AB15CD0F7563F824388 /* NotificationPrefsOnboardingView.swift */; };
 		970535E828F3B85A5262B709 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 6E18B4CE5B475EDA16EE3B27 /* FirebaseAuth */; };
 		9A1DB10483B0DD2F42738908 /* WidgetAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDA34640B05602CA3307600E /* WidgetAPI.swift */; };
 		A197C77394CE55D99EE8A21C /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B202F02E4586363CB10439EC /* SharedStore.swift */; };
@@ -143,6 +144,7 @@
 		F7D91250B8286E7E09A1FFCA /* HealthDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthDetailView.swift; sourceTree = "<group>"; };
 		F7F986D36044D42DACEFBBF9 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		F8B58A40BF66B16677563B90 /* SyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncManager.swift; sourceTree = "<group>"; };
+		F9231AB15CD0F7563F824388 /* NotificationPrefsOnboardingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationPrefsOnboardingView.swift; sourceTree = "<group>"; };
 		FDA34640B05602CA3307600E /* WidgetAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetAPI.swift; sourceTree = "<group>"; };
 		FFC2371869E57B0A6FA86FE0 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -243,6 +245,7 @@
 				032BFD663A4822AE6207BA95 /* WeatherDetailView.swift */,
 				3CF766704AC4044C593F2D83 /* ContactPicker.swift */,
 				9A5D1D5B83E2A988DCED1752 /* RelationshipsView.swift */,
+				F9231AB15CD0F7563F824388 /* NotificationPrefsOnboardingView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -422,6 +425,7 @@
 				9A1DB10483B0DD2F42738908 /* WidgetAPI.swift in Sources */,
 				0E44575EE0AF6D1D69E0D633 /* ContactPicker.swift in Sources */,
 				41D55F13697C9135EDE61653 /* RelationshipsView.swift in Sources */,
+				823B6C53BB8E1F79DC82F866 /* NotificationPrefsOnboardingView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -7,6 +7,7 @@ struct RootView: View {
     @State private var minSplashElapsed = false
     @State private var contentReady = false
     @State private var onboardingCompleted = SharedStore.onboardingCompleted
+    @State private var notificationPrefsAsked = SharedStore.notificationPrefsAsked
     @State private var introCompleted = SharedStore.introCompleted
 
     /// Show the splash until BOTH conditions hold:
@@ -104,6 +105,11 @@ struct RootView: View {
                     // Now that the user picked their permissions, kick off the
                     // background syncs that we deferred during onboarding.
                     Task { await SyncManager.shared.syncAll() }
+                }
+                .transition(.opacity)
+            } else if !notificationPrefsAsked {
+                NotificationPrefsOnboardingView {
+                    notificationPrefsAsked = true
                 }
                 .transition(.opacity)
             } else if !introCompleted {
