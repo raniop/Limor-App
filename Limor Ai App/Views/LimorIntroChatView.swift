@@ -9,57 +9,108 @@ struct LimorIntroChatView: View {
     @EnvironmentObject private var auth: AuthManager
     var onCompleted: () -> Void
 
-    /// One step of the intro — Limor asks `question`, the answer is stored
-    /// under `factLabel` so the server can save it as a structured fact.
+    /// Hebrew is gendered — once we know the user's gender we can drop the
+    /// awkward slash form ("את/ה") in every subsequent question.
+    enum Gender: String, CaseIterable {
+        case male, female, other
+
+        var hebrewLabel: String {
+            switch self {
+            case .male:   return "זכר"
+            case .female: return "נקבה"
+            case .other:  return "אחר"
+            }
+        }
+    }
+
+    /// One step of the intro — Limor asks a question (in gendered form once
+    /// gender is known), the answer is stored under `factLabel` so the
+    /// server can save it as a structured fact.
     private struct Step {
         let factLabel: String
-        let question: String
+        /// Question text by gender. Falls back to `.male` if a form isn't
+        /// provided. The "name" step uses a slash form on `.male` because
+        /// gender is still unknown at that point.
+        let texts: [Gender: String]
         let placeholder: String
         let prefill: ((AuthManager) -> String?)?
+        let kind: Kind
+
+        enum Kind { case text, genderSelect }
+
+        func question(for gender: Gender) -> String {
+            texts[gender] ?? texts[.male] ?? ""
+        }
     }
 
     private static let steps: [Step] = [
         Step(
             factLabel: "שם",
-            question: "איך תרצה/י שאקרא לך?",
+            texts: [.male: "איך תרצה/י שאקרא לך?"],
             placeholder: "לדוגמה: רני",
-            prefill: { auth in auth.displayName }
+            prefill: { auth in auth.displayName },
+            kind: .text
+        ),
+        Step(
+            factLabel: "מגדר",
+            texts: [.male: "כדי שאדע לפנות אליך נכון — איזה גוף בעברית מתאים?"],
+            placeholder: "",
+            prefill: nil,
+            kind: .genderSelect
         ),
         Step(
             factLabel: "גיל",
-            question: "בן/בת כמה את/ה?",
+            texts: [
+                .male:   "בן כמה אתה?",
+                .female: "בת כמה את?",
+                .other:  "בן/בת כמה את/ה?",
+            ],
             placeholder: "לדוגמה: 37",
-            prefill: nil
+            prefill: nil,
+            kind: .text
         ),
         Step(
             factLabel: "משפחה",
-            question: "מי בני המשפחה הקרובים שכדאי שאכיר? (בן/בת זוג, ילדים, הורים)",
+            texts: [
+                .male:   "מי הקרובים שכדאי שאכיר? (בת זוג, ילדים, הורים)",
+                .female: "מי הקרובים שכדאי שאכיר? (בן זוג, ילדים, הורים)",
+                .other:  "מי הקרובים שכדאי שאכיר? (בן/בת זוג, ילדים, הורים)",
+            ],
             placeholder: "טקסט חופשי",
-            prefill: nil
+            prefill: nil,
+            kind: .text
         ),
         Step(
             factLabel: "עיסוק",
-            question: "במה את/ה עוסק/ת ביום-יום?",
+            texts: [
+                .male:   "במה אתה עוסק ביום-יום?",
+                .female: "במה את עוסקת ביום-יום?",
+                .other:  "במה את/ה עוסק/ת ביום-יום?",
+            ],
             placeholder: "לדוגמה: סוכן ביטוח, מורה, בפנסיה",
-            prefill: nil
+            prefill: nil,
+            kind: .text
         ),
         Step(
             factLabel: "עדיפות",
-            question: "במה הכי חשוב לך שאעזור? תזכורות, יומן, בריאות, חדשות, או משהו אחר?",
+            texts: [.male: "במה הכי חשוב לך שאעזור? תזכורות, יומן, בריאות, חדשות, או משהו אחר?"],
             placeholder: "טקסט חופשי",
-            prefill: nil
+            prefill: nil,
+            kind: .text
         ),
         Step(
             factLabel: "תחומי עניין",
-            question: "תחביבים או דברים שמעניינים אותך, שכדאי שאדע?",
-            placeholder: "לדוגמה: מנגנת פסנתר, אוהבת לטייל",
-            prefill: nil
+            texts: [.male: "תחביבים או דברים שמעניינים אותך, שכדאי שאדע?"],
+            placeholder: "לדוגמה: פסנתר, טיולים, השקעות",
+            prefill: nil,
+            kind: .text
         ),
     ]
 
     @State private var stepIndex: Int = 0
     @State private var answers: [String] = []
     @State private var currentAnswer: String = ""
+    @State private var gender: Gender = .male  // overwritten on step 1 selection
     @State private var typingLimor: Bool = false
     @State private var sending: Bool = false
     @State private var errorMessage: String?
@@ -76,7 +127,7 @@ struct LimorIntroChatView: View {
                             opener
                                 .id("opener")
                             ForEach(0..<answers.count, id: \.self) { i in
-                                limorBubble(text: Self.steps[i].question)
+                                limorBubble(text: Self.steps[i].question(for: gender))
                                     .id("q-\(i)")
                                 userBubble(text: answers[i])
                                     .id("a-\(i)")
@@ -96,7 +147,7 @@ struct LimorIntroChatView: View {
                             // an answer for it exists), and we'd add a
                             // second copy here until stepIndex bumps.
                             if stepIndex < Self.steps.count, stepIndex >= answers.count {
-                                limorBubble(text: Self.steps[stepIndex].question)
+                                limorBubble(text: Self.steps[stepIndex].question(for: gender))
                                     .id("q-current")
                             }
                             if typingLimor {
@@ -113,7 +164,7 @@ struct LimorIntroChatView: View {
                     .onChange(of: answers.count) { _, _ in scrollToBottom(proxy) }
                 }
 
-                composer
+                composerForStep
             }
         }
         .preferredColorScheme(.light)
@@ -219,6 +270,46 @@ struct LimorIntroChatView: View {
         }
     }
 
+    /// Pick the right composer for the current step. Gender selection
+    /// presents three buttons; everything else uses the text composer.
+    @ViewBuilder
+    private var composerForStep: some View {
+        if stepIndex < Self.steps.count, Self.steps[stepIndex].kind == .genderSelect {
+            genderSelectBar
+        } else {
+            composer
+        }
+    }
+
+    private var genderSelectBar: some View {
+        HStack(spacing: 10) {
+            ForEach(Gender.allCases, id: \.self) { g in
+                Button {
+                    selectGender(g)
+                } label: {
+                    Text(g.hebrewLabel)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            Capsule().fill(LimorGradient.brand)
+                        )
+                        .shadow(color: Color.limorIndigo.opacity(0.3), radius: 8, y: 4)
+                }
+                .disabled(typingLimor || sending)
+                .opacity(typingLimor || sending ? 0.6 : 1)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .ignoresSafeArea(edges: .bottom)
+        )
+    }
+
     private var composer: some View {
         HStack(alignment: .bottom, spacing: 10) {
             TextField(currentPlaceholder, text: $currentAnswer, axis: .vertical)
@@ -286,13 +377,15 @@ struct LimorIntroChatView: View {
     }
 
     private func ackForAnswer(at i: Int) -> String {
-        // Special-case the very first ack — the user just told us their name,
-        // so warm-greet by it instead of a generic "נחמד מאוד".
+        // Step 0 (name) — warm-greet using the name they just gave.
         if i == 0, let name = answers.first?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
             return "נעים מאוד, \(name)!"
         }
-        // Tiny, varied acknowledgments for the rest — feels conversational
-        // without pretending Limor is doing deep work.
+        // Step 1 (gender) — short, since it was a one-tap selection rather
+        // than a sentence worth riffing on.
+        if i == 1 { return "מעולה." }
+        // Everything else — a small rotating set so the chat doesn't sound
+        // robotic.
         let acks = [
             "כיף לשמוע.",
             "הבנתי.",
@@ -300,7 +393,7 @@ struct LimorIntroChatView: View {
             "תודה ששיתפת.",
             "סבבה, רושמת.",
         ]
-        return acks[(i - 1) % acks.count]
+        return acks[(i - 2) % acks.count]
     }
 
     private func advance() {
@@ -308,14 +401,25 @@ struct LimorIntroChatView: View {
         let trimmed = currentAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
         answers.append(trimmed)
         currentAnswer = ""
+        proceedAfterAnswer()
+    }
 
+    /// Tap handler for the three gender buttons. Records the choice as the
+    /// answer for the current step and continues like a text answer.
+    private func selectGender(_ g: Gender) {
+        guard !typingLimor, !sending else { return }
+        gender = g
+        answers.append(g.hebrewLabel)
+        proceedAfterAnswer()
+    }
+
+    /// Shared post-answer flow — show typing for 700ms, then bump stepIndex
+    /// (or submit on the last step).
+    private func proceedAfterAnswer() {
         if isFinalStep {
             Task { await submit() }
             return
         }
-
-        // Show a fake typing indicator for ~700ms so Limor's next question
-        // doesn't snap in instantly — gives the chat a human cadence.
         typingLimor = true
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(700))
