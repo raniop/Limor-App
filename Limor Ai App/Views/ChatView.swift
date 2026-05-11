@@ -974,27 +974,31 @@ private struct MessageBubble: View, Equatable {
 // MARK: - Typing indicator
 
 private struct TypingIndicator: View {
-    /// Static three-dot indicator. Earlier versions used TimelineView with a
-    /// 180ms tick to pulse the dots, but on iPhone Air that update rate over
-    /// `.regularMaterial` blur + LiquidBackdrop blur showed up as a GPU stall
-    /// (3s Result accumulator timeout) the moment the indicator appeared on
-    /// send. A static indicator is fine — the reply usually arrives within
-    /// a second or two and the animation was barely perceived anyway.
+    /// Three dots that pulse in sequence while Limor is typing. Uses
+    /// TimelineView (lifecycle-bound) instead of `.repeatForever`, which
+    /// would leak animation tickers across re-appearances of the view.
+    /// An earlier attempt removed the pulse because we suspected it of
+    /// causing the iPhone Air freeze, but the actual cause was a hung
+    /// Firebase getIDToken — the dots were never the problem.
     var body: some View {
         HStack(spacing: 8) {
             LimorAvatar(size: 28)
-            HStack(spacing: 5) {
-                ForEach(0..<3) { _ in
-                    Circle()
-                        .fill(Color.limorIndigo.opacity(0.7))
-                        .frame(width: 8, height: 8)
+            TimelineView(.periodic(from: .now, by: 0.18)) { context in
+                let tick = Int(context.date.timeIntervalSinceReferenceDate / 0.18)
+                HStack(spacing: 5) {
+                    ForEach(0..<3) { i in
+                        let on = ((tick + i) % 3) == 0
+                        Circle()
+                            .fill(Color.limorIndigo.opacity(0.7))
+                            .frame(width: 8, height: 8)
+                            .scaleEffect(on ? 1.0 : 0.55)
+                            .opacity(on ? 1.0 : 0.45)
+                            .animation(.easeInOut(duration: 0.4), value: on)
+                    }
                 }
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
             .background(
-                // Solid translucent fill instead of `.regularMaterial` —
-                // material blur over the LiquidBackdrop blurs was the
-                // expensive composition.
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(Color.white.opacity(0.85))
             )
