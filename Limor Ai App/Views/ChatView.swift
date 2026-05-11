@@ -232,6 +232,11 @@ struct ChatView: View {
                         .foregroundStyle(.limorIndigo)
                         .frame(width: 38, height: 38)
                         .background(Circle().fill(Color.limorIndigo.opacity(0.12)))
+                        // Outer 44pt frame matches the send button and the
+                        // TextField bubble, so all four composer elements
+                        // share a single visual baseline with `.bottom`
+                        // alignment. Visible circle stays 38pt, centered.
+                        .frame(width: 44, height: 44)
                 }
                 .disabled(preparingAttachment || isSending || voice.isRecordingVoiceMessage)
 
@@ -288,7 +293,13 @@ struct ChatView: View {
             .animation(.easeInOut(duration: 0.15), value: recording)
             .animation(.easeInOut(duration: 0.15), value: cancelling)
             .animation(.easeInOut(duration: 0.15), value: locked)
-            .contentShape(Circle())
+            // Outer 44pt frame so the mic shares a baseline with the send
+            // button, paperclip, and TextField bubble in the composer
+            // HStack. The visible 38pt circle stays centered inside; the
+            // extra 3pt halo around it is also tappable, which makes the
+            // press-and-hold easier to initiate.
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
             .gesture(voiceGesture)
             .accessibilityLabel(locked ? "שלח הודעה קולית" : "הקלטת הודעה קולית")
     }
@@ -741,11 +752,16 @@ private struct ChatComposerInput: View {
                 .lineLimit(1...5)
                 .font(.body)
                 .padding(.horizontal, 14)
-                // 10pt instead of 12 so single-line height ≈ 38pt, matching
-                // the paperclip/mic/send circle frames in the parent HStack
-                // — otherwise `.bottom` alignment leaves a 4pt gap at the
-                // top of the buttons that reads as misalignment.
                 .padding(.vertical, 10)
+                // Force single-line height to 44pt so the bubble matches
+                // the paperclip/mic/send 44pt circle frames in the
+                // parent's composer HStack — without this, vertical
+                // padding alone leaves the bubble shorter than the
+                // buttons and they read as misaligned with `.bottom`
+                // HStack alignment. Multi-line growth still works
+                // because lineLimit(1...5) allows the frame to grow
+                // past 44pt as the user types more.
+                .frame(minHeight: 44)
                 .submitLabel(.send)
                 .background(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
