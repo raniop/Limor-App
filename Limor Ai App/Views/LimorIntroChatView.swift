@@ -427,6 +427,18 @@ struct LimorIntroChatView: View {
         }
         do {
             _ = try await APIClient.shared.submitProfileIntro(facts: drafts)
+
+            // First answer is the preferred name. Sync it to the user's
+            // display_name so Settings ("איך לימור פונה אליך") and the
+            // home-screen greeting reflect the name they just gave —
+            // otherwise they'd see the original Apple/Google account name
+            // there and have to edit it manually. Failure here doesn't
+            // block intro completion (the facts already saved).
+            if let nameAnswer = answers.first?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !nameAnswer.isEmpty {
+                try? await auth.setDisplayName(nameAnswer)
+            }
+
             SharedStore.introCompleted = true
             onCompleted()
         } catch {
