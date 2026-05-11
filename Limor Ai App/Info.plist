@@ -28,6 +28,19 @@
 				<string>com.googleusercontent.apps.1043813835619-j123901uoudhqjqlip0aqm8b3idm6f0s</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>msauth.com.rani.Limor-Ai-App</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>msauthv2</string>
+		<string>msauthv3</string>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>

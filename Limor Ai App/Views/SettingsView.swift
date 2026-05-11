@@ -10,8 +10,8 @@ struct SettingsView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var savingPhoto = false
     @State private var savingName = false
-    @State private var calendarSource: DataSource = SharedStore.calendarSource
-    @State private var emailSource: DataSource = SharedStore.emailSource
+    @State private var calendarSources: Set<DataSource> = SharedStore.calendarSources
+    @State private var emailSources: Set<DataSource> = SharedStore.emailSources
     @State private var permissionSnapshot = PermissionSnapshot()
     @State private var errorMessage: String?
     @State private var reminderLists: [EKCalendar] = []
@@ -71,25 +71,41 @@ struct SettingsView: View {
                 guard let newItem else { return }
                 Task { await loadAndSavePhoto(item: newItem) }
             }
-            .onChange(of: calendarSource) { _, newValue in
-                SharedStore.calendarSource = newValue
-                if newValue == .google {
+            .onChange(of: calendarSources) { oldValue, newValue in
+                SharedStore.calendarSources = newValue
+                // Only newly-added cloud sources need an OAuth round-trip;
+                // unchecking a source just stops syncing it.
+                let added = newValue.subtracting(oldValue)
+                if added.contains(.google) {
                     Task {
                         do { try await GoogleAPIs.ensureScopes([GoogleAPIs.calendarReadOnlyScope]) }
                         catch { errorMessage = error.localizedDescription }
-                        await SyncManager.shared.syncCalendar(force: true)
                     }
                 }
+                if added.contains(.microsoft) {
+                    Task {
+                        do { try await MicrosoftAPIs.ensureScopes([MicrosoftAPIs.calendarReadScope]) }
+                        catch { errorMessage = error.localizedDescription }
+                    }
+                }
+                Task { await SyncManager.shared.syncCalendar(force: true) }
             }
-            .onChange(of: emailSource) { _, newValue in
-                SharedStore.emailSource = newValue
-                if newValue == .google {
+            .onChange(of: emailSources) { oldValue, newValue in
+                SharedStore.emailSources = newValue
+                let added = newValue.subtracting(oldValue)
+                if added.contains(.google) {
                     Task {
                         do { try await GoogleAPIs.ensureScopes([GoogleAPIs.gmailReadOnlyScope]) }
                         catch { errorMessage = error.localizedDescription }
-                        await SyncManager.shared.syncEmail(force: true)
                     }
                 }
+                if added.contains(.microsoft) {
+                    Task {
+                        do { try await MicrosoftAPIs.ensureScopes([MicrosoftAPIs.mailReadScope]) }
+                        catch { errorMessage = error.localizedDescription }
+                    }
+                }
+                Task { await SyncManager.shared.syncEmail(force: true) }
             }
             .alert("שגיאה", isPresented: .init(
                 get: { errorMessage != nil },
@@ -357,28 +373,31 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 14) {
                 SectionLabel(icon: "rectangle.connected.to.line.below", title: "מקורות נתונים")
 
-                SourcePicker(
+                Text("אפשר לבחור כמה מקורות במקביל — לימור תאחד את הכל.")
+                    .font(.caption)
+                    .foregroundStyle(.limorMuted)
+
+                MultiSourcePicker(
                     title: "יומן",
                     iconName: "calendar",
                     options: [
-                        .init(value: .apple,  label: "אפל (iOS Calendar)", description: "כולל כל היומנים שחיברת ב-iOS"),
-                        .init(value: .google, label: "Google Calendar", description: "דורש חיבור Google + אישור scope"),
+                        .init(value: .apple,     label: "אפל (iOS Calendar)", description: "כולל כל היומנים שחיברת ב-iOS"),
+                        .init(value: .google,    label: "Google Calendar", description: "דורש חיבור Google + אישור scope"),
+                        .init(value: .microsoft, label: "Outlook / Office 365", description: "דורש חיבור Microsoft + אישור scope"),
                     ],
-                    disabled: [],
-                    selection: $calendarSource
+                    selection: $calendarSources
                 )
 
                 Divider().padding(.vertical, 4)
 
-                SourcePicker(
+                MultiSourcePicker(
                     title: "מייל",
                     iconName: "envelope",
                     options: [
-                        .init(value: .none,   label: "כבוי", description: "לימור לא קוראת מיילים"),
-                        .init(value: .google, label: "Gmail", description: "דורש חיבור Google + אישור scope"),
+                        .init(value: .google,    label: "Gmail", description: "דורש חיבור Google + אישור scope"),
+                        .init(value: .microsoft, label: "Outlook / Office 365", description: "דורש חיבור Microsoft + אישור scope"),
                     ],
-                    disabled: [],
-                    selection: $emailSource
+                    selection: $emailSources
                 )
             }
         }
@@ -519,12 +538,20 @@ struct SettingsView: View {
                     granted: permissionSnapshot.calendar,
                     action: { await requestCalendar() }
                 )
-                if calendarSource == .google {
+                if calendarSources.contains(.google) {
                     PermissionRow(
                         icon: "calendar.badge.checkmark",
                         title: "Google Calendar",
                         granted: permissionSnapshot.googleCalendar,
                         action: { await connectGoogleCalendar() }
+                    )
+                }
+                if calendarSources.contains(.microsoft) {
+                    PermissionRow(
+                        icon: "calendar.badge.checkmark",
+                        title: "Outlook Calendar",
+                        granted: permissionSnapshot.microsoftCalendar,
+                        action: { await connectOutlookCalendar() }
                     )
                 }
                 PermissionRow(
@@ -533,12 +560,20 @@ struct SettingsView: View {
                     granted: permissionSnapshot.contacts,
                     action: { await requestContacts() }
                 )
-                if emailSource == .google {
+                if emailSources.contains(.google) {
                     PermissionRow(
                         icon: "envelope.fill",
                         title: "Gmail",
                         granted: permissionSnapshot.googleGmail,
                         action: { await connectGmail() }
+                    )
+                }
+                if emailSources.contains(.microsoft) {
+                    PermissionRow(
+                        icon: "envelope.fill",
+                        title: "Outlook Mail",
+                        granted: permissionSnapshot.microsoftMail,
+                        action: { await connectOutlookMail() }
                     )
                 }
                 PermissionRow(
@@ -641,6 +676,9 @@ struct SettingsView: View {
         let granted = GoogleAPIs.grantedScopes()
         permissionSnapshot.googleCalendar = granted.contains(GoogleAPIs.calendarReadOnlyScope)
         permissionSnapshot.googleGmail    = granted.contains(GoogleAPIs.gmailReadOnlyScope)
+        let msGranted = MicrosoftAPIs.grantedScopes()
+        permissionSnapshot.microsoftCalendar = msGranted.contains(MicrosoftAPIs.calendarReadScope)
+        permissionSnapshot.microsoftMail     = msGranted.contains(MicrosoftAPIs.mailReadScope)
     }
 
     private func connectGoogleCalendar() async {
@@ -656,6 +694,26 @@ struct SettingsView: View {
     private func connectGmail() async {
         do {
             try await GoogleAPIs.ensureScopes([GoogleAPIs.gmailReadOnlyScope])
+            await SyncManager.shared.syncEmail(force: true)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        await refreshPermissions()
+    }
+
+    private func connectOutlookCalendar() async {
+        do {
+            try await MicrosoftAPIs.ensureScopes([MicrosoftAPIs.calendarReadScope])
+            await SyncManager.shared.syncCalendar(force: true)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        await refreshPermissions()
+    }
+
+    private func connectOutlookMail() async {
+        do {
+            try await MicrosoftAPIs.ensureScopes([MicrosoftAPIs.mailReadScope])
             await SyncManager.shared.syncEmail(force: true)
         } catch {
             errorMessage = error.localizedDescription
@@ -687,6 +745,8 @@ private struct PermissionSnapshot {
     var notifications: Bool = false
     var googleCalendar: Bool = false
     var googleGmail: Bool = false
+    var microsoftCalendar: Bool = false
+    var microsoftMail: Bool = false
 }
 
 private struct PermissionRow: View {
@@ -732,12 +792,14 @@ private struct PermissionRow: View {
     }
 }
 
-private struct SourcePicker: View {
+/// Multi-select replacement for the old single-choice picker — each option
+/// has its own checkbox so the user can enable any combination (e.g. both
+/// Gmail and Outlook). Tapping a row toggles that single source on/off.
+private struct MultiSourcePicker: View {
     let title: String
     let iconName: String
     let options: [Option]
-    let disabled: Set<DataSource>
-    @Binding var selection: DataSource
+    @Binding var selection: Set<DataSource>
 
     struct Option: Identifiable {
         var id: DataSource { value }
@@ -753,23 +815,16 @@ private struct SourcePicker: View {
                 .foregroundStyle(.limorInk)
             VStack(spacing: 6) {
                 ForEach(options) { opt in
+                    let isOn = selection.contains(opt.value)
                     Button {
-                        if !disabled.contains(opt.value) { selection = opt.value }
+                        if isOn { selection.remove(opt.value) }
+                        else    { selection.insert(opt.value) }
                     } label: {
                         HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: selection == opt.value ? "largecircle.fill.circle" : "circle")
-                                .foregroundStyle(disabled.contains(opt.value) ? Color.limorMuted : Color.limorIndigo)
+                            Image(systemName: isOn ? "checkmark.square.fill" : "square")
+                                .foregroundStyle(Color.limorIndigo)
                             VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 6) {
-                                    Text(opt.label).font(.subheadline.weight(.semibold))
-                                    if disabled.contains(opt.value) {
-                                        Text("בקרוב")
-                                            .font(.caption2.weight(.bold))
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 6).padding(.vertical, 2)
-                                            .background(Capsule().fill(Color.limorWarning))
-                                    }
-                                }
+                                Text(opt.label).font(.subheadline.weight(.semibold))
                                 Text(opt.description)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -779,11 +834,10 @@ private struct SourcePicker: View {
                         .padding(10)
                         .background(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(selection == opt.value ? Color.limorIndigo.opacity(0.1) : Color.clear)
+                                .fill(isOn ? Color.limorIndigo.opacity(0.1) : Color.clear)
                         )
                     }
                     .buttonStyle(.plain)
-                    .disabled(disabled.contains(opt.value))
                 }
             }
         }

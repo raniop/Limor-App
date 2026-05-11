@@ -3,6 +3,7 @@ import Foundation
 enum DataSource: String, Codable, CaseIterable {
     case apple
     case google
+    case microsoft
     case none
 }
 

@@ -2,6 +2,7 @@ import FirebaseCore
 import FirebaseMessaging
 import Foundation
 import GoogleSignIn
+import MSAL
 import UIKit
 import UserNotifications
 
@@ -86,10 +87,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
         return true
     }
 
-    /// Google Sign-In completes by opening a custom URL back into the app — this
-    /// hook hands it off to GIDSignIn so it can finalize the flow.
+    /// Google Sign-In and MSAL both complete by opening a custom URL back into
+    /// the app — this hook hands it off to whichever library claims it.
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
-        return GIDSignIn.sharedInstance.handle(url)
+        if GIDSignIn.sharedInstance.handle(url) {
+            return true
+        }
+        let sourceApp = options[.sourceApplication] as? String
+        return MSALPublicClientApplication.handleMSALResponse(url, sourceApplication: sourceApp)
     }
 
     // MARK: APNs registration callbacks
