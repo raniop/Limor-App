@@ -7,6 +7,7 @@ struct RootView: View {
     @State private var minSplashElapsed = false
     @State private var contentReady = false
     @State private var onboardingCompleted = SharedStore.onboardingCompleted
+    @State private var introCompleted = SharedStore.introCompleted
 
     /// Show the splash until BOTH conditions hold:
     ///   1. Minimum animation time has elapsed (so the brand entrance shows).
@@ -97,9 +98,7 @@ struct RootView: View {
     private var content: some View {
         switch auth.state {
         case .signedIn:
-            if onboardingCompleted {
-                MainTabs()
-            } else {
+            if !onboardingCompleted {
                 OnboardingView {
                     onboardingCompleted = true
                     // Now that the user picked their permissions, kick off the
@@ -107,11 +106,31 @@ struct RootView: View {
                     Task { await SyncManager.shared.syncAll() }
                 }
                 .transition(.opacity)
+            } else if !introCompleted {
+                LimorIntroChatView {
+                    introCompleted = true
+                }
+                .transition(.opacity)
+                .task { await reconcileIntroCompletion() }
+            } else {
+                MainTabs()
             }
         case .signedOut:
             SignInView()
         case .loading:
             SplashView()  // edge case — splashDone but auth still loading
+        }
+    }
+
+    /// The local `introCompleted` flag can be stale (fresh install, reset
+    /// device). The server's `intro_completed_at` is the source of truth —
+    /// if it's set, skip the intro chat for returning users.
+    private func reconcileIntroCompletion() async {
+        guard !SharedStore.introCompleted else { return }
+        if let resp = try? await APIClient.shared.profileFacts(),
+           resp.intro_completed_at != nil {
+            SharedStore.introCompleted = true
+            await MainActor.run { introCompleted = true }
         }
     }
 }

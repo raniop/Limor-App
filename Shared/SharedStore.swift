@@ -20,6 +20,7 @@ enum SharedStore {
         static let emailSource = "limor.emailSource"
         static let syncedReminderIds = "limor.syncedReminderIds"
         static let onboardingCompleted = "limor.onboardingCompleted"
+        static let introCompleted = "limor.introCompleted"
         static let remindersListId = "limor.remindersListId"
         static let homeCardOrder = "limor.homeCardOrder"
         static let homeCardHidden = "limor.homeCardHidden"
@@ -99,6 +100,15 @@ enum SharedStore {
     static var onboardingCompleted: Bool {
         get { defaults.bool(forKey: Keys.onboardingCompleted) }
         set { defaults.set(newValue, forKey: Keys.onboardingCompleted) }
+    }
+
+    /// True once the user finished the "meet Limor" intro chat after
+    /// permissions onboarding. Server-side `intro_completed_at` is the
+    /// source of truth; we mirror it here so cold-launch can pick the
+    /// right destination without waiting for a network round-trip.
+    static var introCompleted: Bool {
+        get { defaults.bool(forKey: Keys.introCompleted) }
+        set { defaults.set(newValue, forKey: Keys.introCompleted) }
     }
 
     /// The EKCalendar identifier the user has chosen for Limor reminders.

@@ -369,6 +369,34 @@ struct ContactDTO: Codable, Identifiable, Hashable {
     let aliases: [String]?
 }
 
+// MARK: - User profile (what Limor knows about you)
+
+/// One stable fact Limor remembers about the user — seeded by the
+/// post-sign-up intro chat and extended at runtime via the LLM's
+/// remember_about_user tool.
+struct ProfileFact: Codable, Identifiable, Hashable {
+    let id: String
+    var label: String
+    var value: String
+    let source: Source
+    let added_at: String
+
+    enum Source: String, Codable, Hashable {
+        case intro, chat, manual
+    }
+}
+
+struct ProfileFactsResponse: Decodable {
+    let facts: [ProfileFact]
+    let intro_completed_at: String?
+}
+
+/// Payload for `POST /api/profile/intro` — server fills in id/added_at/source.
+struct ProfileFactDraft: Encodable, Hashable {
+    let label: String
+    let value: String
+}
+
 extension ISO8601DateFormatter {
     static let limor: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()

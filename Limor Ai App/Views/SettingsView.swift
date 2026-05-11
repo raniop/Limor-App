@@ -25,6 +25,7 @@ struct SettingsView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
                         profileCard
+                        memoryCard
                         sourcesCard
                         remindersListCard
                         permissionsCard
@@ -151,6 +152,41 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    // MARK: Memory — what Limor knows about the user
+
+    private var memoryCard: some View {
+        NavigationLink {
+            ProfileFactsView()
+        } label: {
+            GlassCard {
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.limorViolet.opacity(0.18))
+                            .frame(width: 38, height: 38)
+                        Image(systemName: "brain.head.profile")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.limorViolet)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("מה לימור יודעת עליי")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.limorInk)
+                        Text("הצג, ערוך או הסר פרטים שלימור זוכרת")
+                            .font(.caption)
+                            .foregroundStyle(.limorMuted)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.left")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.limorMuted)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: Sources (Apple / Google)

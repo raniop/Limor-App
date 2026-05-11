@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		042FC0511AE6CABA8A117A16 /* LimorIntroChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 269CDD3F0374EC093CFB2851 /* LimorIntroChatView.swift */; };
 		0EDB95E57BF4900C05283F56 /* LimorReminderAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C88EC958269D59320A5A646 /* LimorReminderAttributes.swift */; };
 		153303E47D056412B3F13BE5 /* LimorWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD64DB77635DA9DB274B60E /* LimorWidgetBundle.swift */; };
 		2252284C93C5BD5A1B795D31 /* VoiceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B72EA9E69C14DC9A8337CB9 /* VoiceService.swift */; };
@@ -39,6 +40,7 @@
 		A197C77394CE55D99EE8A21C /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B202F02E4586363CB10439EC /* SharedStore.swift */; };
 		A35725A80CD0720ED8E721E7 /* Limor Ai App Widget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ADD7F1B823C26AD027A926D4 /* Limor Ai App Widget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A74A4CFE9735A6282E7A6FE7 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0920F870874E0CF9DB671EA4 /* RootView.swift */; };
+		A8F273771B99CC4C0A008867 /* ProfileFactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 260CD9022ECCA8236F6CC88E /* ProfileFactsView.swift */; };
 		AEE7EFB5AEC926AFCE0E8402 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BC4F6E9C9C972C8BD4AE955 /* APIClient.swift */; };
 		BA3F0CEDFE573CDFF414311E /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0126DBEFE9D0FD9C09A0F184 /* GoogleService-Info.plist */; };
 		C186FB50EC1DD6B541F9F7C3 /* VoiceInputSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A23BC6C1BD773FDD3C2D6C3 /* VoiceInputSheet.swift */; };
@@ -93,6 +95,8 @@
 		183836D13AC3A9864529799A /* Limor Ai App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Limor Ai App.entitlements"; sourceTree = "<group>"; };
 		1AB17F49E0B92D41CBEB78F2 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		1BC4F6E9C9C972C8BD4AE955 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		260CD9022ECCA8236F6CC88E /* ProfileFactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileFactsView.swift; sourceTree = "<group>"; };
+		269CDD3F0374EC093CFB2851 /* LimorIntroChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorIntroChatView.swift; sourceTree = "<group>"; };
 		2B72EA9E69C14DC9A8337CB9 /* VoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceService.swift; sourceTree = "<group>"; };
 		2C14813798F555401055250B /* FeedNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedNode.swift; sourceTree = "<group>"; };
 		2FEA6C80C01305F2D1B2D993 /* CalendarManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarManager.swift; sourceTree = "<group>"; };
@@ -100,7 +104,7 @@
 		3A828CE65F6E915FA08837DA /* CustomizeHomeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizeHomeSheet.swift; sourceTree = "<group>"; };
 		3C1DD35067CE05EE90665BFF /* FeedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCard.swift; sourceTree = "<group>"; };
 		41866BA79E18FA404BFCFD96 /* PushManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushManager.swift; sourceTree = "<group>"; };
-		44CB3C3B381DA79889FA5A25 /* Limor Ai App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Limor Ai App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		44CB3C3B381DA79889FA5A25 /* Limor Ai App.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Limor Ai App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		478AFCC4F530569FD222FA03 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		4DB07E2C95CA5E81B2B0467E /* HealthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthManager.swift; sourceTree = "<group>"; };
 		4E3E42644D5D54B11F655BCA /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
@@ -214,8 +218,10 @@
 				2C14813798F555401055250B /* FeedNode.swift */,
 				F7D91250B8286E7E09A1FFCA /* HealthDetailView.swift */,
 				30076B044722A8FFD18B9866 /* HomeCardKind.swift */,
+				269CDD3F0374EC093CFB2851 /* LimorIntroChatView.swift */,
 				040FFCD9DC418611AA006C63 /* NowView.swift */,
 				1AB17F49E0B92D41CBEB78F2 /* OnboardingView.swift */,
+				260CD9022ECCA8236F6CC88E /* ProfileFactsView.swift */,
 				4FE0594A9356AAF49921A7AE /* RemindersView.swift */,
 				0920F870874E0CF9DB671EA4 /* RootView.swift */,
 				F350B8D6038DF33D6298ABF7 /* SettingsView.swift */,
@@ -377,12 +383,14 @@
 				C426955A7E56C6F1357366F6 /* HealthManager.swift in Sources */,
 				5B7FE264E3A3839E73EE54A0 /* HomeCardKind.swift in Sources */,
 				659BE1570E6347F698D416A6 /* LimorAiApp.swift in Sources */,
+				042FC0511AE6CABA8A117A16 /* LimorIntroChatView.swift in Sources */,
 				EBDD4CEE77B4BE59DDD50A90 /* LimorLogoMark.swift in Sources */,
 				0EDB95E57BF4900C05283F56 /* LimorReminderAttributes.swift in Sources */,
 				67EADCA834C4AE1B9E2682CF /* LocationManager.swift in Sources */,
 				4183176520FB49FE6F75B493 /* Models.swift in Sources */,
 				C355EB2FF013CA1DDA4D4436 /* NowView.swift in Sources */,
 				FCFCC920CA55C69481D97D7E /* OnboardingView.swift in Sources */,
+				A8F273771B99CC4C0A008867 /* ProfileFactsView.swift in Sources */,
 				50EC3821E22600E126CE6F79 /* PushManager.swift in Sources */,
 				3C3FE1E1E0881796643BA821 /* RemindersView.swift in Sources */,
 				D3EBD1DC243A3A675E42DFBE /* RemindersWriter.swift in Sources */,
@@ -511,16 +519,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Limor Ai App/Limor Ai App.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 3;
 				INFOPLIST_FILE = "Limor Ai App/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Limor AI";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				LIMOR_API_BASE_URL = "https://limor-app-backend-1043813835619.me-west1.run.app";
-				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.rani.Limor-Ai-App";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -554,16 +559,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Limor Ai App/Limor Ai App.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 3;
 				INFOPLIST_FILE = "Limor Ai App/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Limor AI";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				LIMOR_API_BASE_URL = "https://limor-app-backend-1043813835619.me-west1.run.app";
-				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.rani.Limor-Ai-App";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;

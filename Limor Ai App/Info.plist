@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Limor AI</string>
+	<string>Limor</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,9 +15,9 @@
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
-	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>$(MARKETING_VERSION)</string>
+	<string>1.0</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -30,13 +30,13 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LIMOR_API_BASE_URL</key>
 	<string>$(LIMOR_API_BASE_URL)</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>לימור צריכה גישה ליומן כדי לעזור לך לנהל פגישות, להציע תזכורות חכמות, ולענות על &quot;מה ביומן שלי&quot;.</string>
+	<string>לימור צריכה גישה ליומן כדי לעזור לך לנהל פגישות, להציע תזכורות חכמות, ולענות על "מה ביומן שלי".</string>
 	<key>NSContactsUsageDescription</key>
 	<string>לימור צריכה גישה לאנשי הקשר כדי שתוכל למצוא טלפונים ולהבין על מי אתה מדבר.</string>
 	<key>NSHealthShareUsageDescription</key>

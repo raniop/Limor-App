@@ -193,6 +193,40 @@ struct APIClient {
         }
     }
 
+    // MARK: - Profile (long-term memory)
+
+    func profileFacts() async throws -> ProfileFactsResponse {
+        try await get("/api/profile/facts")
+    }
+
+    func submitProfileIntro(facts: [ProfileFactDraft]) async throws -> ProfileFactsResponse {
+        struct Body: Encodable { let facts: [ProfileFactDraft] }
+        return try await post("/api/profile/intro", body: Body(facts: facts))
+    }
+
+    func addProfileFact(label: String, value: String) async throws -> ProfileFact {
+        struct Body: Encodable { let label: String; let value: String }
+        struct Resp: Decodable { let fact: ProfileFact }
+        let r: Resp = try await post("/api/profile/facts", body: Body(label: label, value: value))
+        return r.fact
+    }
+
+    func updateProfileFact(id: String, label: String, value: String) async throws {
+        struct Body: Encodable { let label: String; let value: String }
+        var req = URLRequest(url: resolveURL("/api/profile/facts/\(id)"))
+        req.httpMethod = "PUT"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let bearer = await freshIdToken() {
+            req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = try encoder.encode(Body(label: label, value: value))
+        let _: EmptyResponse = try await send(req)
+    }
+
+    func deleteProfileFact(id: String) async throws {
+        let _: EmptyResponse = try await deleteReq("/api/profile/facts/\(id)")
+    }
+
     // MARK: - Chat
 
     func chatHistory(token: String) async throws -> ChatHistory {
