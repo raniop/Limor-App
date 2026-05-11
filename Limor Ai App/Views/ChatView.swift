@@ -8,11 +8,16 @@ struct ChatView: View {
     @EnvironmentObject private var router: AppRouter
     @StateObject private var location = LocationManager.shared
     @State private var messages: [ChatMessage] = []
-    @State private var draft: String = ""
     @State private var usage: ChatUsage?
     @State private var isSending = false
     @State private var errorMessage: String?
-    @FocusState private var draftFocused: Bool
+
+    /// One-shot seed for the composer's internal `draft`. Parent writes to
+    /// it (suggestion tap, queued pending message) and the composer picks
+    /// it up via `.onChange` and clears back to nil. Kept here instead of
+    /// inside the composer so suggestion buttons in `emptyState` (which
+    /// live on the parent) can drive it.
+    @State private var composerSeed: String?
 
     // Attachment composer state
     @State private var photoItem: PhotosPickerItem?
@@ -71,12 +76,12 @@ struct ChatView: View {
                             .padding(.bottom, 12)
                         }
                         .scrollDismissesKeyboard(.interactively)
-                        .onTapGesture { draftFocused = false }
+                        // Tap on the message list dismisses the keyboard.
+                        // FocusState now lives inside ChatComposerInput, so
+                        // we route through scrollDismissesKeyboard which
+                        // covers the swipe-down gesture instead.
                         .onChange(of: messages.count) { _, _ in scrollToBottom(proxy) }
                         .onChange(of: isSending) { _, sending in if sending { scrollToBottom(proxy) } }
-                        .onChange(of: draftFocused) { _, focused in
-                            if focused { scrollToBottom(proxy) }
-                        }
                     }
 
                     composer
@@ -131,12 +136,11 @@ struct ChatView: View {
             }
             .sheet(isPresented: $showingVoiceSheet) {
                 VoiceInputSheet { transcribed in
-                    // Hand the transcribed text into the composer and send it
-                    // straight away. Mark `expectVoiceReply` so Limor's reply
-                    // gets spoken aloud — keeps the conversation hands-free.
-                    draft = transcribed
+                    // Send the transcribed text straight away. Mark
+                    // `expectVoiceReply` so Limor's reply gets spoken aloud
+                    // — keeps the conversation hands-free.
                     expectVoiceReply = true
-                    Task { await send() }
+                    Task { await send(text: transcribed) }
                 }
                 .presentationDetents([.large])
             }
@@ -173,8 +177,7 @@ struct ChatView: View {
             VStack(spacing: 8) {
                 ForEach(suggestions) { s in
                     SuggestionRow(suggestion: s) {
-                        draft = s.text
-                        draftFocused = true
+                        composerSeed = s.text
                     }
                 }
             }
@@ -223,40 +226,19 @@ struct ChatView: View {
                 }
                 .disabled(isSending)
 
-                TextField("הודעה ללימור…", text: $draft, axis: .vertical)
-                    .focused($draftFocused)
-                    .lineLimit(1...5)
-                    .font(.body)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .submitLabel(.send)
-                    .background(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(.regularMaterial)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(.white.opacity(0.5), lineWidth: 0.5)
-                    )
-
-                Button {
-                    Task { await send() }
-                } label: {
-                    ZStack {
-                        if canSend {
-                            Circle().fill(LimorGradient.brand)
-                        } else {
-                            Circle().fill(Color.limorMuted.opacity(0.3))
-                        }
-                        Image(systemName: "arrow.up")
-                            .font(.body.weight(.bold))
-                            .foregroundStyle(.white)
+                // TextField + send button live in their own sub-view so
+                // typing only invalidates THAT subview's body — not the
+                // entire ChatView (which would re-evaluate the message list
+                // on every keystroke). This was the root cause of the 99%
+                // CPU spike while typing on the iPhone Air.
+                ChatComposerInput(
+                    isBusy: preparingAttachment || isSending,
+                    hasAttachment: attachmentData != nil,
+                    seed: $composerSeed,
+                    onSend: { text in
+                        Task { await send(text: text) }
                     }
-                    .frame(width: 44, height: 44)
-                    .shadow(color: canSend ? Color.limorIndigo.opacity(0.4) : .clear, radius: 10, y: 4)
-                }
-                .disabled(!canSend)
-                .animation(.easeInOut, value: canSend)
+                )
             }
         }
         .padding(.horizontal, 14)
@@ -319,11 +301,6 @@ struct ChatView: View {
                     .foregroundStyle(.limorViolet)
             }
         }
-    }
-
-    private var canSend: Bool {
-        guard !isSending, !preparingAttachment else { return false }
-        return !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || attachmentData != nil
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
@@ -430,22 +407,21 @@ struct ChatView: View {
         }
     }
 
-    /// If a CTA on another tab queued a message for Limor, drop it into the
-    /// composer and fire `send()`. Clears the router slot whether the send
-    /// succeeds or fails so we don't loop on a sticky pending value.
+    /// If a CTA on another tab queued a message for Limor, fire it
+    /// straight away. Clears the router slot whether the send succeeds
+    /// or fails so we don't loop on a sticky pending value.
     private func consumePendingMessageIfAny() async {
         guard let queued = router.pendingChatMessage,
               !queued.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !isSending
         else { return }
         router.pendingChatMessage = nil
-        draft = queued
-        await send()
+        await send(text: queued)
     }
 
     @MainActor
-    private func send() async {
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func send(text rawText: String) async {
+        let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || attachmentData != nil else { return }
 
         let payloadText = text.isEmpty ? defaultPromptForAttachment() : text
@@ -460,8 +436,7 @@ struct ChatView: View {
         let optimisticImage = attachmentImagePreview?.jpegData(compressionQuality: 0.5)
         let optimisticFilename = attachmentFilename
 
-        // Reset composer state immediately so the user sees their action took effect.
-        draft = ""
+        // Reset attachment state immediately so the user sees their action took effect.
         clearAttachment()
 
         let optimistic = ChatMessage(
@@ -514,6 +489,87 @@ struct ChatView: View {
         if mime.hasPrefix("image/") { return "מה רואים בתמונה? תסכמי לי את הפרטים החשובים." }
         if mime == "application/pdf" { return "תסכמי לי את המסמך — מה הפרטים החשובים?" }
         return "מה זה?"
+    }
+}
+
+// MARK: - Composer input (isolated so typing doesn't invalidate ChatView)
+
+/// The TextField + Send button live here because typing fires a state
+/// mutation on every keystroke, which re-runs the body of whoever owns
+/// the @State. By keeping `draft` and `focused` local to this subview,
+/// keystrokes only re-run *this* subview's body — the message list,
+/// attachment banner, navigation toolbar, etc. all stay frozen.
+private struct ChatComposerInput: View {
+    /// True when send/attachment is in flight — disables the send button.
+    let isBusy: Bool
+    /// True when an attachment is staged — lets send fire even with empty draft.
+    let hasAttachment: Bool
+    /// One-shot inbound text from parent (suggestion tap / queued message).
+    /// Composer replaces its draft with the seed, focuses, and clears.
+    @Binding var seed: String?
+    /// Fires when the user taps Send. Receives the trimmed draft text.
+    /// Composer clears its draft immediately for instant feedback.
+    let onSend: (String) -> Void
+
+    @State private var draft: String = ""
+    @FocusState private var focused: Bool
+
+    private var canSend: Bool {
+        guard !isBusy else { return false }
+        return !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || hasAttachment
+    }
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 10) {
+            TextField("הודעה ללימור…", text: $draft, axis: .vertical)
+                .focused($focused)
+                .lineLimit(1...5)
+                .font(.body)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .submitLabel(.send)
+                .background(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(.regularMaterial)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(.white.opacity(0.5), lineWidth: 0.5)
+                )
+
+            Button {
+                let toSend = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Clear immediately for instant visual feedback; parent
+                // may decide to substitute defaultPromptForAttachment if
+                // we passed empty text + an attachment.
+                draft = ""
+                onSend(toSend)
+            } label: {
+                ZStack {
+                    if canSend {
+                        Circle().fill(LimorGradient.brand)
+                    } else {
+                        Circle().fill(Color.limorMuted.opacity(0.3))
+                    }
+                    Image(systemName: "arrow.up")
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 44, height: 44)
+                .shadow(color: canSend ? Color.limorIndigo.opacity(0.4) : .clear, radius: 10, y: 4)
+            }
+            .disabled(!canSend)
+            .animation(.easeInOut, value: canSend)
+        }
+        .onChange(of: seed) { _, newValue in
+            // Parent pushed text in (e.g. a suggestion). Apply it, focus,
+            // and clear the seed so we don't keep reapplying.
+            if let newValue, !newValue.isEmpty {
+                draft = newValue
+                focused = true
+                seed = nil
+            }
+        }
     }
 }
 
