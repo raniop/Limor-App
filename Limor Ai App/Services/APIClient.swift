@@ -358,11 +358,7 @@ struct APIClient {
     }
 
     private func freshIdToken() async -> String? {
-        guard let user = Auth.auth().currentUser else {
-            NSLog("[send] T no currentUser")
-            return nil
-        }
-        NSLog("[send] T1 requesting token")
+        guard let user = Auth.auth().currentUser else { return nil }
 
         // Race the Firebase callback against an 8-second timeout. On at least
         // one iPhone Air, the second chat send in a session hung indefinitely
@@ -372,7 +368,7 @@ struct APIClient {
         // resumes, and the entire send sits forever with `isSending=true`
         // (and from the user's point of view, the chat is frozen). Without
         // the safety net there is no way out short of killing the app.
-        let token: String? = await withCheckedContinuation { (cont: CheckedContinuation<String?, Never>) in
+        return await withCheckedContinuation { (cont: CheckedContinuation<String?, Never>) in
             let lock = NSLock()
             var resolved = false
 
@@ -381,7 +377,6 @@ struct APIClient {
                 defer { lock.unlock() }
                 guard !resolved else { return }
                 resolved = true
-                NSLog("[send] T-cb token=\(token != nil)")
                 cont.resume(returning: token)
             }
 
@@ -391,13 +386,10 @@ struct APIClient {
                 defer { lock.unlock() }
                 guard !resolved else { return }
                 resolved = true
-                NSLog("[send] T! timeout — Firebase never called back")
+                NSLog("[auth] Firebase getIDToken timed out after 8s — falling back to nil")
                 cont.resume(returning: nil)
             }
         }
-
-        NSLog("[send] T2 token=\(token != nil)")
-        return token
     }
 
     private func get<T: Decodable>(_ path: String) async throws -> T {
@@ -410,20 +402,14 @@ struct APIClient {
     }
 
     private func post<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
-        let isChat = path == "/api/chat"
-        if isChat { NSLog("[send] P1 post chat: building req") }
         var req = URLRequest(url: resolveURL(path))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let bearer = await freshIdToken() {
             req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
         }
-        if isChat { NSLog("[send] P2 post chat: token-step done, encoding") }
         req.httpBody = try encoder.encode(body)
-        if isChat { NSLog("[send] P3 post chat: sending HTTP") }
-        let resp: T = try await send(req)
-        if isChat { NSLog("[send] P4 post chat: HTTP response decoded") }
-        return resp
+        return try await send(req)
     }
 
     private func deleteReq<T: Decodable>(_ path: String) async throws -> T {

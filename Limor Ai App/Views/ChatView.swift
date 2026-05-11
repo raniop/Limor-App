@@ -64,15 +64,12 @@ struct ChatView: View {
                                     MessageBubble(message: msg)
                                         .equatable()
                                         .id(msg.id)
-                                        // Only the assistant reply append is
-                                        // wrapped in `withAnimation`, so this
-                                        // transition only fires for Limor's
-                                        // bubbles — the user's own bubble is
-                                        // appended without an animation block
-                                        // and shows up instantly when they
-                                        // tap send, which matches the
-                                        // expectation that their action took
-                                        // effect.
+                                        // Transition only fires when the
+                                        // append is inside a `withAnimation`
+                                        // block — Limor's reply append is,
+                                        // the user's own bubble append is
+                                        // not, so this entrance plays only
+                                        // for the assistant.
                                         .transition(.scale(scale: 0.9).combined(with: .opacity))
                                 }
                                 if isSending {
@@ -85,17 +82,7 @@ struct ChatView: View {
                             .padding(.bottom, 12)
                         }
                         .scrollDismissesKeyboard(.interactively)
-                        // Single trigger — messages.count covers both user and
-                        // assistant appends. The duplicate isSending trigger
-                        // was firing a second scroll 50ms after the first,
-                        // doubling GPU work on send.
-                        .onChange(of: messages.count) { _, newCount in
-                            NSLog("[send] M messages.count=\(newCount)")
-                            scrollToBottom(proxy)
-                        }
-                        .onChange(of: isSending) { _, sending in
-                            NSLog("[send] I isSending=\(sending)")
-                        }
+                        .onChange(of: messages.count) { _, _ in scrollToBottom(proxy) }
 
                         composer(scrollProxy: proxy)
                     }
@@ -127,13 +114,9 @@ struct ChatView: View {
                 }
             }
             .task {
-                NSLog("[send] V ChatView .task start")
                 location.requestWhenInUseAndStart()
-                NSLog("[send] V location start requested")
                 await loadHistory()
-                NSLog("[send] V loadHistory done (messages=\(messages.count))")
                 await consumePendingMessageIfAny()
-                NSLog("[send] V .task complete")
             }
             .onChange(of: router.pendingChatMessage) { _, newValue in
                 // The user tapped a CTA on another tab — fire it off as a
@@ -323,13 +306,10 @@ struct ChatView: View {
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        NSLog("[send] S scrollToBottom scheduled")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            NSLog("[send] S scrollToBottom firing withAnimation")
             withAnimation(.easeOut(duration: 0.25)) {
                 proxy.scrollTo("bottom", anchor: .bottom)
             }
-            NSLog("[send] S scrollToBottom withAnimation returned")
         }
     }
 
@@ -443,7 +423,6 @@ struct ChatView: View {
 
     @MainActor
     private func send(text rawText: String) async {
-        NSLog("[send] 4 enter")
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || attachmentData != nil else { return }
 
@@ -458,11 +437,9 @@ struct ChatView: View {
         }()
         let optimisticImage = attachmentImagePreview?.jpegData(compressionQuality: 0.5)
         let optimisticFilename = attachmentFilename
-        NSLog("[send] 5 payload built")
 
         // Reset attachment state immediately so the user sees their action took effect.
         clearAttachment()
-        NSLog("[send] 6 clearAttachment")
 
         let optimistic = ChatMessage(
             role: .user,
@@ -471,40 +448,23 @@ struct ChatView: View {
             localAttachmentImageData: optimisticImage,
             localAttachmentFilename: optimisticFilename
         )
-        // Plain append, no animation wrapper. The previous `.spring` form
-        // combined with `.transition(.scale.combined(with: .opacity))` on
-        // the bubble pegged CPU on send (243% on iPhone Air) and stalled
-        // the renderer to the point of a watchdog freeze. The
-        // `.transition(.opacity)` on MessageBubble still fades the new
-        // bubble in via SwiftUI's default implicit animation.
-        NSLog("[send] 7 before append user")
+        // User bubble appended plain (no withAnimation) on purpose — they
+        // just tapped send, the action should feel immediate. Limor's
+        // reply below gets the spring entrance.
         messages.append(optimistic)
-        NSLog("[send] 8 after append user")
 
         isSending = true
-        NSLog("[send] 9 isSending=true")
-        defer {
-            NSLog("[send] D defer")
-            isSending = false
-        }
+        defer { isSending = false }
 
         do {
-            let lat = location.coordinate?.latitude
-            let lng = location.coordinate?.longitude
-            NSLog("[send] 10 before sendChat (lat?=\(lat != nil))")
             let reply = try await APIClient.shared.sendChat(
                 token: auth.token ?? "",
                 message: payloadText,
-                lat: lat,
-                lng: lng,
+                lat: location.coordinate?.latitude,
+                lng: location.coordinate?.longitude,
                 attachment: attachmentForServer
             )
-            NSLog("[send] 11 after sendChat")
             usage = reply.usage
-            NSLog("[send] 12 before append reply")
-            // Spring + scale-in for Limor's bubble. The user's own bubble
-            // was appended without an animation block on purpose so it
-            // appears instantly on send; the reply earns the entrance.
             withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
                 messages.append(ChatMessage(
                     role: .assistant,
@@ -512,7 +472,6 @@ struct ChatView: View {
                     created_at: ISO8601DateFormatter.limor.string(from: Date())
                 ))
             }
-            NSLog("[send] 13 after append reply")
             // If the user sent this message via the voice sheet, speak the
             // reply back so the conversation stays hands-free.
             if expectVoiceReply {
@@ -520,7 +479,6 @@ struct ChatView: View {
                 VoiceService.shared.speak(reply.reply)
             }
         } catch {
-            NSLog("[send] E catch: \(error)")
             errorMessage = error.localizedDescription
             await loadHistory()
         }
@@ -584,15 +542,12 @@ private struct ChatComposerInput: View {
                 )
 
             Button {
-                NSLog("[send] 1 tap")
                 let toSend = draft.trimmingCharacters(in: .whitespacesAndNewlines)
                 // Clear immediately for instant visual feedback; parent
                 // may decide to substitute defaultPromptForAttachment if
                 // we passed empty text + an attachment.
                 draft = ""
-                NSLog("[send] 2 draft cleared")
                 onSend(toSend)
-                NSLog("[send] 3 onSend returned")
             } label: {
                 ZStack {
                     if canSend {
@@ -610,29 +565,22 @@ private struct ChatComposerInput: View {
             .disabled(!canSend)
             .animation(.easeInOut, value: canSend)
         }
-        .onAppear { NSLog("[send] C composer appeared") }
-        .onChange(of: draft) { _, newValue in
-            NSLog("[send] K draft change len=\(newValue.count)")
-        }
         .onChange(of: seed) { _, newValue in
             // Parent pushed text in (e.g. a suggestion). Apply it, focus,
             // and clear the seed so we don't keep reapplying.
             if let newValue, !newValue.isEmpty {
-                NSLog("[send] Z seed apply len=\(newValue.count)")
                 draft = newValue
                 focused = true
                 seed = nil
             }
         }
         .onChange(of: focused) { _, isFocused in
-            NSLog("[send] F focus=\(isFocused)")
             guard isFocused else { return }
             // Wait for the keyboard to slide in before scrolling — the
             // ScrollView's safe-area inset adjusts during the animation,
             // and a too-early scroll lands at the wrong offset.
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(300))
-                NSLog("[send] F scroll after focus")
                 withAnimation(.easeOut(duration: 0.25)) {
                     scrollProxy.scrollTo("bottom", anchor: .bottom)
                 }
