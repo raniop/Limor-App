@@ -28,6 +28,7 @@ struct SettingsView: View {
                     VStack(spacing: 16) {
                         profileCard
                         memoryCard
+                        familyCard
                         notificationsCard
                         // Only renders for users whose `crm_enabled` flag is
                         // true in Firestore — hidden entirely for everyone else.
@@ -191,6 +192,41 @@ struct SettingsView: View {
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.limorInk)
                         Text("הצג, ערוך או הסר פרטים שלימור זוכרת")
+                            .font(.caption)
+                            .foregroundStyle(.limorMuted)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.left")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.limorMuted)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Family — structured contact links
+
+    private var familyCard: some View {
+        NavigationLink {
+            RelationshipsView()
+        } label: {
+            GlassCard {
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.limorPink.opacity(0.18))
+                            .frame(width: 38, height: 38)
+                        Image(systemName: "person.2.fill")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.limorPink)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("המשפחה שלי")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.limorInk)
+                        Text("קשר בני משפחה לאנשי הקשר שלך")
                             .font(.caption)
                             .foregroundStyle(.limorMuted)
                             .lineLimit(1)

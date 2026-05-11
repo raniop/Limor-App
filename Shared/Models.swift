@@ -435,6 +435,50 @@ struct ProfileFactDraft: Encodable, Hashable {
     let value: String
 }
 
+/// Structured family/friend link tied to a specific iOS Contact. Picked
+/// via `CNContactPickerViewController` in Settings → המשפחה שלי so Limor
+/// can resolve things like "התקשר לבת זוגי" → the right contact name.
+struct Relationship: Codable, Identifiable, Hashable {
+    let id: String
+    let relation: Kind
+    let relation_label: String       // Hebrew label the user chose: "בת זוג", "אבא"
+    let contact_identifier: String   // CNContact.identifier
+    let contact_name: String
+    let contact_phone: String?
+    let added_at: String
+
+    enum Kind: String, Codable, Hashable, CaseIterable {
+        case spouse, child, parent, sibling, friend, other
+
+        /// Suggested Hebrew label per kind — the user can override per row.
+        var defaultLabel: String {
+            switch self {
+            case .spouse:  return "בן/בת זוג"
+            case .child:   return "ילד/ה"
+            case .parent:  return "הורה"
+            case .sibling: return "אח/ות"
+            case .friend:  return "חבר/ה"
+            case .other:   return "אחר"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .spouse:  return "heart.fill"
+            case .child:   return "figure.child"
+            case .parent:  return "person.crop.circle.badge.checkmark"
+            case .sibling: return "person.2.fill"
+            case .friend:  return "person.fill"
+            case .other:   return "person.circle"
+            }
+        }
+    }
+}
+
+struct RelationshipsResponse: Decodable {
+    let relationships: [Relationship]
+}
+
 extension ISO8601DateFormatter {
     static let limor: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()

@@ -268,6 +268,61 @@ struct APIClient {
         let _: EmptyResponse = try await deleteReq("/api/profile/facts/\(id)")
     }
 
+    // MARK: - Relationships (linked contacts)
+
+    func relationships() async throws -> [Relationship] {
+        let r: RelationshipsResponse = try await get("/api/profile/relationships")
+        return r.relationships
+    }
+
+    func addRelationship(
+        relation: Relationship.Kind,
+        relationLabel: String,
+        contactIdentifier: String,
+        contactName: String,
+        contactPhone: String?
+    ) async throws -> Relationship {
+        struct Body: Encodable {
+            let relation: String
+            let relation_label: String
+            let contact_identifier: String
+            let contact_name: String
+            let contact_phone: String?
+        }
+        struct Resp: Decodable { let relationship: Relationship }
+        let r: Resp = try await post(
+            "/api/profile/relationships",
+            body: Body(
+                relation: relation.rawValue,
+                relation_label: relationLabel,
+                contact_identifier: contactIdentifier,
+                contact_name: contactName,
+                contact_phone: contactPhone
+            )
+        )
+        return r.relationship
+    }
+
+    func updateRelationship(
+        id: String,
+        relation: Relationship.Kind,
+        relationLabel: String
+    ) async throws {
+        struct Body: Encodable { let relation: String; let relation_label: String }
+        var req = URLRequest(url: resolveURL("/api/profile/relationships/\(id)"))
+        req.httpMethod = "PUT"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let bearer = await freshIdToken() {
+            req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = try encoder.encode(Body(relation: relation.rawValue, relation_label: relationLabel))
+        let _: EmptyResponse = try await send(req)
+    }
+
+    func deleteRelationship(id: String) async throws {
+        let _: EmptyResponse = try await deleteReq("/api/profile/relationships/\(id)")
+    }
+
     // MARK: - Chat
 
     func chatHistory(token: String) async throws -> ChatHistory {

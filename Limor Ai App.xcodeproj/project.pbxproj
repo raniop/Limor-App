@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		042FC0511AE6CABA8A117A16 /* LimorIntroChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 269CDD3F0374EC093CFB2851 /* LimorIntroChatView.swift */; };
+		0E44575EE0AF6D1D69E0D633 /* ContactPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CF766704AC4044C593F2D83 /* ContactPicker.swift */; };
 		0EDB95E57BF4900C05283F56 /* LimorReminderAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C88EC958269D59320A5A646 /* LimorReminderAttributes.swift */; };
 		153303E47D056412B3F13BE5 /* LimorWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD64DB77635DA9DB274B60E /* LimorWidgetBundle.swift */; };
 		2252284C93C5BD5A1B795D31 /* VoiceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B72EA9E69C14DC9A8337CB9 /* VoiceService.swift */; };
@@ -16,6 +17,7 @@
 		3A33D0BADCF1C6C79B2D771D /* WidgetAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDA34640B05602CA3307600E /* WidgetAPI.swift */; };
 		3C3FE1E1E0881796643BA821 /* RemindersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE0594A9356AAF49921A7AE /* RemindersView.swift */; };
 		4183176520FB49FE6F75B493 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC2371869E57B0A6FA86FE0 /* Models.swift */; };
+		41D55F13697C9135EDE61653 /* RelationshipsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A5D1D5B83E2A988DCED1752 /* RelationshipsView.swift */; };
 		43B8E694B62BBD4BFE0F43B1 /* FeedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1DD35067CE05EE90665BFF /* FeedCard.swift */; };
 		4BA335B000F3D25A3A7D2F30 /* ContactsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E37DE61A7E69CFA5FD06DAB8 /* ContactsManager.swift */; };
 		4EB6736FC9C410C85125EA57 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC2371869E57B0A6FA86FE0 /* Models.swift */; };
@@ -108,6 +110,7 @@
 		3720B9F23F3177BDEAE1F4B7 /* NotificationsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsSettingsView.swift; sourceTree = "<group>"; };
 		3A828CE65F6E915FA08837DA /* CustomizeHomeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizeHomeSheet.swift; sourceTree = "<group>"; };
 		3C1DD35067CE05EE90665BFF /* FeedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCard.swift; sourceTree = "<group>"; };
+		3CF766704AC4044C593F2D83 /* ContactPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContactPicker.swift; sourceTree = "<group>"; };
 		41866BA79E18FA404BFCFD96 /* PushManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushManager.swift; sourceTree = "<group>"; };
 		44CB3C3B381DA79889FA5A25 /* Limor Ai App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Limor Ai App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		478AFCC4F530569FD222FA03 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
@@ -121,6 +124,7 @@
 		83328D4B558B22C5BCBD06EB /* LimorWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LimorWidget.entitlements; sourceTree = "<group>"; };
 		833DCEA3F6B5E318E0DF0E61 /* LimorLogoMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorLogoMark.swift; sourceTree = "<group>"; };
 		8C88EC958269D59320A5A646 /* LimorReminderAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorReminderAttributes.swift; sourceTree = "<group>"; };
+		9A5D1D5B83E2A988DCED1752 /* RelationshipsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RelationshipsView.swift; sourceTree = "<group>"; };
 		9D1698B92AFE03772997513C /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		A28D6A515676755BA91AC4E7 /* GoogleAPIs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAPIs.swift; sourceTree = "<group>"; };
 		ACD64DB77635DA9DB274B60E /* LimorWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorWidgetBundle.swift; sourceTree = "<group>"; };
@@ -237,6 +241,8 @@
 				9D1698B92AFE03772997513C /* SignInView.swift */,
 				0A23BC6C1BD773FDD3C2D6C3 /* VoiceInputSheet.swift */,
 				032BFD663A4822AE6207BA95 /* WeatherDetailView.swift */,
+				3CF766704AC4044C593F2D83 /* ContactPicker.swift */,
+				9A5D1D5B83E2A988DCED1752 /* RelationshipsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -286,8 +292,6 @@
 			dependencies = (
 			);
 			name = "Limor Ai App Widget";
-			packageProductDependencies = (
-			);
 			productName = "Limor Ai App Widget";
 			productReference = ADD7F1B823C26AD027A926D4 /* Limor Ai App Widget.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -416,6 +420,8 @@
 				2252284C93C5BD5A1B795D31 /* VoiceService.swift in Sources */,
 				F6CAEF2E5C6FB49F4E4D7662 /* WeatherDetailView.swift in Sources */,
 				9A1DB10483B0DD2F42738908 /* WidgetAPI.swift in Sources */,
+				0E44575EE0AF6D1D69E0D633 /* ContactPicker.swift in Sources */,
+				41D55F13697C9135EDE61653 /* RelationshipsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

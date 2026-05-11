@@ -70,17 +70,6 @@ struct LimorIntroChatView: View {
             kind: .text
         ),
         Step(
-            factLabel: "משפחה",
-            texts: [
-                .male:   "מי הקרובים שכדאי שאכיר? (בת זוג, ילדים, הורים)",
-                .female: "מי הקרובים שכדאי שאכיר? (בן זוג, ילדים, הורים)",
-                .other:  "מי הקרובים שכדאי שאכיר? (בן/בת זוג, ילדים, הורים)",
-            ],
-            placeholder: "טקסט חופשי",
-            prefill: nil,
-            kind: .text
-        ),
-        Step(
             factLabel: "עיסוק",
             texts: [
                 .male:   "במה אתה עוסק ביום-יום?",
@@ -91,17 +80,18 @@ struct LimorIntroChatView: View {
             prefill: nil,
             kind: .text
         ),
+        // Family relationships moved out of the intro — they're now picked
+        // structurally in Settings → המשפחה שלי (linked to iOS Contacts).
+        // This last step is the catch-all so the user can share anything
+        // else that helps Limor personalise (hobbies, preferences, context).
         Step(
-            factLabel: "עדיפות",
-            texts: [.male: "במה הכי חשוב לך שאעזור? תזכורות, יומן, בריאות, חדשות, או משהו אחר?"],
+            factLabel: "היכרות כללית",
+            texts: [
+                .male:   "ספר לי קצת על עצמך — תחביבים, מה חשוב לך, או כל דבר שכדאי שאדע כדי לעזור טוב יותר.",
+                .female: "ספרי לי קצת על עצמך — תחביבים, מה חשוב לך, או כל דבר שכדאי שאדע כדי לעזור טוב יותר.",
+                .other:  "ספר/י לי קצת על עצמך — תחביבים, מה חשוב לך, או כל דבר שכדאי שאדע כדי לעזור טוב יותר.",
+            ],
             placeholder: "טקסט חופשי",
-            prefill: nil,
-            kind: .text
-        ),
-        Step(
-            factLabel: "תחומי עניין",
-            texts: [.male: "תחביבים או דברים שמעניינים אותך, שכדאי שאדע?"],
-            placeholder: "לדוגמה: פסנתר, טיולים, השקעות",
             prefill: nil,
             kind: .text
         ),
