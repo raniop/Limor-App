@@ -46,8 +46,8 @@ struct ChatView: View {
             ZStack {
                 LiquidBackdrop()
 
-                VStack(spacing: 0) {
-                    ScrollViewReader { proxy in
+                ScrollViewReader { proxy in
+                    VStack(spacing: 0) {
                         ScrollView {
                             LazyVStack(alignment: .leading, spacing: 12) {
                                 if messages.isEmpty {
@@ -76,15 +76,11 @@ struct ChatView: View {
                             .padding(.bottom, 12)
                         }
                         .scrollDismissesKeyboard(.interactively)
-                        // Tap on the message list dismisses the keyboard.
-                        // FocusState now lives inside ChatComposerInput, so
-                        // we route through scrollDismissesKeyboard which
-                        // covers the swipe-down gesture instead.
                         .onChange(of: messages.count) { _, _ in scrollToBottom(proxy) }
                         .onChange(of: isSending) { _, sending in if sending { scrollToBottom(proxy) } }
-                    }
 
-                    composer
+                        composer(scrollProxy: proxy)
+                    }
                 }
             }
             .navigationTitle("")
@@ -190,7 +186,7 @@ struct ChatView: View {
 
     // MARK: - Composer
 
-    private var composer: some View {
+    private func composer(scrollProxy: ScrollViewProxy) -> some View {
         VStack(spacing: 8) {
             if attachmentData != nil {
                 attachmentBanner
@@ -235,6 +231,7 @@ struct ChatView: View {
                     isBusy: preparingAttachment || isSending,
                     hasAttachment: attachmentData != nil,
                     seed: $composerSeed,
+                    scrollProxy: scrollProxy,
                     onSend: { text in
                         Task { await send(text: text) }
                     }
@@ -507,6 +504,10 @@ private struct ChatComposerInput: View {
     /// One-shot inbound text from parent (suggestion tap / queued message).
     /// Composer replaces its draft with the seed, focuses, and clears.
     @Binding var seed: String?
+    /// Lets the composer scroll the parent's message list to the bottom
+    /// when the keyboard opens — otherwise the last message ends up
+    /// hidden behind the keyboard.
+    let scrollProxy: ScrollViewProxy
     /// Fires when the user taps Send. Receives the trimmed draft text.
     /// Composer clears its draft immediately for instant feedback.
     let onSend: (String) -> Void
@@ -568,6 +569,18 @@ private struct ChatComposerInput: View {
                 draft = newValue
                 focused = true
                 seed = nil
+            }
+        }
+        .onChange(of: focused) { _, isFocused in
+            guard isFocused else { return }
+            // Wait for the keyboard to slide in before scrolling — the
+            // ScrollView's safe-area inset adjusts during the animation,
+            // and a too-early scroll lands at the wrong offset.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(300))
+                withAnimation(.easeOut(duration: 0.25)) {
+                    scrollProxy.scrollTo("bottom", anchor: .bottom)
+                }
             }
         }
     }
