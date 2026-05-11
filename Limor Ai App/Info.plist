@@ -31,12 +31,14 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>GIDClientID</key>
+	<string>1043813835619-j123901uoudhqjqlip0aqm8b3idm6f0s.apps.googleusercontent.com</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LIMOR_API_BASE_URL</key>
 	<string>$(LIMOR_API_BASE_URL)</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>לימור צריכה גישה ליומן כדי לעזור לך לנהל פגישות, להציע תזכורות חכמות, ולענות על &quot;מה ביומן שלי&quot;.</string>
+	<string>לימור צריכה גישה ליומן כדי לעזור לך לנהל פגישות, להציע תזכורות חכמות, ולענות על "מה ביומן שלי".</string>
 	<key>NSContactsUsageDescription</key>
 	<string>לימור צריכה גישה לאנשי הקשר כדי שתוכל למצוא טלפונים ולהבין על מי אתה מדבר.</string>
 	<key>NSFaceIDUsageDescription</key>

@@ -37,6 +37,17 @@ struct GoogleAPIs {
     }
 
     static func ensureScopes(_ scopes: [String]) async throws {
+        // GIDGoogleUser.addScopes internally goes through GIDSignIn's
+        // signInWithOptions: which crashes hard ("No active configuration.
+        // Make sure GIDClientID is set in Info.plist.") if
+        // GIDSignIn.sharedInstance.configuration ever ended up nil.
+        // Defensively re-seed it before either path. (Belt-and-suspenders
+        // — Info.plist now also has GIDClientID as a static fallback.)
+        if GIDSignIn.sharedInstance.configuration == nil,
+           let clientID = FirebaseApp.app()?.options.clientID {
+            GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+        }
+
         // Case 1: no Google session at all (user signed in with Apple) — kick off
         // a fresh Google sign-in that already requests the desired scopes.
         guard let user = GIDSignIn.sharedInstance.currentUser else {
