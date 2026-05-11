@@ -149,12 +149,43 @@ struct RemindersView: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            reminders = try await APIClient.shared.listReminders(token: auth.token ?? "")
+            let raw = try await APIClient.shared.listReminders(token: auth.token ?? "")
+            reminders = Self.dedupePendingDuplicates(raw)
             // Mirror chat-created reminders to iOS Reminders too (idempotent).
             await RemindersWriter.shared.mirrorAll(reminders)
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Hide pending reminders that have the same task + due-minute as an
+    /// earlier-created one. Backend safety net — the chat backend has been
+    /// observed to create the same reminder twice for a single user
+    /// message (Claude calling the create_reminder tool more than once
+    /// per response). Until that's fixed server-side, this keeps the
+    /// list visually clean. Completed reminders pass through unchanged
+    /// so the user can still see their history.
+    private static func dedupePendingDuplicates(_ list: [Reminder]) -> [Reminder] {
+        let sortedByCreated = list.sorted { $0.created_at < $1.created_at }
+        var seen: Set<String> = []
+        var keep: Set<String> = []
+        for r in sortedByCreated {
+            if r.status == .completed {
+                keep.insert(r.id)
+                continue
+            }
+            let normalized = r.task
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            let dueMinute = Int(r.dueDate.timeIntervalSince1970 / 60)
+            let key = "\(normalized)|\(dueMinute)"
+            if seen.insert(key).inserted {
+                keep.insert(r.id)
+            }
+        }
+        // Preserve the server's original order — the API decides the
+        // sort, this filter just drops duplicates.
+        return list.filter { keep.contains($0.id) }
     }
 
     private func create(task: String, dueAt: Date) async {
