@@ -89,7 +89,13 @@ struct LimorIntroChatView: View {
                                         .id("ack-\(i)")
                                 }
                             }
-                            if stepIndex < Self.steps.count {
+                            // Render the in-flight question ONLY when the user
+                            // hasn't already answered it. Without this guard
+                            // we double up during the 700ms typing pause:
+                            // ForEach already rendered Q[stepIndex] (since
+                            // an answer for it exists), and we'd add a
+                            // second copy here until stepIndex bumps.
+                            if stepIndex < Self.steps.count, stepIndex >= answers.count {
                                 limorBubble(text: Self.steps[stepIndex].question)
                                     .id("q-current")
                             }
