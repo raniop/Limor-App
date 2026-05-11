@@ -64,11 +64,16 @@ struct ChatView: View {
                                     MessageBubble(message: msg)
                                         .equatable()
                                         .id(msg.id)
-                                        // Scale+opacity transition was triggering
-                                        // a longer GPU composition pass that on
-                                        // iPhone Air pegged the renderer at send
-                                        // time. Plain opacity is enough.
-                                        .transition(.opacity)
+                                        // Only the assistant reply append is
+                                        // wrapped in `withAnimation`, so this
+                                        // transition only fires for Limor's
+                                        // bubbles — the user's own bubble is
+                                        // appended without an animation block
+                                        // and shows up instantly when they
+                                        // tap send, which matches the
+                                        // expectation that their action took
+                                        // effect.
+                                        .transition(.scale(scale: 0.9).combined(with: .opacity))
                                 }
                                 if isSending {
                                     TypingIndicator().transition(.opacity).id("typing")
@@ -497,11 +502,16 @@ struct ChatView: View {
             NSLog("[send] 11 after sendChat")
             usage = reply.usage
             NSLog("[send] 12 before append reply")
-            messages.append(ChatMessage(
-                role: .assistant,
-                content: reply.reply,
-                created_at: ISO8601DateFormatter.limor.string(from: Date())
-            ))
+            // Spring + scale-in for Limor's bubble. The user's own bubble
+            // was appended without an animation block on purpose so it
+            // appears instantly on send; the reply earns the entrance.
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                messages.append(ChatMessage(
+                    role: .assistant,
+                    content: reply.reply,
+                    created_at: ISO8601DateFormatter.limor.string(from: Date())
+                ))
+            }
             NSLog("[send] 13 after append reply")
             // If the user sent this message via the voice sheet, speak the
             // reply back so the conversation stays hands-free.
