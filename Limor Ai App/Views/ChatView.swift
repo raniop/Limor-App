@@ -49,7 +49,15 @@ struct ChatView: View {
                                     emptyState
                                 }
                                 ForEach(messages) { msg in
+                                    // .equatable() lets SwiftUI skip re-
+                                    // rendering bubbles whose id hasn't
+                                    // changed — every keystroke in the
+                                    // composer triggers a body recalc, and
+                                    // without this every bubble was being
+                                    // diffed (including hashing any large
+                                    // attachment Data), pegging the CPU.
                                     MessageBubble(message: msg)
+                                        .equatable()
                                         .id(msg.id)
                                         .transition(.scale(scale: 0.9).combined(with: .opacity))
                                 }
@@ -556,8 +564,20 @@ private struct SuggestionRow: View {
 
 // MARK: - Bubble
 
-private struct MessageBubble: View {
+private struct MessageBubble: View, Equatable {
     let message: ChatMessage
+
+    /// SwiftUI uses this through `.equatable()` to skip re-rendering when
+    /// nothing meaningful changed. `ChatMessage.id` is content-derived
+    /// (role + timestamp + content hash), so equal IDs mean equal content
+    /// — we don't need to hash the optimistic attachment Data on every
+    /// keystroke just to confirm.
+    static func == (lhs: MessageBubble, rhs: MessageBubble) -> Bool {
+        lhs.message.id == rhs.message.id
+            && lhs.message.localAttachmentFilename == rhs.message.localAttachmentFilename
+            && (lhs.message.localAttachmentImageData?.count
+                == rhs.message.localAttachmentImageData?.count)
+    }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 8) {
