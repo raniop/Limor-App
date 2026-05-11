@@ -98,6 +98,19 @@ struct ChatView: View {
                             .padding(.horizontal, 14)
                             .padding(.top, 12)
                             .padding(.bottom, 12)
+                            // Tap anywhere on empty chat area dismisses the
+                            // keyboard. SwiftUI prefers a child button's
+                            // tap target over this container tap, so audio
+                            // play buttons / suggestion rows still work
+                            // normally — only blank space inside the
+                            // scroll view dismisses.
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                UIApplication.shared.sendAction(
+                                    #selector(UIResponder.resignFirstResponder),
+                                    to: nil, from: nil, for: nil
+                                )
+                            }
                         }
                         .scrollDismissesKeyboard(.interactively)
                         .onChange(of: messages.count) { _, _ in scrollToBottom(proxy) }
