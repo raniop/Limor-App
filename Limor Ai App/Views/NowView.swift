@@ -625,13 +625,27 @@ private struct HealthStat: View {
         VStack(spacing: 4) {
             HStack(spacing: 4) {
                 Image(systemName: icon).font(.caption.weight(.bold))
-                Text(value).font(.subheadline.weight(.bold).monospacedDigit())
+                Text(value)
+                    .font(.subheadline.weight(.bold).monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             .foregroundStyle(tint)
-            Text(label).font(.caption2).foregroundStyle(.secondary)
+            // Labels like "דק' פעילות" or "ש' עמידה" overflow with
+            // large Dynamic Type, knocking the four pills out of
+            // alignment. Allow two lines, center-align, and let the
+            // text scale down a bit before truncating.
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.75)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
+        .padding(.horizontal, 6)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(tint.opacity(0.08))
