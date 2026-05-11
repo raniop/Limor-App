@@ -1,9 +1,14 @@
 import SwiftUI
+import UserNotifications
 
 /// Onboarding step that picks which daily push notifications the user
 /// wants. Shown once, between permissions onboarding (which grants the
 /// iOS push permission itself) and the meet-Limor intro chat. Settings
 /// → "התראות יומיות" remains the long-term place to tune.
+///
+/// Only renders if the user actually granted push permission upstream
+/// — otherwise the picks here can't fire anyway, so the view
+/// short-circuits to `onCompleted` and the user moves on.
 struct NotificationPrefsOnboardingView: View {
     var onCompleted: () -> Void
 
@@ -20,29 +25,54 @@ struct NotificationPrefsOnboardingView: View {
     )
     @State private var saving = false
     @State private var errorMessage: String?
+    /// nil while we're checking iOS authorization status, true once we
+    /// know the user granted notifications and we should render the
+    /// picker. When the check comes back denied we skip via onCompleted
+    /// without ever flipping this true.
+    @State private var shouldShow: Bool?
 
     var body: some View {
         ZStack {
+            // Keep the soft brand backdrop visible during the auth-status
+            // check so the screen doesn't flash an empty white frame
+            // between OnboardingView and the next step (intro chat).
             LiquidBackdrop()
 
-            ScrollView {
-                VStack(spacing: 20) {
-                    header
-                    ForEach(Array(doc.prefs.enumerated()), id: \.element.kind) { index, _ in
-                        presetCard(index: index)
+            if shouldShow == true {
+                ScrollView {
+                    VStack(spacing: 20) {
+                        header
+                        ForEach(Array(doc.prefs.enumerated()), id: \.element.kind) { index, _ in
+                            presetCard(index: index)
+                        }
+                        footerText
                     }
-                    footerText
-                }
-                .padding(.horizontal, 22)
-                .padding(.top, 32)
-                .padding(.bottom, 100)
-            }
-
-            VStack {
-                Spacer()
-                continueButton
                     .padding(.horizontal, 22)
-                    .padding(.bottom, 28)
+                    .padding(.top, 32)
+                    .padding(.bottom, 100)
+                }
+
+                VStack {
+                    Spacer()
+                    continueButton
+                        .padding(.horizontal, 22)
+                        .padding(.bottom, 28)
+                }
+            }
+        }
+        .task {
+            // Skip the picker entirely when the user denied / deferred the
+            // push prompt in OnboardingView. The defaults here can't fire
+            // without iOS permission, and surfacing a settings page that
+            // has no effect feels broken. Settings → התראות יומיות is
+            // still available later if they enable notifications in iOS.
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                shouldShow = true
+            default:
+                SharedStore.notificationPrefsAsked = true
+                onCompleted()
             }
         }
         .alert("שגיאה", isPresented: .init(
