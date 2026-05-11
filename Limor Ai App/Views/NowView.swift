@@ -411,9 +411,17 @@ struct NowView: View {
                                     .foregroundStyle(.limorMuted)
                             }
 
-                            // Activity pills (top — most important 4)
+                            // Activity pills — 2×2 LazyVGrid so each pill
+                            // gets roughly half the row instead of a
+                            // quarter. The earlier 1×4 HStack worked at
+                            // default font size but at large Dynamic
+                            // Type the labels ("דק' פעילות", "ש' עמידה")
+                            // wrapped awkwardly and squeezed the digits.
                             if hasActivity(h) {
-                                HStack(spacing: 8) {
+                                LazyVGrid(
+                                    columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
+                                    spacing: 8
+                                ) {
                                     if let steps = h.steps {
                                         HealthStat(icon: "figure.walk", value: stepsString(steps), label: "צעדים", tint: .limorMint)
                                     }
@@ -622,30 +630,27 @@ private struct HealthStat: View {
     let tint: Color
 
     var body: some View {
-        VStack(spacing: 4) {
-            HStack(spacing: 4) {
-                Image(systemName: icon).font(.caption.weight(.bold))
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(tint)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(value)
-                    .font(.subheadline.weight(.bold).monospacedDigit())
+                    .font(.headline.weight(.bold).monospacedDigit())
+                    .foregroundStyle(tint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(label)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
-            .foregroundStyle(tint)
-            // Labels like "דק' פעילות" or "ש' עמידה" overflow with
-            // large Dynamic Type, knocking the four pills out of
-            // alignment. Allow two lines, center-align, and let the
-            // text scale down a bit before truncating.
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .minimumScaleFactor(0.75)
-                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 10)
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 12)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(tint.opacity(0.08))
