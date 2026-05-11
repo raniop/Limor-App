@@ -16,6 +16,8 @@ struct SettingsView: View {
     @State private var errorMessage: String?
     @State private var reminderLists: [EKCalendar] = []
     @State private var selectedReminderListId: String? = SharedStore.remindersListId
+    @State private var crmStatus: CrmStatus?
+    @State private var crmPushPending = false
 
     var body: some View {
         NavigationStack {
@@ -27,6 +29,11 @@ struct SettingsView: View {
                         profileCard
                         memoryCard
                         notificationsCard
+                        // Only renders for users whose `crm_enabled` flag is
+                        // true in Firestore — hidden entirely for everyone else.
+                        if crmStatus?.allowed == true {
+                            crmCard
+                        }
                         sourcesCard
                         remindersListCard
                         permissionsCard
@@ -41,6 +48,14 @@ struct SettingsView: View {
             .task {
                 nameDraft = auth.displayName ?? ""
                 await refreshPermissions()
+                await loadCrmStatus()
+            }
+            .navigationDestination(isPresented: $crmPushPending) {
+                if let status = crmStatus, status.allowed {
+                    CRMConnectView(status: status) { newStatus in
+                        crmStatus = newStatus
+                    }
+                }
             }
             .onChange(of: auth.displayName) { oldValue, newValue in
                 // Backend profile fetch lands asynchronously after `applyAuthState`
@@ -188,6 +203,80 @@ struct SettingsView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: CRM (gated, Face-ID-protected)
+
+    private var crmCard: some View {
+        Button {
+            Task { await openCrmGated() }
+        } label: {
+            GlassCard {
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.limorMint.opacity(0.18))
+                            .frame(width: 38, height: 38)
+                        Image(systemName: "briefcase.fill")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.limorMint)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("חיבור ל-CRM")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.limorInk)
+                        Text(crmCardSubtitle)
+                            .font(.caption)
+                            .foregroundStyle(.limorMuted)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    if crmStatus?.connected == true {
+                        Circle().fill(Color.limorSuccess).frame(width: 8, height: 8)
+                    }
+                    Image(systemName: "lock.fill")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.limorMuted)
+                    Image(systemName: "chevron.left")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.limorMuted)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var crmCardSubtitle: String {
+        guard let status = crmStatus else { return "טוען…" }
+        if status.connected {
+            if let phone = status.phone_number, !phone.isEmpty { return "מחובר · \(phone)" }
+            return "מחובר"
+        }
+        return "לא מחובר · נדרש Face ID"
+    }
+
+    private func loadCrmStatus() async {
+        do {
+            crmStatus = try await APIClient.shared.crmStatus()
+        } catch {
+            // Silent — non-allowlisted user just sees no card.
+        }
+    }
+
+    /// Gate the CRM card behind Face ID / Touch ID / device passcode. Even
+    /// authenticated Limor users have to re-prove they're holding the phone
+    /// before we expose insurance customer data.
+    private func openCrmGated() async {
+        do {
+            try await BiometricGate.authenticate(
+                reason: "אימות נדרש לפתיחת חיבור ה-CRM"
+            )
+            crmPushPending = true
+        } catch BiometricGate.AuthError.canceled {
+            // user backed out, no error UI
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     // MARK: Daily notifications

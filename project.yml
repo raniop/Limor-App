@@ -51,6 +51,7 @@ targets:
         NSPhotoLibraryUsageDescription: כדי לבחור תמונת פרופיל מהאלבום.
         NSMicrophoneUsageDescription: כדי שתוכל לדבר עם לימור בקול במקום להקליד.
         NSSpeechRecognitionUsageDescription: כדי להמיר את מה שאתה אומר לטקסט ולשלוח את זה ללימור.
+        NSFaceIDUsageDescription: לאימות לפני גישה ל-CRM כדי להגן על נתוני הלקוחות.
         LIMOR_API_BASE_URL: $(LIMOR_API_BASE_URL)
         # URL scheme for Google Sign-In callback. Value must match
         # REVERSED_CLIENT_ID in GoogleService-Info.plist.

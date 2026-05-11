@@ -22,9 +22,11 @@
 		50EC3821E22600E126CE6F79 /* PushManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41866BA79E18FA404BFCFD96 /* PushManager.swift */; };
 		537AF0173950747BA7BEF962 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 478AFCC4F530569FD222FA03 /* ChatView.swift */; };
 		537E6F9E1F921C524BEA6A49 /* GoogleAPIs.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28D6A515676755BA91AC4E7 /* GoogleAPIs.swift */; };
+		55A92CE99B3BCC0A31993DB9 /* BiometricGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C274EB46CC2E7A135C0E5E43 /* BiometricGate.swift */; };
 		5B7FE264E3A3839E73EE54A0 /* HomeCardKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30076B044722A8FFD18B9866 /* HomeCardKind.swift */; };
 		659BE1570E6347F698D416A6 /* LimorAiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5C3335200C302E0C98B8F26 /* LimorAiApp.swift */; };
 		65CF58DE59CA2B02EF62A6DD /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F986D36044D42DACEFBBF9 /* Theme.swift */; };
+		67B68A5B697FD0788D05C573 /* CRMConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0A4CCE0C974DB2375D9873 /* CRMConnectView.swift */; };
 		67EADCA834C4AE1B9E2682CF /* LocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81E476CAA1353471D85E0F79 /* LocationManager.swift */; };
 		6A624C2380A4926BB321907A /* CustomizeHomeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A828CE65F6E915FA08837DA /* CustomizeHomeSheet.swift */; };
 		70B279B52E1532273A83E19C /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = D158BA54A5B1C18A5ED2CD2F /* LaunchScreen.storyboard */; };
@@ -100,6 +102,7 @@
 		269CDD3F0374EC093CFB2851 /* LimorIntroChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorIntroChatView.swift; sourceTree = "<group>"; };
 		2B72EA9E69C14DC9A8337CB9 /* VoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceService.swift; sourceTree = "<group>"; };
 		2C14813798F555401055250B /* FeedNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedNode.swift; sourceTree = "<group>"; };
+		2D0A4CCE0C974DB2375D9873 /* CRMConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CRMConnectView.swift; sourceTree = "<group>"; };
 		2FEA6C80C01305F2D1B2D993 /* CalendarManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarManager.swift; sourceTree = "<group>"; };
 		30076B044722A8FFD18B9866 /* HomeCardKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeCardKind.swift; sourceTree = "<group>"; };
 		3720B9F23F3177BDEAE1F4B7 /* NotificationsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsSettingsView.swift; sourceTree = "<group>"; };
@@ -125,6 +128,7 @@
 		AEC3D49F681FA0119E135BE1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B202F02E4586363CB10439EC /* SharedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedStore.swift; sourceTree = "<group>"; };
 		B54FB305BDEB96228F61AB55 /* RemindersWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersWriter.swift; sourceTree = "<group>"; };
+		C274EB46CC2E7A135C0E5E43 /* BiometricGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricGate.swift; sourceTree = "<group>"; };
 		C5C3335200C302E0C98B8F26 /* LimorAiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorAiApp.swift; sourceTree = "<group>"; };
 		D158BA54A5B1C18A5ED2CD2F /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		DD03C0C2E3CB7D86833DFAC9 /* ActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityController.swift; sourceTree = "<group>"; };
@@ -198,6 +202,7 @@
 				1BC4F6E9C9C972C8BD4AE955 /* APIClient.swift */,
 				4E3E42644D5D54B11F655BCA /* AppRouter.swift */,
 				E07C0CEB4AD38CED9FBE3231 /* AuthManager.swift */,
+				C274EB46CC2E7A135C0E5E43 /* BiometricGate.swift */,
 				2FEA6C80C01305F2D1B2D993 /* CalendarManager.swift */,
 				E37DE61A7E69CFA5FD06DAB8 /* ContactsManager.swift */,
 				A28D6A515676755BA91AC4E7 /* GoogleAPIs.swift */,
@@ -215,6 +220,7 @@
 			isa = PBXGroup;
 			children = (
 				478AFCC4F530569FD222FA03 /* ChatView.swift */,
+				2D0A4CCE0C974DB2375D9873 /* CRMConnectView.swift */,
 				3A828CE65F6E915FA08837DA /* CustomizeHomeSheet.swift */,
 				3C1DD35067CE05EE90665BFF /* FeedCard.swift */,
 				2C14813798F555401055250B /* FeedNode.swift */,
@@ -374,6 +380,8 @@
 				78CA4F3E8BA7783F93573729 /* ActivityController.swift in Sources */,
 				C971164640BA0BAA2980F04D /* AppRouter.swift in Sources */,
 				7F5AA7209F01C34C3BEB90A3 /* AuthManager.swift in Sources */,
+				55A92CE99B3BCC0A31993DB9 /* BiometricGate.swift in Sources */,
+				67B68A5B697FD0788D05C573 /* CRMConnectView.swift in Sources */,
 				F33CBE9E0BBAE4720E850843 /* CalendarManager.swift in Sources */,
 				537AF0173950747BA7BEF962 /* ChatView.swift in Sources */,
 				D52DBA079C74B34E651AFEEC /* Components.swift in Sources */,

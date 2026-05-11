@@ -39,6 +39,8 @@
 	<string>לימור צריכה גישה ליומן כדי לעזור לך לנהל פגישות, להציע תזכורות חכמות, ולענות על "מה ביומן שלי".</string>
 	<key>NSContactsUsageDescription</key>
 	<string>לימור צריכה גישה לאנשי הקשר כדי שתוכל למצוא טלפונים ולהבין על מי אתה מדבר.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>לאימות לפני גישה ל-CRM כדי להגן על נתוני הלקוחות.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>לימור משתמשת בנתוני הבריאות שלך (צעדים, קלוריות, פעילות) כדי להציג סיכום יומי ולענות על שאלות על הכושר שלך.</string>
 	<key>NSHealthUpdateUsageDescription</key>

@@ -369,6 +369,19 @@ struct ContactDTO: Codable, Identifiable, Hashable {
     let aliases: [String]?
 }
 
+// MARK: - CRM (BituhOfir, gated)
+
+/// Returned by `GET /api/crm/status`. `allowed` is the server-side
+/// allowlist flag — if false, the iOS side should hide the CRM section
+/// entirely. `connected` says whether a valid OTP session is stored on
+/// the backend for this user.
+struct CrmStatus: Codable, Hashable {
+    let allowed: Bool
+    let connected: Bool
+    let phone_number: String?
+    let connected_at: String?
+}
+
 // MARK: - Daily notifications
 
 /// Each preset notification the user can configure. Server fires at the

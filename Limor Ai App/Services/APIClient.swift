@@ -193,6 +193,37 @@ struct APIClient {
         }
     }
 
+    // MARK: - CRM (BituhOfir, gated)
+
+    func crmStatus() async throws -> CrmStatus {
+        try await get("/api/crm/status")
+    }
+
+    func crmSendOtp(personId: String, phoneNumber: String) async throws {
+        struct Body: Encodable { let person_id: String; let phone_number: String }
+        let _: EmptyResponse = try await post(
+            "/api/crm/sendotp",
+            body: Body(person_id: personId, phone_number: phoneNumber)
+        )
+    }
+
+    func crmVerifyOtp(personId: String, otpCode: String, phoneNumber: String) async throws {
+        struct Body: Encodable {
+            let person_id: String
+            let otp_code: String
+            let phone_number: String
+        }
+        let _: EmptyResponse = try await post(
+            "/api/crm/verifyotp",
+            body: Body(person_id: personId, otp_code: otpCode, phone_number: phoneNumber)
+        )
+    }
+
+    func crmDisconnect() async throws {
+        struct Empty: Encodable {}
+        let _: EmptyResponse = try await post("/api/crm/disconnect", body: Empty())
+    }
+
     // MARK: - Daily notifications
 
     func notificationPrefs() async throws -> NotificationPrefsDoc {
