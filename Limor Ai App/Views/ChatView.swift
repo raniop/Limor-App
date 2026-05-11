@@ -39,6 +39,7 @@ struct ChatView: View {
 
     // Attachment composer state
     @State private var photoItem: PhotosPickerItem?
+    @State private var showingPhotoPicker = false
     @State private var showingFileImporter = false
     @State private var attachmentData: Data?
     @State private var attachmentMime: String?
@@ -141,6 +142,12 @@ struct ChatView: View {
                 guard let item else { return }
                 Task { await loadPhoto(item: item) }
             }
+            .photosPicker(
+                isPresented: $showingPhotoPicker,
+                selection: $photoItem,
+                matching: .images,
+                photoLibrary: .shared()
+            )
             .fileImporter(
                 isPresented: $showingFileImporter,
                 allowedContentTypes: [.pdf, .image],
@@ -203,8 +210,15 @@ struct ChatView: View {
             }
 
             HStack(alignment: .bottom, spacing: 10) {
+                // PhotosPicker placed *inside* a Menu silently fails to
+                // present and prints _UIReparentingView warnings — known
+                // SwiftUI issue. We trigger the picker via state from a
+                // plain Button instead, and attach the actual
+                // `.photosPicker` modifier at the view level below.
                 Menu {
-                    PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
+                    Button {
+                        showingPhotoPicker = true
+                    } label: {
                         Label("תמונה מהאלבום", systemImage: "photo")
                     }
                     Button {
@@ -727,7 +741,11 @@ private struct ChatComposerInput: View {
                 .lineLimit(1...5)
                 .font(.body)
                 .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                // 10pt instead of 12 so single-line height ≈ 38pt, matching
+                // the paperclip/mic/send circle frames in the parent HStack
+                // — otherwise `.bottom` alignment leaves a 4pt gap at the
+                // top of the buttons that reads as misalignment.
+                .padding(.vertical, 10)
                 .submitLabel(.send)
                 .background(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
