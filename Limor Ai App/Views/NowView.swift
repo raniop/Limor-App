@@ -149,36 +149,52 @@ struct NowView: View {
     private var nextReminderHero: some View {
         Group {
             if let r = snapshot?.next_reminder {
+                // Once a reminder is past its due time, swap the whole
+                // hero's color scheme to the danger gradient so it
+                // reads as "needs attention" at a glance — purple with
+                // a small red pill wasn't loud enough.
+                let overdue = r.isOverdue
                 ZStack(alignment: .topLeading) {
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .fill(LimorGradient.brand)
-                        .shadow(color: Color.limorIndigo.opacity(0.35), radius: 24, y: 14)
+                        .fill(overdue ? LimorGradient.danger : LimorGradient.brand)
+                        .shadow(
+                            color: (overdue ? Color.limorDanger : Color.limorIndigo).opacity(0.35),
+                            radius: 24, y: 14
+                        )
 
-                    // Decorative blurred shapes
+                    // Decorative blurred shapes — mirror the dominant
+                    // tint so the highlights don't fight the base
+                    // gradient when we swap palettes.
                     Circle()
                         .fill(.white.opacity(0.18))
                         .frame(width: 180, height: 180)
                         .offset(x: -60, y: -80)
                         .blur(radius: 30)
                     Circle()
-                        .fill(Color.limorPink.opacity(0.35))
+                        .fill((overdue ? Color.limorCoral : Color.limorPink).opacity(0.35))
                         .frame(width: 140, height: 140)
                         .offset(x: 200, y: 100)
                         .blur(radius: 30)
 
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 8) {
-                            Image(systemName: "bell.fill").font(.subheadline.weight(.bold))
-                            Text("התזכורת הבאה").font(.subheadline.weight(.semibold))
+                            Image(systemName: overdue ? "exclamationmark.triangle.fill" : "bell.fill")
+                                .font(.subheadline.weight(.bold))
+                            Text(overdue ? "תזכורת באיחור" : "התזכורת הבאה")
+                                .font(.subheadline.weight(.semibold))
                             Spacer()
-                            if r.isOverdue {
+                            if overdue {
+                                // High-contrast white pill on the red card —
+                                // a red-on-red pill would disappear into
+                                // the background.
                                 Text("באיחור")
                                     .font(.caption2.weight(.bold))
+                                    .foregroundStyle(.limorDanger)
                                     .padding(.horizontal, 8).padding(.vertical, 4)
-                                    .background(Capsule().fill(Color.limorCoral))
+                                    .background(Capsule().fill(.white))
                             }
                         }
-                        .foregroundStyle(.white.opacity(0.9))
+                        .foregroundStyle(.white.opacity(0.95))
 
                         Text(r.task)
                             .font(.system(size: 28, weight: .bold, design: .rounded))
@@ -199,6 +215,7 @@ struct NowView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(minHeight: 180)
+                .animation(.easeInOut(duration: 0.25), value: overdue)
             } else if isLoading && snapshot == nil {
                 // Only show the loading skeleton on the very first load, when we
                 // have nothing to show yet. Once we have a snapshot, refreshes

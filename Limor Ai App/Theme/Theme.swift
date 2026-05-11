@@ -74,6 +74,15 @@ enum LimorGradient {
         startPoint: .topLeading, endPoint: .bottomTrailing
     )
 
+    /// Urgent / overdue accent — used by the Now hero when the next
+    /// reminder has slipped past its due time, so the card itself
+    /// signals "this needs attention" instead of relying on a small
+    /// red pill on a calm purple background.
+    static let danger = LinearGradient(
+        colors: [.limorDanger, .limorCoral],
+        startPoint: .topLeading, endPoint: .bottomTrailing
+    )
+
     static let canvas = LinearGradient(
         colors: [Color.limorCanvas, Color.white, Color.limorCanvas.opacity(0.6)],
         startPoint: .top, endPoint: .bottom
