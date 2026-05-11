@@ -21,13 +21,13 @@ struct LimorIntroChatView: View {
     private static let steps: [Step] = [
         Step(
             factLabel: "שם",
-            question: "נעים להכיר! איך תרצה/י שאקרא לך?",
+            question: "איך תרצה/י שאקרא לך?",
             placeholder: "לדוגמה: רני",
             prefill: { auth in auth.displayName }
         ),
         Step(
             factLabel: "גיל",
-            question: "כמה שנים על הכוכב?",
+            question: "בן/בת כמה את/ה?",
             placeholder: "לדוגמה: 37",
             prefill: nil
         ),
@@ -276,17 +276,21 @@ struct LimorIntroChatView: View {
     }
 
     private func ackForAnswer(at i: Int) -> String {
-        // Tiny, varied acknowledgments — feels conversational without
-        // pretending Limor is doing deep work.
+        // Special-case the very first ack — the user just told us their name,
+        // so warm-greet by it instead of a generic "נחמד מאוד".
+        if i == 0, let name = answers.first?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+            return "נעים מאוד, \(name)!"
+        }
+        // Tiny, varied acknowledgments for the rest — feels conversational
+        // without pretending Limor is doing deep work.
         let acks = [
-            "נחמד מאוד.",
-            "כיף לפגוש.",
+            "כיף לשמוע.",
             "הבנתי.",
             "מצוין.",
             "תודה ששיתפת.",
             "סבבה, רושמת.",
         ]
-        return acks[i % acks.count]
+        return acks[(i - 1) % acks.count]
     }
 
     private func advance() {
