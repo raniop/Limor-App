@@ -63,27 +63,31 @@ struct ChatView: View {
                 ScrollViewReader { proxy in
                     VStack(spacing: 0) {
                         ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 12) {
+                            // VStack (not LazyVStack) so `.transition` on
+                            // inserted bubbles actually fires. LazyVStack
+                            // defers view creation until the row scrolls
+                            // into range, which means new items get a
+                            // first render *after* the withAnimation scope
+                            // has already ended, and the transition is
+                            // silently dropped. A chat is at most a few
+                            // dozen bubbles, so the perf cost of eager
+                            // rendering is negligible. `.equatable()` is
+                            // still in place to keep CPU low when
+                            // observable state (usage badge, etc.) flips.
+                            VStack(alignment: .leading, spacing: 12) {
                                 if messages.isEmpty {
                                     emptyState
                                 }
                                 ForEach(messages) { msg in
-                                    // .equatable() lets SwiftUI skip re-
-                                    // rendering bubbles whose id hasn't
-                                    // changed — every keystroke in the
-                                    // composer triggers a body recalc, and
-                                    // without this every bubble was being
-                                    // diffed (including hashing any large
-                                    // attachment Data), pegging the CPU.
                                     MessageBubble(message: msg)
                                         .equatable()
                                         .id(msg.id)
-                                        // Transition only fires when the
-                                        // append is inside a `withAnimation`
-                                        // block — Limor's reply append is,
-                                        // the user's own bubble append is
-                                        // not, so this entrance plays only
-                                        // for the assistant.
+                                        // Fires only when the append is
+                                        // wrapped in `withAnimation` —
+                                        // Limor's reply is, the user's
+                                        // own bubble append is not, so
+                                        // this entrance plays only for
+                                        // the assistant.
                                         .transition(.scale(scale: 0.9).combined(with: .opacity))
                                 }
                                 if isSending {
