@@ -64,7 +64,11 @@ struct ChatView: View {
                                     MessageBubble(message: msg)
                                         .equatable()
                                         .id(msg.id)
-                                        .transition(.scale(scale: 0.9).combined(with: .opacity))
+                                        // Scale+opacity transition was triggering
+                                        // a longer GPU composition pass that on
+                                        // iPhone Air pegged the renderer at send
+                                        // time. Plain opacity is enough.
+                                        .transition(.opacity)
                                 }
                                 if isSending {
                                     TypingIndicator().transition(.opacity).id("typing")
@@ -76,8 +80,11 @@ struct ChatView: View {
                             .padding(.bottom, 12)
                         }
                         .scrollDismissesKeyboard(.interactively)
+                        // Single trigger — messages.count covers both user and
+                        // assistant appends. The duplicate isSending trigger
+                        // was firing a second scroll 50ms after the first,
+                        // doubling GPU work on send.
                         .onChange(of: messages.count) { _, _ in scrollToBottom(proxy) }
-                        .onChange(of: isSending) { _, sending in if sending { scrollToBottom(proxy) } }
 
                         composer(scrollProxy: proxy)
                     }
@@ -443,12 +450,13 @@ struct ChatView: View {
             localAttachmentImageData: optimisticImage,
             localAttachmentFilename: optimisticFilename
         )
-        // Use the explicit spring form — `.spring` shorthand combined with a
-        // state mutation that triggers .toolbar reconfiguration was crashing
-        // on iOS 18+ in the chat ("every question crashes" report).
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-            messages.append(optimistic)
-        }
+        // Plain append, no animation wrapper. The previous `.spring` form
+        // combined with `.transition(.scale.combined(with: .opacity))` on
+        // the bubble pegged CPU on send (243% on iPhone Air) and stalled
+        // the renderer to the point of a watchdog freeze. The
+        // `.transition(.opacity)` on MessageBubble still fades the new
+        // bubble in via SwiftUI's default implicit animation.
+        messages.append(optimistic)
 
         isSending = true
         defer { isSending = false }
@@ -462,13 +470,11 @@ struct ChatView: View {
                 attachment: attachmentForServer
             )
             usage = reply.usage
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                messages.append(ChatMessage(
-                    role: .assistant,
-                    content: reply.reply,
-                    created_at: ISO8601DateFormatter.limor.string(from: Date())
-                ))
-            }
+            messages.append(ChatMessage(
+                role: .assistant,
+                content: reply.reply,
+                created_at: ISO8601DateFormatter.limor.string(from: Date())
+            ))
             // If the user sent this message via the voice sheet, speak the
             // reply back so the conversation stays hands-free.
             if expectVoiceReply {
@@ -710,34 +716,29 @@ private struct MessageBubble: View, Equatable {
 // MARK: - Typing indicator
 
 private struct TypingIndicator: View {
-    /// Use a TimelineView for the dot pulse instead of SwiftUI's
-    /// `.repeatForever(autoreverses:)` — the latter has a known habit of
-    /// leaking animation tickers when the view is removed from the tree,
-    /// which compounds with each Limor reply (typing indicator appears →
-    /// disappears → next message it appears again on top of a still-
-    /// running animation from the previous round). TimelineView is bound
-    /// to the view lifecycle and stops cleanly when the view goes away.
+    /// Static three-dot indicator. Earlier versions used TimelineView with a
+    /// 180ms tick to pulse the dots, but on iPhone Air that update rate over
+    /// `.regularMaterial` blur + LiquidBackdrop blur showed up as a GPU stall
+    /// (3s Result accumulator timeout) the moment the indicator appeared on
+    /// send. A static indicator is fine — the reply usually arrives within
+    /// a second or two and the animation was barely perceived anyway.
     var body: some View {
         HStack(spacing: 8) {
             LimorAvatar(size: 28)
-            TimelineView(.periodic(from: .now, by: 0.18)) { context in
-                let tick = Int(context.date.timeIntervalSinceReferenceDate / 0.18)
-                HStack(spacing: 5) {
-                    ForEach(0..<3) { i in
-                        let on = ((tick + i) % 3) == 0
-                        Circle()
-                            .fill(Color.limorIndigo.opacity(0.7))
-                            .frame(width: 8, height: 8)
-                            .scaleEffect(on ? 1.0 : 0.55)
-                            .opacity(on ? 1.0 : 0.45)
-                            .animation(.easeInOut(duration: 0.4), value: on)
-                    }
+            HStack(spacing: 5) {
+                ForEach(0..<3) { _ in
+                    Circle()
+                        .fill(Color.limorIndigo.opacity(0.7))
+                        .frame(width: 8, height: 8)
                 }
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
             .background(
+                // Solid translucent fill instead of `.regularMaterial` —
+                // material blur over the LiquidBackdrop blurs was the
+                // expensive composition.
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.regularMaterial)
+                    .fill(Color.white.opacity(0.85))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
