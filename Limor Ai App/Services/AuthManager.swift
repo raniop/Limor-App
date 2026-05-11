@@ -44,27 +44,45 @@ final class AuthManager: ObservableObject {
     /// is wiped but Google's grant survives, so we should re-flip the toggle
     /// back to Google instead of leaving it at the default.
     func bootstrap() async {
-        guard GIDSignIn.sharedInstance.hasPreviousSignIn() else { return }
-        do {
-            let user = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
-            print("[google] restored session for \(user.profile?.email ?? "unknown")")
-            restoreSourcePreferencesFromScopes()
-        } catch {
-            print("[google] restore failed: \(error.localizedDescription)")
+        // Microsoft side: wire up MSAL's URL handler + load cached account
+        // from keychain. No network round-trip — safe regardless of whether
+        // the user has ever connected Outlook.
+        MicrosoftAPIs.bootstrap()
+
+        if GIDSignIn.sharedInstance.hasPreviousSignIn() {
+            do {
+                let user = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
+                print("[google] restored session for \(user.profile?.email ?? "unknown")")
+            } catch {
+                print("[google] restore failed: \(error.localizedDescription)")
+            }
         }
+        restoreSourcePreferencesFromScopes()
     }
 
-    /// If the user previously connected Gmail (the OAuth scope is still
-    /// granted) but the local toggle came back as the unset default after a
-    /// reinstall, auto-flip it to .google so they don't have to re-pick it.
-    /// Calendar is intentionally NOT auto-flipped — its default is .apple,
-    /// which can be either the default OR an explicit user choice; we can't
-    /// tell the two apart, so we leave that toggle alone.
+    /// If the user previously connected Gmail or Outlook (the OAuth scope is
+    /// still granted) but the local toggle came back unset after a reinstall,
+    /// auto-add each connected provider to the email sources set so they
+    /// don't have to re-pick. Additive — never removes an existing source.
+    /// Calendar is intentionally NOT auto-restored — its default already
+    /// includes Apple, which can be either the default OR an explicit user
+    /// choice; we can't tell the two apart, so we leave that set alone.
     private func restoreSourcePreferencesFromScopes() {
-        let granted = GoogleAPIs.grantedScopes()
-        if granted.contains(GoogleAPIs.gmailReadOnlyScope), SharedStore.emailSource == .none {
-            SharedStore.emailSource = .google
-            print("[google] restored emailSource → .google (gmail scope present)")
+        var sources = SharedStore.emailSources
+        let beforeCount = sources.count
+
+        if GoogleAPIs.grantedScopes().contains(GoogleAPIs.gmailReadOnlyScope) {
+            sources.insert(.google)
+        }
+        if MicrosoftAPIs.grantedScopes().contains(MicrosoftAPIs.mailReadScope),
+           MicrosoftAPIs.isSignedIn() {
+            sources.insert(.microsoft)
+        }
+
+        if sources.count > beforeCount {
+            SharedStore.emailSources = sources
+            let names = sources.map(\.rawValue).sorted().joined(separator: "+")
+            print("[auth] restored emailSources → \(names)")
         }
     }
 
@@ -147,6 +165,7 @@ final class AuthManager: ObservableObject {
     func signOut() {
         Task { try? await PushManager.shared.unregisterCurrentToken() }
         GIDSignIn.sharedInstance.signOut()
+        MicrosoftAPIs.signOut()
         try? Auth.auth().signOut()
     }
 

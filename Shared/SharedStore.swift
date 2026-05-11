@@ -16,8 +16,15 @@ enum SharedStore {
         static let lng = "limor.lastLng"
         static let lastNow = "limor.lastNowJSON"
         static let photoB64 = "limor.photoB64"
-        static let calendarSource = "limor.calendarSource"
-        static let emailSource = "limor.emailSource"
+        /// Legacy single-value keys — read once during migration to the new
+        /// multi-source sets, then ignored. Kept around so we can recover the
+        /// user's choice on first launch after the upgrade.
+        static let legacyCalendarSource = "limor.calendarSource"
+        static let legacyEmailSource = "limor.emailSource"
+        /// New multi-source keys — store comma-separated rawValues. An empty
+        /// string means "no source enabled for this kind".
+        static let calendarSources = "limor.calendarSources"
+        static let emailSources = "limor.emailSources"
         static let syncedReminderIds = "limor.syncedReminderIds"
         static let onboardingCompleted = "limor.onboardingCompleted"
         static let introCompleted = "limor.introCompleted"
@@ -76,17 +83,42 @@ enum SharedStore {
         set { defaults.set(newValue, forKey: Keys.photoB64) }
     }
 
-    /// Where Limor reads calendar events from.
-    static var calendarSource: DataSource {
-        get { DataSource(rawValue: defaults.string(forKey: Keys.calendarSource) ?? "") ?? .apple }
-        set { defaults.set(newValue.rawValue, forKey: Keys.calendarSource) }
+    /// Where Limor reads calendar events from. Multi-select — if more than
+    /// one source is enabled, SyncManager fetches from each and merges. The
+    /// `.none` enum case is filtered out of the set on read/write (empty set
+    /// already means "off"). First-run default is `[.apple]`.
+    static var calendarSources: Set<DataSource> {
+        get { readSources(key: Keys.calendarSources, legacyKey: Keys.legacyCalendarSource, default: [.apple]) }
+        set { writeSources(newValue, key: Keys.calendarSources) }
     }
 
     /// Where Limor reads email from. Apple Mail.app has no public read API,
-    /// so the only real option here is Google or none.
-    static var emailSource: DataSource {
-        get { DataSource(rawValue: defaults.string(forKey: Keys.emailSource) ?? "") ?? .none }
-        set { defaults.set(newValue.rawValue, forKey: Keys.emailSource) }
+    /// so valid members are `.google` and `.microsoft` only. Empty set = off.
+    static var emailSources: Set<DataSource> {
+        get { readSources(key: Keys.emailSources, legacyKey: Keys.legacyEmailSource, default: []) }
+        set { writeSources(newValue, key: Keys.emailSources) }
+    }
+
+    private static func readSources(key: String, legacyKey: String, default fallback: Set<DataSource>) -> Set<DataSource> {
+        if let raw = defaults.string(forKey: key) {
+            let tokens = raw.split(separator: ",").map(String.init)
+            return Set(tokens.compactMap { DataSource(rawValue: $0) }).filter { $0 != .none }
+        }
+        // First read after the upgrade: migrate from the legacy singular key
+        // (if any). Stays lazy — we only write the new key when the user
+        // actually toggles something in Settings, so a no-op upgrade leaves
+        // both keys untouched.
+        if let legacy = defaults.string(forKey: legacyKey),
+           let source = DataSource(rawValue: legacy), source != .none {
+            return [source]
+        }
+        return fallback
+    }
+
+    private static func writeSources(_ sources: Set<DataSource>, key: String) {
+        let cleaned = sources.filter { $0 != .none }
+        let raw = cleaned.map(\.rawValue).sorted().joined(separator: ",")
+        defaults.set(raw, forKey: key)
     }
 
     /// Reminder IDs we've already mirrored to iOS Reminders.app — avoids duplicates.

@@ -7,10 +7,28 @@ struct ChatView: View {
     @EnvironmentObject private var auth: AuthManager
     @EnvironmentObject private var router: AppRouter
     @StateObject private var location = LocationManager.shared
+    @StateObject private var voice = VoiceService.shared
     @State private var messages: [ChatMessage] = []
     @State private var usage: ChatUsage?
     @State private var isSending = false
     @State private var errorMessage: String?
+
+    // Voice-message gesture state.
+    //
+    // The mic supports two modes:
+    //   • Press-and-hold (touch > 0.4s): record while pressed, release to
+    //     send, drag left past `voiceCancelThreshold` to cancel.
+    //   • Quick tap (touch < 0.4s, no real drag): "locks" the recording —
+    //     the user can release their finger and the recording keeps going
+    //     until they tap the mic again to send (or the cancel button in
+    //     the banner to discard).
+    @State private var voiceGestureActive = false
+    @State private var voiceGestureOffset: CGFloat = 0
+    @State private var voiceGestureStartedAt: Date?
+    @State private var voiceLocked = false
+    private let voiceCancelThreshold: CGFloat = 80
+    private let voiceTapMaxDuration: TimeInterval = 0.4
+    private let voiceTapMaxMovement: CGFloat = 20
 
     /// One-shot seed for the composer's internal `draft`. Parent writes to
     /// it (suggestion tap, queued pending message) and the composer picks
@@ -21,6 +39,7 @@ struct ChatView: View {
 
     // Attachment composer state
     @State private var photoItem: PhotosPickerItem?
+    @State private var showingPhotoPicker = false
     @State private var showingFileImporter = false
     @State private var attachmentData: Data?
     @State private var attachmentMime: String?
@@ -28,11 +47,6 @@ struct ChatView: View {
     @State private var attachmentImagePreview: UIImage?
     @State private var preparingAttachment = false
 
-    // Voice composer state
-    @State private var showingVoiceSheet = false
-    /// True when the most recent send was triggered from the voice sheet —
-    /// the next reply should be spoken aloud automatically.
-    @State private var expectVoiceReply = false
 
     private let suggestions: [ChatSuggestion] = [
         .init(icon: "bell.fill",          tint: .limorCoral,   text: "תזכירי לי בעוד שעה לבדוק דואר"),
@@ -49,22 +63,48 @@ struct ChatView: View {
                 ScrollViewReader { proxy in
                     VStack(spacing: 0) {
                         ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 12) {
+                            // VStack (not LazyVStack) so `.transition` on
+                            // inserted bubbles actually fires. LazyVStack
+                            // defers view creation until the row scrolls
+                            // into range, which means new items get a
+                            // first render *after* the withAnimation scope
+                            // has already ended, and the transition is
+                            // silently dropped. A chat is at most a few
+                            // dozen bubbles, so the perf cost of eager
+                            // rendering is negligible. `.equatable()` is
+                            // still in place to keep CPU low when
+                            // observable state (usage badge, etc.) flips.
+                            VStack(alignment: .leading, spacing: 12) {
                                 if messages.isEmpty {
                                     emptyState
                                 }
                                 ForEach(messages) { msg in
-                                    // .equatable() lets SwiftUI skip re-
-                                    // rendering bubbles whose id hasn't
-                                    // changed — every keystroke in the
-                                    // composer triggers a body recalc, and
-                                    // without this every bubble was being
-                                    // diffed (including hashing any large
-                                    // attachment Data), pegging the CPU.
                                     MessageBubble(message: msg)
                                         .equatable()
                                         .id(msg.id)
+                                        // Fires only when the append is
+                                        // wrapped in `withAnimation` —
+                                        // Limor's reply is, the user's
+                                        // own bubble append is not, so
+                                        // this entrance plays only for
+                                        // the assistant.
                                         .transition(.scale(scale: 0.9).combined(with: .opacity))
+                                        .contextMenu {
+                                            // Long-press → "Copy". Skip on
+                                            // voice messages whose textual
+                                            // content is just an
+                                            // auto-transcript the user
+                                            // didn't ask to see (the
+                                            // optimistic user-side bubble
+                                            // has content="").
+                                            if !msg.content.isEmpty {
+                                                Button {
+                                                    UIPasteboard.general.string = msg.content
+                                                } label: {
+                                                    Label("העתק", systemImage: "doc.on.doc")
+                                                }
+                                            }
+                                        }
                                 }
                                 if isSending {
                                     TypingIndicator().transition(.opacity).id("typing")
@@ -74,10 +114,22 @@ struct ChatView: View {
                             .padding(.horizontal, 14)
                             .padding(.top, 12)
                             .padding(.bottom, 12)
+                            // Tap anywhere on empty chat area dismisses the
+                            // keyboard. SwiftUI prefers a child button's
+                            // tap target over this container tap, so audio
+                            // play buttons / suggestion rows still work
+                            // normally — only blank space inside the
+                            // scroll view dismisses.
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                UIApplication.shared.sendAction(
+                                    #selector(UIResponder.resignFirstResponder),
+                                    to: nil, from: nil, for: nil
+                                )
+                            }
                         }
                         .scrollDismissesKeyboard(.interactively)
                         .onChange(of: messages.count) { _, _ in scrollToBottom(proxy) }
-                        .onChange(of: isSending) { _, sending in if sending { scrollToBottom(proxy) } }
 
                         composer(scrollProxy: proxy)
                     }
@@ -123,22 +175,18 @@ struct ChatView: View {
                 guard let item else { return }
                 Task { await loadPhoto(item: item) }
             }
+            .photosPicker(
+                isPresented: $showingPhotoPicker,
+                selection: $photoItem,
+                matching: .images,
+                photoLibrary: .shared()
+            )
             .fileImporter(
                 isPresented: $showingFileImporter,
                 allowedContentTypes: [.pdf, .image],
                 allowsMultipleSelection: false
             ) { result in
                 Task { await handleFileImport(result) }
-            }
-            .sheet(isPresented: $showingVoiceSheet) {
-                VoiceInputSheet { transcribed in
-                    // Send the transcribed text straight away. Mark
-                    // `expectVoiceReply` so Limor's reply gets spoken aloud
-                    // — keeps the conversation hands-free.
-                    expectVoiceReply = true
-                    Task { await send(text: transcribed) }
-                }
-                .presentationDetents([.large])
             }
             .alert("שגיאה", isPresented: .init(
                 get: { errorMessage != nil },
@@ -188,13 +236,22 @@ struct ChatView: View {
 
     private func composer(scrollProxy: ScrollViewProxy) -> some View {
         VStack(spacing: 8) {
-            if attachmentData != nil {
+            if voice.isRecordingVoiceMessage {
+                voiceRecordingBanner
+            } else if attachmentData != nil {
                 attachmentBanner
             }
 
             HStack(alignment: .bottom, spacing: 10) {
+                // PhotosPicker placed *inside* a Menu silently fails to
+                // present and prints _UIReparentingView warnings — known
+                // SwiftUI issue. We trigger the picker via state from a
+                // plain Button instead, and attach the actual
+                // `.photosPicker` modifier at the view level below.
                 Menu {
-                    PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
+                    Button {
+                        showingPhotoPicker = true
+                    } label: {
                         Label("תמונה מהאלבום", systemImage: "photo")
                     }
                     Button {
@@ -208,19 +265,15 @@ struct ChatView: View {
                         .foregroundStyle(.limorIndigo)
                         .frame(width: 38, height: 38)
                         .background(Circle().fill(Color.limorIndigo.opacity(0.12)))
+                        // Outer 44pt frame matches the send button and the
+                        // TextField bubble, so all four composer elements
+                        // share a single visual baseline with `.bottom`
+                        // alignment. Visible circle stays 38pt, centered.
+                        .frame(width: 44, height: 44)
                 }
-                .disabled(preparingAttachment || isSending)
+                .disabled(preparingAttachment || isSending || voice.isRecordingVoiceMessage)
 
-                Button {
-                    showingVoiceSheet = true
-                } label: {
-                    Image(systemName: "mic.fill")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.limorViolet)
-                        .frame(width: 38, height: 38)
-                        .background(Circle().fill(Color.limorViolet.opacity(0.12)))
-                }
-                .disabled(isSending)
+                micButton
 
                 // TextField + send button live in their own sub-view so
                 // typing only invalidates THAT subview's body — not the
@@ -228,7 +281,7 @@ struct ChatView: View {
                 // on every keystroke). This was the root cause of the 99%
                 // CPU spike while typing on the iPhone Air.
                 ChatComposerInput(
-                    isBusy: preparingAttachment || isSending,
+                    isBusy: preparingAttachment || isSending || voice.isRecordingVoiceMessage,
                     hasAttachment: attachmentData != nil,
                     seed: $composerSeed,
                     scrollProxy: scrollProxy,
@@ -245,6 +298,156 @@ struct ChatView: View {
                 .fill(.ultraThinMaterial)
                 .ignoresSafeArea(edges: .bottom)
         )
+    }
+
+    /// Mic button that drives the voice-message gesture. Two modes:
+    ///   • Idle: shows the mic glyph; gesture below decides between a
+    ///     quick tap (→ locked recording) and a long press (→ release-
+    ///     to-send).
+    ///   • Recording (locked or held): turns purple/red and the glyph
+    ///     flips to "arrow.up" once we're in locked mode — at that point
+    ///     a tap sends the clip.
+    private var micButton: some View {
+        let recording = voice.isRecordingVoiceMessage
+        let locked = voiceLocked
+        let cancelling = voiceGestureActive && voiceGestureOffset < -voiceCancelThreshold
+        return Image(systemName: locked ? "arrow.up" : "mic.fill")
+            .font(.body.weight(.semibold))
+            .foregroundStyle(recording ? .white : Color.limorViolet)
+            .frame(width: 38, height: 38)
+            .background(
+                Circle().fill(
+                    recording
+                        ? (cancelling ? Color.limorDanger : Color.limorViolet)
+                        : Color.limorViolet.opacity(0.12)
+                )
+            )
+            .scaleEffect(recording ? 1.25 : 1)
+            .animation(.easeInOut(duration: 0.15), value: recording)
+            .animation(.easeInOut(duration: 0.15), value: cancelling)
+            .animation(.easeInOut(duration: 0.15), value: locked)
+            // Outer 44pt frame so the mic shares a baseline with the send
+            // button, paperclip, and TextField bubble in the composer
+            // HStack. The visible 38pt circle stays centered inside; the
+            // extra 3pt halo around it is also tappable, which makes the
+            // press-and-hold easier to initiate.
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+            .gesture(voiceGesture)
+            .accessibilityLabel(locked ? "שלח הודעה קולית" : "הקלטת הודעה קולית")
+    }
+
+    private var voiceGesture: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .local)
+            .onChanged { value in
+                if !voiceGestureActive {
+                    voiceGestureActive = true
+                    voiceGestureStartedAt = Date()
+                    // Don't start a recording while still sending the
+                    // previous message — would step on its audio session.
+                    guard !isSending, !preparingAttachment else { return }
+                    // If already in locked-recording mode, this touch is
+                    // the user about to tap "send"; do not kick off a new
+                    // recording on top of the running one.
+                    guard !voiceLocked else { return }
+                    Task { await voice.startVoiceMessage() }
+                }
+                voiceGestureOffset = value.translation.width
+            }
+            .onEnded { value in
+                let duration = voiceGestureStartedAt.map { Date().timeIntervalSince($0) } ?? 0
+                let movement = max(abs(value.translation.width), abs(value.translation.height))
+                let cancel = value.translation.width < -voiceCancelThreshold
+                let quickTap = duration < voiceTapMaxDuration && movement < voiceTapMaxMovement
+
+                voiceGestureActive = false
+                voiceGestureOffset = 0
+                voiceGestureStartedAt = nil
+
+                if cancel {
+                    _ = voice.stopVoiceMessage(cancel: true)
+                    voiceLocked = false
+                    return
+                }
+
+                if quickTap && !voiceLocked {
+                    // First quick tap → enter locked recording. Keep the
+                    // recorder running, user can now release their finger
+                    // and tap the mic again to send.
+                    voiceLocked = true
+                    return
+                }
+
+                // Either a long-press release, or the locked-mode "send"
+                // tap. Stop the recorder and ship it.
+                let result = voice.stopVoiceMessage(cancel: false)
+                voiceLocked = false
+                if let result {
+                    Task { await sendVoiceMessage(audioURL: result.url, duration: result.duration) }
+                }
+            }
+    }
+
+    /// Recording banner shown above the composer while the user holds the
+    /// mic (or has locked the recording with a quick tap). Pulsing red dot +
+    /// timer on the leading side; the trailing side flips between the
+    /// "החלק לבטל" / "שחרר לביטול" press-and-hold hint and a tappable trash
+    /// button + send hint for locked mode.
+    private var voiceRecordingBanner: some View {
+        let cancelling = voiceGestureActive && voiceGestureOffset < -voiceCancelThreshold
+        return HStack(spacing: 10) {
+            Circle()
+                .fill(Color.limorDanger)
+                .frame(width: 10, height: 10)
+                .scaleEffect(0.9 + CGFloat(voice.voiceMessageLevel) * 0.5)
+                .animation(.easeOut(duration: 0.1), value: voice.voiceMessageLevel)
+
+            Text(formatRecordingDuration(voice.voiceMessageDuration))
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.limorInk)
+
+            Spacer(minLength: 8)
+
+            if voiceLocked {
+                Button {
+                    _ = voice.stopVoiceMessage(cancel: true)
+                    voiceLocked = false
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "trash.fill")
+                            .font(.caption.weight(.bold))
+                        Text("ביטול")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(.limorDanger)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Capsule().fill(Color.limorDanger.opacity(0.16)))
+                }
+                .buttonStyle(.plain)
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: cancelling ? "trash.fill" : "chevron.left")
+                        .font(.caption.weight(.bold))
+                    Text(cancelling ? "שחרר לביטול" : "החלק לבטל")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(cancelling ? .limorDanger : .limorMuted)
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.limorDanger.opacity(cancelling ? 0.18 : 0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.limorDanger.opacity(0.35), lineWidth: 0.6)
+        )
+    }
+
+    private func formatRecordingDuration(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded())
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     private var attachmentBanner: some View {
@@ -443,12 +646,10 @@ struct ChatView: View {
             localAttachmentImageData: optimisticImage,
             localAttachmentFilename: optimisticFilename
         )
-        // Use the explicit spring form — `.spring` shorthand combined with a
-        // state mutation that triggers .toolbar reconfiguration was crashing
-        // on iOS 18+ in the chat ("every question crashes" report).
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-            messages.append(optimistic)
-        }
+        // User bubble appended plain (no withAnimation) on purpose — they
+        // just tapped send, the action should feel immediate. Limor's
+        // reply below gets the spring entrance.
+        messages.append(optimistic)
 
         isSending = true
         defer { isSending = false }
@@ -469,12 +670,6 @@ struct ChatView: View {
                     created_at: ISO8601DateFormatter.limor.string(from: Date())
                 ))
             }
-            // If the user sent this message via the voice sheet, speak the
-            // reply back so the conversation stays hands-free.
-            if expectVoiceReply {
-                expectVoiceReply = false
-                VoiceService.shared.speak(reply.reply)
-            }
         } catch {
             errorMessage = error.localizedDescription
             await loadHistory()
@@ -486,6 +681,69 @@ struct ChatView: View {
         if mime.hasPrefix("image/") { return "מה רואים בתמונה? תסכמי לי את הפרטים החשובים." }
         if mime == "application/pdf" { return "תסכמי לי את המסמך — מה הפרטים החשובים?" }
         return "מה זה?"
+    }
+
+    /// Send a voice message: append an optimistic audio bubble immediately,
+    /// transcribe the clip on-device, then POST the transcript + the audio
+    /// file as a regular chat message + attachment. The transcript is what
+    /// Limor actually "sees" — the audio attachment is uploaded for future
+    /// server-side use but the current backend doesn't have to read it for
+    /// the user-visible flow to work.
+    @MainActor
+    private func sendVoiceMessage(audioURL: URL, duration: TimeInterval) async {
+        // Drop the local audio bubble into the chat right away so the user
+        // sees their message immediately — same pattern as the text path.
+        let optimistic = ChatMessage(
+            role: .user,
+            content: "",
+            created_at: ISO8601DateFormatter.limor.string(from: Date()),
+            localAudioURL: audioURL,
+            localAudioDuration: duration
+        )
+        messages.append(optimistic)
+
+        // Transcribe on-device first, *then* flip the typing indicator on
+        // — otherwise the user would stare at "typing…" while we're still
+        // running the local recognizer.
+        let transcript = await voice.transcribeAudioFile(url: audioURL, locale: .hebrew)
+        let messageText = (transcript?.trimmingCharacters(in: .whitespacesAndNewlines))
+            .flatMap { $0.isEmpty ? nil : $0 }
+            ?? "[הודעה קולית]"
+
+        // Load the M4A as base64. We don't fail the send if reading fails
+        // — Limor can still respond to the transcript.
+        let attachment: ChatAttachment? = {
+            guard let data = try? Data(contentsOf: audioURL) else { return nil }
+            return ChatAttachment(
+                content_type: "audio/m4a",
+                data_base64: data.base64EncodedString(),
+                filename: "voice.m4a"
+            )
+        }()
+
+        isSending = true
+        defer { isSending = false }
+
+        do {
+            let reply = try await APIClient.shared.sendChat(
+                token: auth.token ?? "",
+                message: messageText,
+                lat: location.coordinate?.latitude,
+                lng: location.coordinate?.longitude,
+                attachment: attachment
+            )
+            usage = reply.usage
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                messages.append(ChatMessage(
+                    role: .assistant,
+                    content: reply.reply,
+                    created_at: ISO8601DateFormatter.limor.string(from: Date())
+                ))
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            await loadHistory()
+        }
     }
 }
 
@@ -527,7 +785,16 @@ private struct ChatComposerInput: View {
                 .lineLimit(1...5)
                 .font(.body)
                 .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                .padding(.vertical, 10)
+                // Force single-line height to 44pt so the bubble matches
+                // the paperclip/mic/send 44pt circle frames in the
+                // parent's composer HStack — without this, vertical
+                // padding alone leaves the bubble shorter than the
+                // buttons and they read as misaligned with `.bottom`
+                // HStack alignment. Multi-line growth still works
+                // because lineLimit(1...5) allows the frame to grow
+                // past 44pt as the user types more.
+                .frame(minHeight: 44)
                 .submitLabel(.send)
                 .background(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -646,6 +913,7 @@ private struct MessageBubble: View, Equatable {
             && lhs.message.localAttachmentFilename == rhs.message.localAttachmentFilename
             && (lhs.message.localAttachmentImageData?.count
                 == rhs.message.localAttachmentImageData?.count)
+            && lhs.message.localAudioURL == rhs.message.localAudioURL
     }
 
     var body: some View {
@@ -664,23 +932,35 @@ private struct MessageBubble: View, Equatable {
     @ViewBuilder
     private var bubble: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let data = message.localAttachmentImageData, let img = UIImage(data: data) {
-                Image(uiImage: img)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: 240, maxHeight: 200)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            } else if let filename = message.localAttachmentFilename {
-                HStack(spacing: 6) {
-                    Image(systemName: "doc.fill")
-                    Text(filename).lineLimit(1)
+            // Voice message — render the player only and hide the transcript
+            // text; the transcript is sent to Limor so she can reply in
+            // context, but the user wanted WhatsApp-style bubbles that
+            // *don't* surface the dictation.
+            if let audioURL = message.localAudioURL {
+                AudioPlayerControl(
+                    url: audioURL,
+                    duration: message.localAudioDuration ?? 0,
+                    isUserBubble: message.role == .user
+                )
+            } else {
+                if let data = message.localAttachmentImageData, let img = UIImage(data: data) {
+                    Image(uiImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: 240, maxHeight: 200)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                } else if let filename = message.localAttachmentFilename {
+                    HStack(spacing: 6) {
+                        Image(systemName: "doc.fill")
+                        Text(filename).lineLimit(1)
+                    }
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(Capsule().fill(.white.opacity(0.2)))
                 }
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(Capsule().fill(.white.opacity(0.2)))
+                Text(message.content)
+                    .font(.body)
             }
-            Text(message.content)
-                .font(.body)
         }
         .foregroundStyle(message.role == .user ? .white : .limorInk)
         .padding(.horizontal, 14)
@@ -710,13 +990,12 @@ private struct MessageBubble: View, Equatable {
 // MARK: - Typing indicator
 
 private struct TypingIndicator: View {
-    /// Use a TimelineView for the dot pulse instead of SwiftUI's
-    /// `.repeatForever(autoreverses:)` — the latter has a known habit of
-    /// leaking animation tickers when the view is removed from the tree,
-    /// which compounds with each Limor reply (typing indicator appears →
-    /// disappears → next message it appears again on top of a still-
-    /// running animation from the previous round). TimelineView is bound
-    /// to the view lifecycle and stops cleanly when the view goes away.
+    /// Three dots that pulse in sequence while Limor is typing. Uses
+    /// TimelineView (lifecycle-bound) instead of `.repeatForever`, which
+    /// would leak animation tickers across re-appearances of the view.
+    /// An earlier attempt removed the pulse because we suspected it of
+    /// causing the iPhone Air freeze, but the actual cause was a hung
+    /// Firebase getIDToken — the dots were never the problem.
     var body: some View {
         HStack(spacing: 8) {
             LimorAvatar(size: 28)
@@ -737,7 +1016,7 @@ private struct TypingIndicator: View {
             .padding(.horizontal, 14).padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.regularMaterial)
+                    .fill(Color.white.opacity(0.85))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -745,6 +1024,63 @@ private struct TypingIndicator: View {
             )
             Spacer(minLength: 32)
         }
+    }
+}
+
+// MARK: - Audio message player (used inside MessageBubble for voice messages)
+
+/// Tap-to-toggle play/pause for a voice-message bubble. Observes
+/// VoiceService so the icon flips between play / pause when the user
+/// taps it (or when playback finishes on its own).
+private struct AudioPlayerControl: View {
+    let url: URL
+    let duration: TimeInterval
+    let isUserBubble: Bool
+    @ObservedObject private var voice = VoiceService.shared
+
+    private var isPlaying: Bool { voice.playingAudioURL == url }
+    private var tint: Color { isUserBubble ? .white : .limorIndigo }
+
+    var body: some View {
+        Button {
+            voice.toggleAudioPlayback(url: url)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                    .font(.body.weight(.bold))
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(tint.opacity(0.18)))
+
+                // Decorative waveform — varying bar heights, no actual sample
+                // data behind it, just a visual cue that this is audio.
+                HStack(spacing: 2) {
+                    ForEach(0..<22, id: \.self) { i in
+                        Capsule()
+                            .fill(tint.opacity(isPlaying ? 0.9 : 0.55))
+                            .frame(width: 2, height: barHeight(for: i))
+                    }
+                }
+
+                Text(formatDuration(duration))
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(tint.opacity(0.85))
+            }
+            .foregroundStyle(tint)
+        }
+        .buttonStyle(.plain)
+        .frame(minWidth: 200, alignment: .leading)
+    }
+
+    private func barHeight(for index: Int) -> CGFloat {
+        // Pseudo-random but stable per index — gives the bars some variation
+        // without recomputing on each redraw.
+        let pattern: [CGFloat] = [6, 12, 18, 10, 22, 14, 8, 20, 16, 12, 24, 10, 6, 18, 14, 22, 8, 16, 12, 20, 10, 14]
+        return pattern[index % pattern.count]
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded())
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
 

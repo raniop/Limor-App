@@ -269,6 +269,9 @@ struct OnboardingView: View {
                 primaryButton("Google Calendar", tint: .limorIndigo, disabled: state == .working) {
                     Task { await requestGoogleCalendar() }
                 }
+                primaryButton("Outlook Calendar", tint: .limorMint, disabled: state == .working) {
+                    Task { await requestOutlookCalendar() }
+                }
                 secondaryButton("אולי אחר כך") { advance() }
             }
         }
@@ -277,7 +280,7 @@ struct OnboardingView: View {
     private func requestAppleCalendar() async {
         permissionStatus[.calendar] = .working
         let granted = await CalendarManager.shared.requestAccess()
-        if granted { SharedStore.calendarSource = .apple }
+        if granted { SharedStore.calendarSources = [.apple] }
         permissionStatus[.calendar] = granted ? .granted : .denied
         try? await Task.sleep(for: .milliseconds(450))
         advance()
@@ -287,7 +290,20 @@ struct OnboardingView: View {
         permissionStatus[.calendar] = .working
         do {
             try await GoogleAPIs.ensureScopes([GoogleAPIs.calendarReadOnlyScope])
-            SharedStore.calendarSource = .google
+            SharedStore.calendarSources = [.google]
+            permissionStatus[.calendar] = .granted
+        } catch {
+            permissionStatus[.calendar] = .denied
+        }
+        try? await Task.sleep(for: .milliseconds(450))
+        advance()
+    }
+
+    private func requestOutlookCalendar() async {
+        permissionStatus[.calendar] = .working
+        do {
+            try await MicrosoftAPIs.ensureScopes([MicrosoftAPIs.calendarReadScope])
+            SharedStore.calendarSources = [.microsoft]
             permissionStatus[.calendar] = .granted
         } catch {
             permissionStatus[.calendar] = .denied
@@ -326,7 +342,10 @@ struct OnboardingView: View {
                 primaryButton("חבר את Gmail", tint: tint, disabled: state == .working) {
                     Task { await requestGmail() }
                 }
-                secondaryButton("אני לא משתמש ב-Gmail") { advance() }
+                primaryButton("חבר את Outlook", tint: .limorIndigo, disabled: state == .working) {
+                    Task { await requestOutlookMail() }
+                }
+                secondaryButton("אני לא משתמש במייל") { advance() }
             }
         }
     }
@@ -335,7 +354,20 @@ struct OnboardingView: View {
         permissionStatus[.email] = .working
         do {
             try await GoogleAPIs.ensureScopes([GoogleAPIs.gmailReadOnlyScope])
-            SharedStore.emailSource = .google
+            SharedStore.emailSources = [.google]
+            permissionStatus[.email] = .granted
+        } catch {
+            permissionStatus[.email] = .denied
+        }
+        try? await Task.sleep(for: .milliseconds(450))
+        advance()
+    }
+
+    private func requestOutlookMail() async {
+        permissionStatus[.email] = .working
+        do {
+            try await MicrosoftAPIs.ensureScopes([MicrosoftAPIs.mailReadScope])
+            SharedStore.emailSources = [.microsoft]
             permissionStatus[.email] = .granted
         } catch {
             permissionStatus[.email] = .denied

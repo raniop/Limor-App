@@ -27,44 +27,87 @@ final class SyncManager: ObservableObject {
     func syncCalendar(force: Bool = false) async {
         if !force, let last = lastCalendarSync, Date().timeIntervalSince(last) < calendarThrottle { return }
 
-        let events: [CalendarEventDTO]
-        switch SharedStore.calendarSource {
-        case .google:
+        let sources = SharedStore.calendarSources
+        guard !sources.isEmpty else {
+            print("[sync] calendar: no sources enabled, skipping")
+            return
+        }
+
+        // Fetch from each enabled source; a single provider's failure must not
+        // wipe out the others' results (otherwise a transient Google outage
+        // would clear the user's Outlook events from the backend snapshot).
+        var events: [CalendarEventDTO] = []
+
+        if sources.contains(.apple) {
+            let granted = await CalendarManager.shared.requestAccess()
+            if granted {
+                events.append(contentsOf: CalendarManager.shared.fetchUpcomingEvents())
+            }
+        }
+        if sources.contains(.google) {
             do {
-                events = try await GoogleAPIs.fetchCalendarEvents()
+                events.append(contentsOf: try await GoogleAPIs.fetchCalendarEvents())
             } catch {
                 print("[sync] google calendar failed: \(error.localizedDescription)")
-                return
             }
-        case .apple, .none:
-            let granted = await CalendarManager.shared.requestAccess()
-            guard granted else { return }
-            events = CalendarManager.shared.fetchUpcomingEvents()
+        }
+        if sources.contains(.microsoft) {
+            do {
+                events.append(contentsOf: try await MicrosoftAPIs.fetchCalendarEvents())
+            } catch {
+                print("[sync] microsoft calendar failed: \(error.localizedDescription)")
+            }
         }
 
         do {
             try await APIClient.shared.syncCalendar(events: events)
             lastCalendarSync = Date()
-            print("[sync] calendar (\(SharedStore.calendarSource.rawValue)) uploaded \(events.count) events")
+            let names = sources.map(\.rawValue).sorted().joined(separator: "+")
+            print("[sync] calendar (\(names)) uploaded \(events.count) events")
         } catch {
             print("[sync] calendar upload failed: \(error.localizedDescription)")
         }
     }
 
     func syncEmail(force: Bool = false) async {
-        guard SharedStore.emailSource == .google else {
-            print("[sync] email: source is \(SharedStore.emailSource.rawValue), skipping")
+        let sources = SharedStore.emailSources
+        guard !sources.isEmpty else {
+            print("[sync] email: no sources enabled, skipping")
             return
         }
         if !force, let last = lastEmailSync, Date().timeIntervalSince(last) < emailThrottle {
             print("[sync] email: throttled (last=\(last))")
             return
         }
-        let granted = await MainActor.run { GoogleAPIs.grantedScopes() }
-        print("[sync] email: starting fetch. Granted Google scopes: \(granted)")
         do {
-            let emails = try await GoogleAPIs.fetchRecentEmails(daysBack: 7, limit: 25)
-            print("[sync] email: fetched \(emails.count) emails from Gmail API")
+            // Fetch from each enabled provider in parallel — keeps total wait
+            // bounded by the slower one, not the sum. Failures are logged and
+            // the other provider's results still upload (same reasoning as
+            // calendar: a transient Gmail error must not wipe Outlook data).
+            var emails: [EmailDTO] = []
+            if sources.contains(.google) {
+                let granted = GoogleAPIs.grantedScopes()
+                print("[sync] email: starting Gmail fetch. Granted Google scopes: \(granted)")
+                do {
+                    emails.append(contentsOf: try await GoogleAPIs.fetchRecentEmails(daysBack: 7, limit: 25))
+                } catch {
+                    print("[sync] gmail fetch failed: \(error.localizedDescription)")
+                }
+            }
+            if sources.contains(.microsoft) {
+                let granted = MicrosoftAPIs.grantedScopes()
+                print("[sync] email: starting Outlook fetch. Granted MS scopes: \(granted)")
+                do {
+                    emails.append(contentsOf: try await MicrosoftAPIs.fetchRecentEmails(daysBack: 7, limit: 25))
+                } catch {
+                    print("[sync] outlook fetch failed: \(error.localizedDescription)")
+                }
+            }
+            // Newest first across the merged set.
+            emails.sort { $0.received_at > $1.received_at }
+
+            let names = sources.map(\.rawValue).sorted().joined(separator: "+")
+            print("[sync] email: fetched \(emails.count) emails from \(names)")
             try await APIClient.shared.syncEmail(emails: emails)
             lastEmailSync = Date()
             print("[sync] email uploaded \(emails.count) messages")

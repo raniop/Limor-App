@@ -65,7 +65,15 @@ struct RootView: View {
             // Re-sync whenever the app comes back to the foreground (throttled
             // per type inside SyncManager) — keeps Gmail/insights fresh without
             // the user pressing anything.
-            if newPhase == .active, auth.state == .signedIn {
+            //
+            // *Important*: skip while the user is still walking through
+            // onboarding. Each iOS permission dialog (location, calendar, …)
+            // briefly takes the app to .inactive and bounces it back to
+            // .active when the user dismisses the dialog. Without this guard,
+            // approving location triggers syncAll, which then fires Calendar
+            // + Contacts + Health permission requests on top of the user
+            // before they've reached those screens.
+            if newPhase == .active, auth.state == .signedIn, onboardingCompleted {
                 Task { await SyncManager.shared.syncAll() }
             }
         }

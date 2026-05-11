@@ -37,10 +37,12 @@
 		7CCA754A19F639E5935FB3F2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6B43AF9EC5437EE160A94D6D /* Assets.xcassets */; };
 		7EEA832AC477FD3BDD1B4B64 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F350B8D6038DF33D6298ABF7 /* SettingsView.swift */; };
 		7F5AA7209F01C34C3BEB90A3 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E07C0CEB4AD38CED9FBE3231 /* AuthManager.swift */; };
+		808A2D7C751E0BAA5C05ECD8 /* MicrosoftAPIs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66F33C0D55910CD2EF115BD8 /* MicrosoftAPIs.swift */; };
 		80B9DFE8EBA69C8081268633 /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B202F02E4586363CB10439EC /* SharedStore.swift */; };
 		80D0D4111FB1C5FAB7F113A9 /* HealthDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D91250B8286E7E09A1FFCA /* HealthDetailView.swift */; };
 		823B6C53BB8E1F79DC82F866 /* NotificationPrefsOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9231AB15CD0F7563F824388 /* NotificationPrefsOnboardingView.swift */; };
 		970535E828F3B85A5262B709 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 6E18B4CE5B475EDA16EE3B27 /* FirebaseAuth */; };
+		994B236101BE0D6BECE36F83 /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 6B7A88E4DA45A88462BA0EDC /* MSAL */; };
 		9A1DB10483B0DD2F42738908 /* WidgetAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDA34640B05602CA3307600E /* WidgetAPI.swift */; };
 		A197C77394CE55D99EE8A21C /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B202F02E4586363CB10439EC /* SharedStore.swift */; };
 		A35725A80CD0720ED8E721E7 /* Limor Ai App Widget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ADD7F1B823C26AD027A926D4 /* Limor Ai App Widget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -119,6 +121,7 @@
 		4E3E42644D5D54B11F655BCA /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
 		4FE0594A9356AAF49921A7AE /* RemindersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersView.swift; sourceTree = "<group>"; };
 		605673C35D91137A0F7E9887 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		66F33C0D55910CD2EF115BD8 /* MicrosoftAPIs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MicrosoftAPIs.swift; sourceTree = "<group>"; };
 		6B43AF9EC5437EE160A94D6D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		70396FD611F130F479EC2B84 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		81E476CAA1353471D85E0F79 /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
@@ -158,6 +161,7 @@
 				F4F48D52806355C91474625F /* FirebaseMessaging in Frameworks */,
 				EFB113609F0ADAFDF7480ED6 /* GoogleSignIn in Frameworks */,
 				77E462D336AFE40C4D6C1774 /* GoogleSignInSwift in Frameworks */,
+				994B236101BE0D6BECE36F83 /* MSAL in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -218,6 +222,7 @@
 				B54FB305BDEB96228F61AB55 /* RemindersWriter.swift */,
 				F8B58A40BF66B16677563B90 /* SyncManager.swift */,
 				2B72EA9E69C14DC9A8337CB9 /* VoiceService.swift */,
+				66F33C0D55910CD2EF115BD8 /* MicrosoftAPIs.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -319,6 +324,7 @@
 				738BA285D10ED2184208ECE1 /* FirebaseMessaging */,
 				0EC30F115E0DFB641D7EBC79 /* GoogleSignIn */,
 				DD2D905D34B76D74AB8F0FC1 /* GoogleSignInSwift */,
+				6B7A88E4DA45A88462BA0EDC /* MSAL */,
 			);
 			productName = "Limor Ai App";
 			productReference = 44CB3C3B381DA79889FA5A25 /* Limor Ai App.app */;
@@ -353,6 +359,7 @@
 			packageReferences = (
 				62D1BD1F6842B3B719A0B10C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				1C054710C36F4C85F7EA8834 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				B1A7902C17BD7D6138BE7EAF /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6DF2F6DCBD8C56B850362F34 /* Products */;
@@ -426,6 +433,7 @@
 				0E44575EE0AF6D1D69E0D633 /* ContactPicker.swift in Sources */,
 				41D55F13697C9135EDE61653 /* RelationshipsView.swift in Sources */,
 				823B6C53BB8E1F79DC82F866 /* NotificationPrefsOnboardingView.swift in Sources */,
+				808A2D7C751E0BAA5C05ECD8 /* MicrosoftAPIs.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -718,6 +726,14 @@
 				minimumVersion = 11.0.0;
 			};
 		};
+		B1A7902C17BD7D6138BE7EAF /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/AzureAD/microsoft-authentication-library-for-objc";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.5.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -725,6 +741,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1C054710C36F4C85F7EA8834 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignIn;
+		};
+		6B7A88E4DA45A88462BA0EDC /* MSAL */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B1A7902C17BD7D6138BE7EAF /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */;
+			productName = MSAL;
 		};
 		6E18B4CE5B475EDA16EE3B27 /* FirebaseAuth */ = {
 			isa = XCSwiftPackageProductDependency;

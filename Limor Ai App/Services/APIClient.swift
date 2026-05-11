@@ -359,10 +359,35 @@ struct APIClient {
 
     private func freshIdToken() async -> String? {
         guard let user = Auth.auth().currentUser else { return nil }
-        return try? await withCheckedThrowingContinuation { continuation in
-            user.getIDToken { token, error in
-                if let token { continuation.resume(returning: token) }
-                else { continuation.resume(throwing: error ?? URLError(.userAuthenticationRequired)) }
+
+        // Race the Firebase callback against an 8-second timeout. On at least
+        // one iPhone Air, the second chat send in a session hung indefinitely
+        // inside `getIDToken` — Firebase appears to fire off a token-refresh
+        // network call after the cached token rotates, and when that hangs
+        // the completion handler is never invoked, the continuation never
+        // resumes, and the entire send sits forever with `isSending=true`
+        // (and from the user's point of view, the chat is frozen). Without
+        // the safety net there is no way out short of killing the app.
+        return await withCheckedContinuation { (cont: CheckedContinuation<String?, Never>) in
+            let lock = NSLock()
+            var resolved = false
+
+            user.getIDToken { token, _ in
+                lock.lock()
+                defer { lock.unlock() }
+                guard !resolved else { return }
+                resolved = true
+                cont.resume(returning: token)
+            }
+
+            Task {
+                try? await Task.sleep(for: .seconds(8))
+                lock.lock()
+                defer { lock.unlock() }
+                guard !resolved else { return }
+                resolved = true
+                NSLog("[auth] Firebase getIDToken timed out after 8s — falling back to nil")
+                cont.resume(returning: nil)
             }
         }
     }

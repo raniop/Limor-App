@@ -3,6 +3,7 @@ import Foundation
 enum DataSource: String, Codable, CaseIterable {
     case apple
     case google
+    case microsoft
     case none
 }
 
@@ -177,6 +178,11 @@ struct ChatMessage: Decodable, Identifiable, Hashable {
     var localAttachmentImageData: Data? = nil
     /// Locally attached document filename — same caveats.
     var localAttachmentFilename: String? = nil
+    /// Locally recorded voice-message URL — only on the user's own optimistic
+    /// bubble so the chat can render a play button + duration without
+    /// round-tripping to the server. Not decoded from server responses.
+    var localAudioURL: URL? = nil
+    var localAudioDuration: TimeInterval? = nil
 
     private enum CodingKeys: String, CodingKey {
         case role, content, created_at
@@ -184,12 +190,16 @@ struct ChatMessage: Decodable, Identifiable, Hashable {
 
     init(role: Role, content: String, created_at: String,
          localAttachmentImageData: Data? = nil,
-         localAttachmentFilename: String? = nil) {
+         localAttachmentFilename: String? = nil,
+         localAudioURL: URL? = nil,
+         localAudioDuration: TimeInterval? = nil) {
         self.role = role
         self.content = content
         self.created_at = created_at
         self.localAttachmentImageData = localAttachmentImageData
         self.localAttachmentFilename = localAttachmentFilename
+        self.localAudioURL = localAudioURL
+        self.localAudioDuration = localAudioDuration
     }
 
     init(from decoder: Decoder) throws {
@@ -199,6 +209,8 @@ struct ChatMessage: Decodable, Identifiable, Hashable {
         self.created_at = try c.decode(String.self, forKey: .created_at)
         self.localAttachmentImageData = nil
         self.localAttachmentFilename = nil
+        self.localAudioURL = nil
+        self.localAudioDuration = nil
     }
 }
 
