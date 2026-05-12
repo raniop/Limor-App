@@ -129,8 +129,24 @@ struct MicrosoftAPIs {
     }
 
     /// Interactive path: silent first, fallback to interactive consent if
-    /// the scope isn't cached or the cached token can't be refreshed.
+    /// the scope isn't cached or the cached token can't be refreshed. Any
+    /// MSAL error (from `application()`, `acquireTokenSilent`, or
+    /// `acquireToken`) is normalised to our friendly format so the UI
+    /// always shows something more useful than "MSALErrorDomain -50000".
     static func ensureScopes(_ scopes: [String]) async throws {
+        do {
+            try await ensureScopesInner(scopes)
+        } catch let nserr as NSError where nserr.domain != "limor.microsoft" {
+            logMSALError(nserr, where: "ensureScopes")
+            throw NSError(
+                domain: "limor.microsoft",
+                code: nserr.code,
+                userInfo: [NSLocalizedDescriptionKey: friendlyMSALMessage(nserr)]
+            )
+        }
+    }
+
+    private static func ensureScopesInner(_ scopes: [String]) async throws {
         let app = try application()
         let accounts = (try? app.allAccounts()) ?? []
 
