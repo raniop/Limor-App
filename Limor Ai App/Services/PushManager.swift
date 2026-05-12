@@ -124,6 +124,32 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
         print("[push]   domain=\(ns.domain) code=\(ns.code)")
     }
 
+    /// Silent (background) push handler — fires for `aps.content-available=1`
+    /// pushes from the backend. The `data.kind` field tells us which local
+    /// store to refresh. Used for cross-device live sync (e.g. shopping
+    /// list edits on another device).
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        let kind = (userInfo["kind"] as? String) ?? ""
+        print("[push] silent push received kind=\(kind)")
+        guard !kind.isEmpty else {
+            completionHandler(.noData)
+            return
+        }
+        Task { @MainActor in
+            switch kind {
+            case "shopping":
+                await ShoppingListStore.shared.refreshFromBackend()
+                completionHandler(.newData)
+            default:
+                completionHandler(.noData)
+            }
+        }
+    }
+
     // MARK: MessagingDelegate
 
     nonisolated func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
