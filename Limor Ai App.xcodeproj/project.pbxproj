@@ -53,6 +53,7 @@
 		C186FB50EC1DD6B541F9F7C3 /* VoiceInputSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A23BC6C1BD773FDD3C2D6C3 /* VoiceInputSheet.swift */; };
 		C355EB2FF013CA1DDA4D4436 /* NowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040FFCD9DC418611AA006C63 /* NowView.swift */; };
 		C426955A7E56C6F1357366F6 /* HealthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DB07E2C95CA5E81B2B0467E /* HealthManager.swift */; };
+		C90DAB36E14115250F0E4905 /* MeetingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F6F221E867B5452659406E0 /* MeetingsCard.swift */; };
 		C971164640BA0BAA2980F04D /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E3E42644D5D54B11F655BCA /* AppRouter.swift */; };
 		D10EB884647A3890000FDDB3 /* FeedNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C14813798F555401055250B /* FeedNode.swift */; };
 		D3EBD1DC243A3A675E42DFBE /* RemindersWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B54FB305BDEB96228F61AB55 /* RemindersWriter.swift */; };
@@ -62,6 +63,7 @@
 		EA6C1B260BC00F2763775067 /* ReminderLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BDC1EAA445B4E2AA5340AF /* ReminderLiveActivity.swift */; };
 		EBDD4CEE77B4BE59DDD50A90 /* LimorLogoMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833DCEA3F6B5E318E0DF0E61 /* LimorLogoMark.swift */; };
 		EFB113609F0ADAFDF7480ED6 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 0EC30F115E0DFB641D7EBC79 /* GoogleSignIn */; };
+		F2CAD522D29299A5CA245FC6 /* ShoppingListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9391AB93715C0B98325D375B /* ShoppingListView.swift */; };
 		F33CBE9E0BBAE4720E850843 /* CalendarManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FEA6C80C01305F2D1B2D993 /* CalendarManager.swift */; };
 		F4F48D52806355C91474625F /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 738BA285D10ED2184208ECE1 /* FirebaseMessaging */; };
 		F6CAEF2E5C6FB49F4E4D7662 /* WeatherDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 032BFD663A4822AE6207BA95 /* WeatherDetailView.swift */; };
@@ -120,6 +122,7 @@
 		4DB07E2C95CA5E81B2B0467E /* HealthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthManager.swift; sourceTree = "<group>"; };
 		4E3E42644D5D54B11F655BCA /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
 		4FE0594A9356AAF49921A7AE /* RemindersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersView.swift; sourceTree = "<group>"; };
+		5F6F221E867B5452659406E0 /* MeetingsCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MeetingsCard.swift; sourceTree = "<group>"; };
 		605673C35D91137A0F7E9887 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		66F33C0D55910CD2EF115BD8 /* MicrosoftAPIs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MicrosoftAPIs.swift; sourceTree = "<group>"; };
 		6B43AF9EC5437EE160A94D6D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -128,6 +131,7 @@
 		83328D4B558B22C5BCBD06EB /* LimorWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LimorWidget.entitlements; sourceTree = "<group>"; };
 		833DCEA3F6B5E318E0DF0E61 /* LimorLogoMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorLogoMark.swift; sourceTree = "<group>"; };
 		8C88EC958269D59320A5A646 /* LimorReminderAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorReminderAttributes.swift; sourceTree = "<group>"; };
+		9391AB93715C0B98325D375B /* ShoppingListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingListView.swift; sourceTree = "<group>"; };
 		9A5D1D5B83E2A988DCED1752 /* RelationshipsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RelationshipsView.swift; sourceTree = "<group>"; };
 		9D1698B92AFE03772997513C /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		A28D6A515676755BA91AC4E7 /* GoogleAPIs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAPIs.swift; sourceTree = "<group>"; };
@@ -251,6 +255,8 @@
 				3CF766704AC4044C593F2D83 /* ContactPicker.swift */,
 				9A5D1D5B83E2A988DCED1752 /* RelationshipsView.swift */,
 				F9231AB15CD0F7563F824388 /* NotificationPrefsOnboardingView.swift */,
+				5F6F221E867B5452659406E0 /* MeetingsCard.swift */,
+				9391AB93715C0B98325D375B /* ShoppingListView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -434,6 +440,8 @@
 				41D55F13697C9135EDE61653 /* RelationshipsView.swift in Sources */,
 				823B6C53BB8E1F79DC82F866 /* NotificationPrefsOnboardingView.swift in Sources */,
 				808A2D7C751E0BAA5C05ECD8 /* MicrosoftAPIs.swift in Sources */,
+				C90DAB36E14115250F0E4905 /* MeetingsCard.swift in Sources */,
+				F2CAD522D29299A5CA245FC6 /* ShoppingListView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

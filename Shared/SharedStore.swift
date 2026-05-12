@@ -32,6 +32,7 @@ enum SharedStore {
         static let remindersListId = "limor.remindersListId"
         static let homeCardOrder = "limor.homeCardOrder"
         static let homeCardHidden = "limor.homeCardHidden"
+        static let shoppingItems = "limor.shoppingItems"
     }
 
     static var bearer: String? {
@@ -173,6 +174,21 @@ enum SharedStore {
     static var homeCardHidden: [String] {
         get { defaults.stringArray(forKey: Keys.homeCardHidden) ?? [] }
         set { defaults.set(newValue, forKey: Keys.homeCardHidden) }
+    }
+
+    /// Locally-persisted shopping list. Backend syncing is intentionally out
+    /// of scope for now — this is a single-device list. Items are JSON-encoded
+    /// because UserDefaults doesn't store arbitrary structs.
+    static var shoppingItems: [ShoppingItem] {
+        get {
+            guard let data = defaults.data(forKey: Keys.shoppingItems) else { return [] }
+            return (try? JSONDecoder().decode([ShoppingItem].self, from: data)) ?? []
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) {
+                defaults.set(data, forKey: Keys.shoppingItems)
+            }
+        }
     }
 
     static func clear() {

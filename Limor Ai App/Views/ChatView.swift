@@ -624,6 +624,32 @@ struct ChatView: View {
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || attachmentData != nil else { return }
 
+        // Smart shopping list — a single short word with no attachment is
+        // almost always something the user wants added to the cart, not a
+        // chat message. Intercept locally so we don't burn tokens on a
+        // round-trip just to hear "ok, added".
+        if attachmentData == nil, ShoppingDetector.looksLikeShoppingItem(text) {
+            let added = ShoppingListStore.shared.add(text)
+            let userBubble = ChatMessage(
+                role: .user,
+                content: text,
+                created_at: ISO8601DateFormatter.limor.string(from: Date())
+            )
+            let confirmation = added
+                ? "🛒 הוספתי את \"\(text)\" לרשימת הקניות שלך."
+                : "🛒 \"\(text)\" כבר ברשימת הקניות שלך."
+            let replyBubble = ChatMessage(
+                role: .assistant,
+                content: confirmation,
+                created_at: ISO8601DateFormatter.limor.string(from: Date())
+            )
+            messages.append(userBubble)
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                messages.append(replyBubble)
+            }
+            return
+        }
+
         let payloadText = text.isEmpty ? defaultPromptForAttachment() : text
         let attachmentForServer: ChatAttachment? = {
             guard let data = attachmentData, let mime = attachmentMime else { return nil }

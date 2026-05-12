@@ -291,6 +291,22 @@ struct InsightsBundle: Codable {
     let generated_at: String?
 }
 
+// MARK: - Shopping list (local-only, persisted in SharedStore)
+
+struct ShoppingItem: Codable, Identifiable, Hashable {
+    let id: UUID
+    var name: String
+    var completed: Bool
+    let added_at: String
+
+    init(name: String, completed: Bool = false) {
+        self.id = UUID()
+        self.name = name
+        self.completed = completed
+        self.added_at = ISO8601DateFormatter.limor.string(from: Date())
+    }
+}
+
 // MARK: - Personal feed (user-chosen topics with web_search-powered updates)
 
 struct FeedTopic: Codable, Identifiable, Hashable {

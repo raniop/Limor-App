@@ -125,7 +125,7 @@ struct NowView: View {
 
             Text(name?.isEmpty == false ? name! : "שלום")
                 .font(.system(size: 32, weight: .heavy, design: .rounded))
-                .foregroundStyle(LimorGradient.brand)
+                .foregroundStyle(Color.black)
         }
     }
 
@@ -136,9 +136,11 @@ struct NowView: View {
         switch card {
         case .nextReminder:    nextReminderHero
         case .recommendations: recommendationsCard
+        case .meetings:        MeetingsCard()
         case .feed:            feedCard
         case .nextFlight:      nextFlightCard
         case .weather:         weatherCard
+        case .shopping:        ShoppingListCard()
         case .health:          healthCard
         case .stats:           statsRow
         }

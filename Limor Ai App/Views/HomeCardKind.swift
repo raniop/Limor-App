@@ -6,9 +6,11 @@ import SwiftUI
 enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
     case nextReminder    = "reminder"
     case recommendations = "recommendations"
+    case meetings        = "meetings"
     case feed            = "feed"
     case nextFlight      = "flight"
     case weather         = "weather"
+    case shopping        = "shopping"
     case health          = "health"
     case stats           = "stats"
 
@@ -18,9 +20,11 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
         switch self {
         case .nextReminder:    return "התזכורת הבאה"
         case .recommendations: return "טיפ אישי"
+        case .meetings:        return "הפגישות הבאות"
         case .feed:            return "הפיד שלי"
         case .nextFlight:      return "טיסה קרובה"
         case .weather:         return "מזג אוויר"
+        case .shopping:        return "רשימת קניות"
         case .health:          return "בריאות"
         case .stats:           return "סטטיסטיקה"
         }
@@ -30,9 +34,11 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
         switch self {
         case .nextReminder:    return "bell.fill"
         case .recommendations: return "sparkles"
+        case .meetings:        return "calendar.badge.clock"
         case .feed:            return "newspaper.fill"
         case .nextFlight:      return "airplane.departure"
         case .weather:         return "thermometer.medium"
+        case .shopping:        return "cart.fill"
         case .health:          return "heart.fill"
         case .stats:           return "chart.bar.fill"
         }
@@ -42,9 +48,11 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
         switch self {
         case .nextReminder:    return .limorIndigo
         case .recommendations: return .limorViolet
+        case .meetings:        return .limorIndigo
         case .feed:            return .limorPink
         case .nextFlight:      return Color(red: 0.20, green: 0.66, blue: 0.62)
         case .weather:         return .limorWarning
+        case .shopping:        return .limorMint
         case .health:          return .limorCoral
         case .stats:           return .limorMint
         }
@@ -57,7 +65,9 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
 enum HomeCardOrder {
     static let defaultOrder: [HomeCardKind] = [
         .nextReminder,
+        .meetings,
         .recommendations,
+        .shopping,
         .feed,
         .nextFlight,
         .weather,
