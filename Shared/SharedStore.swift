@@ -33,6 +33,9 @@ enum SharedStore {
         static let homeCardOrder = "limor.homeCardOrder"
         static let homeCardHidden = "limor.homeCardHidden"
         static let shoppingItems = "limor.shoppingItems"
+        static let meetingsNotifEnabled = "limor.meetingsNotif.enabled"
+        static let meetingsNotifHour = "limor.meetingsNotif.hour"
+        static let meetingsNotifMinute = "limor.meetingsNotif.minute"
     }
 
     static var bearer: String? {
@@ -174,6 +177,28 @@ enum SharedStore {
     static var homeCardHidden: [String] {
         get { defaults.stringArray(forKey: Keys.homeCardHidden) ?? [] }
         set { defaults.set(newValue, forKey: Keys.homeCardHidden) }
+    }
+
+    /// Local-only push notification listing tomorrow's meetings. Scheduled
+    /// by `MeetingsNotifier` using `UNUserNotificationCenter` — no backend
+    /// dependency, so the user can enable it even without a Limor account
+    /// sync set up.
+    static var meetingsNotifEnabled: Bool {
+        get { defaults.bool(forKey: Keys.meetingsNotifEnabled) }
+        set { defaults.set(newValue, forKey: Keys.meetingsNotifEnabled) }
+    }
+
+    /// Hour the local meetings notification fires (24h clock). Default 21:00
+    /// — that's "after dinner, before the next day really starts" for most
+    /// people, which is when a tomorrow-preview is most useful.
+    static var meetingsNotifHour: Int {
+        get { (defaults.object(forKey: Keys.meetingsNotifHour) as? Int) ?? 21 }
+        set { defaults.set(newValue, forKey: Keys.meetingsNotifHour) }
+    }
+
+    static var meetingsNotifMinute: Int {
+        get { defaults.integer(forKey: Keys.meetingsNotifMinute) }
+        set { defaults.set(newValue, forKey: Keys.meetingsNotifMinute) }
     }
 
     /// Locally-persisted shopping list. Backend syncing is intentionally out

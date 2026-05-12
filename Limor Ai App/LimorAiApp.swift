@@ -8,6 +8,7 @@ struct LimorAiApp: App {
     @StateObject private var auth = AuthManager()
     @StateObject private var push = PushManager.shared
     @StateObject private var router = AppRouter.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -16,6 +17,15 @@ struct LimorAiApp: App {
                 .environmentObject(push)
                 .environmentObject(router)
                 .environment(\.layoutDirection, .rightToLeft)
+                .onChange(of: scenePhase) { _, newPhase in
+                    // Keep the on-device "tomorrow's meetings" notification
+                    // fresh — re-schedule whenever the app comes to the
+                    // foreground so newly-added events make it into the
+                    // next push without the user having to do anything.
+                    if newPhase == .active {
+                        Task { await MeetingsNotifier.reschedule() }
+                    }
+                }
                 .onOpenURL { url in
                     // SwiftUI delivers scene-routed URLs here. The
                     // UIApplicationDelegate `open url` callback isn't always

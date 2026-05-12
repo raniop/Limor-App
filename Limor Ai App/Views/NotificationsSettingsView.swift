@@ -1,7 +1,11 @@
 import SwiftUI
+import UserNotifications
 
 /// Manage daily notification preferences — a master toggle plus a per-preset
-/// toggle + time picker. Saves to backend on every change (debounced).
+/// toggle + time picker. Server-side presets (morning_brief etc.) save to
+/// backend on every change (debounced). The "meetings tomorrow" card at
+/// the bottom is a LOCAL notification — scheduled via UNUserNotificationCenter
+/// without any backend dependency.
 struct NotificationsSettingsView: View {
     @State private var doc: NotificationPrefsDoc = NotificationPrefsDoc(
         master_enabled: true,
@@ -13,6 +17,13 @@ struct NotificationsSettingsView: View {
     @State private var loadError: String?
     @State private var saving = false
     @State private var saveTask: Task<Void, Never>?
+
+    // Local-only "tomorrow's meetings" notification — fired on-device, not
+    // via the backend. Backed directly by SharedStore so the user's pick
+    // survives reinstalls and is readable by other parts of the app.
+    @State private var meetingsNotifEnabled: Bool = SharedStore.meetingsNotifEnabled
+    @State private var meetingsNotifHour: Int = SharedStore.meetingsNotifHour
+    @State private var meetingsNotifMinute: Int = SharedStore.meetingsNotifMinute
 
     var body: some View {
         ZStack {
@@ -26,6 +37,8 @@ struct NotificationsSettingsView: View {
                             .opacity(doc.master_enabled ? 1 : 0.55)
                             .disabled(!doc.master_enabled)
                     }
+                    localSectionHeader
+                    meetingsLocalCard
                     footerText
                 }
                 .padding(.horizontal, 18)
@@ -142,6 +155,98 @@ struct NotificationsSettingsView: View {
                                 doc.prefs[index].hour = comps.hour ?? 8
                                 doc.prefs[index].minute = comps.minute ?? 0
                                 scheduleSave()
+                            }
+                        ),
+                        displayedComponents: .hourAndMinute
+                    )
+                    .labelsHidden()
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(.regularMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.limorMuted.opacity(0.15), lineWidth: 0.5)
+        )
+    }
+
+    // MARK: - Local "tomorrow's meetings" notification (on-device, no backend)
+
+    private var localSectionHeader: some View {
+        HStack {
+            Text("התראות מקומיות")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.limorMuted)
+            Spacer()
+        }
+        .padding(.top, 4)
+        .padding(.horizontal, 4)
+    }
+
+    private var meetingsLocalCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.limorIndigo.opacity(0.18))
+                        .frame(width: 38, height: 38)
+                    Image(systemName: "calendar.badge.clock")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.limorIndigo)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("הפגישות של מחר")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.limorInk)
+                    Text("התראה אחת בערב עם הפגישות שלך ליום הבא")
+                        .font(.caption)
+                        .foregroundStyle(.limorMuted)
+                        .lineLimit(2)
+                }
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { meetingsNotifEnabled },
+                    set: { newValue in
+                        meetingsNotifEnabled = newValue
+                        SharedStore.meetingsNotifEnabled = newValue
+                        Task {
+                            if newValue {
+                                // First-time enable — ask iOS for permission.
+                                // No-op if already granted/denied.
+                                _ = try? await UNUserNotificationCenter.current()
+                                    .requestAuthorization(options: [.alert, .sound, .badge])
+                            }
+                            await MeetingsNotifier.reschedule()
+                        }
+                    }
+                ))
+                .labelsHidden()
+                .tint(.limorIndigo)
+            }
+
+            if meetingsNotifEnabled {
+                Divider().opacity(0.4)
+                HStack {
+                    Text("שעת שליחה")
+                        .font(.subheadline)
+                        .foregroundStyle(.limorInk)
+                    Spacer()
+                    DatePicker(
+                        "",
+                        selection: Binding(
+                            get: { date(hour: meetingsNotifHour, minute: meetingsNotifMinute) },
+                            set: { newDate in
+                                let c = Calendar.current.dateComponents([.hour, .minute], from: newDate)
+                                meetingsNotifHour = c.hour ?? 21
+                                meetingsNotifMinute = c.minute ?? 0
+                                SharedStore.meetingsNotifHour = meetingsNotifHour
+                                SharedStore.meetingsNotifMinute = meetingsNotifMinute
+                                Task { await MeetingsNotifier.reschedule() }
                             }
                         ),
                         displayedComponents: .hourAndMinute

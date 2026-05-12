@@ -58,6 +58,7 @@
 		D10EB884647A3890000FDDB3 /* FeedNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C14813798F555401055250B /* FeedNode.swift */; };
 		D3EBD1DC243A3A675E42DFBE /* RemindersWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B54FB305BDEB96228F61AB55 /* RemindersWriter.swift */; };
 		D52DBA079C74B34E651AFEEC /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70396FD611F130F479EC2B84 /* Components.swift */; };
+		E214B831BCD60C65642FECF8 /* MeetingsNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2229A6ADD1D8CA1B496C395C /* MeetingsNotifier.swift */; };
 		E6C2F9E4BE150CB26ABF7A5E /* NotificationsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3720B9F23F3177BDEAE1F4B7 /* NotificationsSettingsView.swift */; };
 		E7DEFBA29167CE5B97D89A16 /* SyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B58A40BF66B16677563B90 /* SyncManager.swift */; };
 		EA6C1B260BC00F2763775067 /* ReminderLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BDC1EAA445B4E2AA5340AF /* ReminderLiveActivity.swift */; };
@@ -105,6 +106,7 @@
 		183836D13AC3A9864529799A /* Limor Ai App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Limor Ai App.entitlements"; sourceTree = "<group>"; };
 		1AB17F49E0B92D41CBEB78F2 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		1BC4F6E9C9C972C8BD4AE955 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		2229A6ADD1D8CA1B496C395C /* MeetingsNotifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MeetingsNotifier.swift; sourceTree = "<group>"; };
 		260CD9022ECCA8236F6CC88E /* ProfileFactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileFactsView.swift; sourceTree = "<group>"; };
 		269CDD3F0374EC093CFB2851 /* LimorIntroChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorIntroChatView.swift; sourceTree = "<group>"; };
 		2B72EA9E69C14DC9A8337CB9 /* VoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceService.swift; sourceTree = "<group>"; };
@@ -227,6 +229,7 @@
 				F8B58A40BF66B16677563B90 /* SyncManager.swift */,
 				2B72EA9E69C14DC9A8337CB9 /* VoiceService.swift */,
 				66F33C0D55910CD2EF115BD8 /* MicrosoftAPIs.swift */,
+				2229A6ADD1D8CA1B496C395C /* MeetingsNotifier.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -442,6 +445,7 @@
 				808A2D7C751E0BAA5C05ECD8 /* MicrosoftAPIs.swift in Sources */,
 				C90DAB36E14115250F0E4905 /* MeetingsCard.swift in Sources */,
 				F2CAD522D29299A5CA245FC6 /* ShoppingListView.swift in Sources */,
+				E214B831BCD60C65642FECF8 /* MeetingsNotifier.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
