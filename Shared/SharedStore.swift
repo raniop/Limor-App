@@ -51,6 +51,7 @@ enum SharedStore {
         static let chatHistoryCache = "limor.chatHistoryCache"
         static let chatUsageCache = "limor.chatUsageCache"
         static let hideBirthdayEvents = "limor.hideBirthdayEvents"
+        static let dismissedFlightIds = "limor.dismissedFlightIds"
     }
 
     static var bearer: String? {
@@ -293,6 +294,18 @@ enum SharedStore {
                       forKey: Keys.meetingsNotifMinute)
         }
         cloud.synchronize()
+    }
+
+    /// Set of flight insight IDs the user explicitly dismissed (e.g. phantom
+    /// flights the AI extractor mis-identified from an old email). Filtered
+    /// out by NowView's upcomingFlight picker. Persisted locally + iCloud.
+    static var dismissedFlightIds: Set<String> {
+        get { Set(defaults.stringArray(forKey: Keys.dismissedFlightIds) ?? []) }
+        set {
+            let arr = Array(newValue)
+            defaults.set(arr, forKey: Keys.dismissedFlightIds)
+            iCloud?.set(arr, forKey: Keys.dismissedFlightIds)
+        }
     }
 
     /// Hide events that iOS Calendar marks as birthdays (the auto-generated

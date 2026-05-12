@@ -113,12 +113,21 @@ struct NowView: View {
     private var greetingHeader: some View {
         let name = snapshot?.user.display_name ?? auth.displayName
         return VStack(alignment: .leading, spacing: 4) {
-            // HStack with greeting first, emoji second — in RTL layout the
-            // greeting appears on the right (where Hebrew reads from) and the
-            // emoji ends up on the left, which is what the user expects.
+            // HStack with greeting first, weather indicator second — in RTL
+            // the greeting reads from the right and the visual sits on the
+            // left, matching the user's expectation. The weather icon
+            // replaces the generic time-of-day emoji whenever we have a
+            // current snapshot — sunny → sun.max.fill, cloudy → cloud.fill,
+            // matches what the user actually sees outside.
             HStack(spacing: 6) {
                 Text(tod.greeting)
-                Text(tod.emoji)
+                if let weather = snapshot?.weather {
+                    Image(systemName: weather.icon)
+                        .symbolRenderingMode(.multicolor)
+                        .imageScale(.medium)
+                } else {
+                    Text(tod.emoji)
+                }
             }
             .font(.callout.weight(.medium))
             .foregroundStyle(.limorMuted)
@@ -375,14 +384,25 @@ struct NowView: View {
     @ViewBuilder
     private var nextFlightCard: some View {
         if let flight = upcomingFlight {
-            FlightCard(flight: flight)
+            FlightCard(flight: flight) {
+                // User-triggered dismissal — the AI extractor sometimes
+                // hallucinates flights from old/ambiguous emails. Remember
+                // the ID so we don't re-show it after the next insights
+                // refresh.
+                var ids = SharedStore.dismissedFlightIds
+                ids.insert(flight.id)
+                SharedStore.dismissedFlightIds = ids
+                Task { await reload() }
+            }
         }
     }
 
     private var upcomingFlight: FlightInsight? {
         guard let flights = insights?.flights else { return nil }
         let now = Date()
+        let dismissed = SharedStore.dismissedFlightIds
         return flights
+            .filter { !dismissed.contains($0.id) }
             .filter { ($0.departureDate ?? .distantPast) > now.addingTimeInterval(-3600) }
             .sorted { ($0.departureDate ?? .distantPast) < ($1.departureDate ?? .distantPast) }
             .first
@@ -813,6 +833,12 @@ private func HKHealthAvailable() -> Bool {
 
 private struct FlightCard: View {
     let flight: FlightInsight
+    /// Optional dismiss handler — the AI extractor sometimes hallucinates
+    /// flights from old emails. Tapping the trash icon hides the card and
+    /// records the flight id so it doesn't come back after the next
+    /// insights refresh.
+    var onDismiss: (() -> Void)? = nil
+    @State private var showingDismissConfirm = false
 
     // Aviation palette — deep ocean → teal. Visually distinct from the
     // brand-purple reminder card so the two don't blend on the home screen.
@@ -845,6 +871,22 @@ private struct FlightCard: View {
                             .font(.caption.weight(.bold))
                             .padding(.horizontal, 10).padding(.vertical, 4)
                             .background(Capsule().fill(.white.opacity(0.22)))
+                    }
+                    if onDismiss != nil {
+                        Button {
+                            showingDismissConfirm = true
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                        .confirmationDialog("הטיסה לא נכונה?", isPresented: $showingDismissConfirm) {
+                            Button("מחק את הטיסה הזו", role: .destructive) { onDismiss?() }
+                            Button("ביטול", role: .cancel) {}
+                        } message: {
+                            Text("הטיסה תוסר מהמסך. אם תופיע שוב — סימן שלימור מזהה אותה ממייל; אפשר לדווח לנו.")
+                        }
                     }
                 }
                 .foregroundStyle(.white.opacity(0.95))

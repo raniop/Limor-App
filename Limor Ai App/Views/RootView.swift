@@ -328,7 +328,7 @@ struct MainTabs: View {
     var body: some View {
         TabView(selection: $router.selectedTab) {
             NowView()
-                .tabItem { Label("עכשיו", systemImage: "sparkles") }
+                .tabItem { Label("הפיד שלי", systemImage: "sparkles") }
                 .tag(AppRouter.Tab.now)
             if let custom = customTab {
                 customTabContent(custom)
