@@ -180,6 +180,27 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
                 print("[push] refreshing shopping from backend")
                 await ShoppingListStore.shared.refreshFromBackend()
                 completionHandler(.newData)
+            case "shopping_add":
+                // Limor's `add_shopping_item` tool can't write to the
+                // user's iCloud directly, so the backend sends this
+                // silent push and we do the actual add on-device.
+                // `ShoppingListStore.add` handles dedup and pushes the
+                // new state back to iCloud + backend.
+                if let item = userInfo["item"] as? String, !item.isEmpty {
+                    let added = ShoppingListStore.shared.add(item)
+                    print("[push] shopping_add('\(item)') → added=\(added)")
+                } else {
+                    print("[push] shopping_add: missing 'item'")
+                }
+                completionHandler(.newData)
+            case "shopping_complete":
+                if let item = userInfo["item"] as? String, !item.isEmpty {
+                    let done = ShoppingListStore.shared.completeByName(item)
+                    print("[push] shopping_complete('\(item)') → matched=\(done)")
+                } else {
+                    print("[push] shopping_complete: missing 'item'")
+                }
+                completionHandler(.newData)
             default:
                 print("[push] unknown kind, ignoring")
                 completionHandler(.noData)

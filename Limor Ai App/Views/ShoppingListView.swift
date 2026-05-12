@@ -108,6 +108,23 @@ final class ShoppingListStore: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Find an open (non-completed) item by name and mark it complete.
+    /// Case- + diacritic-insensitive match, same normalization used by
+    /// `add()` so "Milk" / "חלב" / "חָלָב" all match a single canonical
+    /// entry. Returns true if an item was found and toggled.
+    /// Used by the FCM silent-push handler for Limor's
+    /// `complete_shopping_item` tool — backend can't tick items off
+    /// directly, so it asks the device to do it by name.
+    @discardableResult
+    func completeByName(_ rawName: String) -> Bool {
+        let normalized = Self.normalize(rawName)
+        guard let match = activeGroup.items.first(where: {
+            !$0.completed && Self.normalize($0.name) == normalized
+        }) else { return false }
+        toggle(match.id)
+        return true
+    }
+
     func toggle(_ id: UUID) {
         guard let idx = activeGroup.items.firstIndex(where: { $0.id == id }) else { return }
         activeGroup.items[idx].completed.toggle()
