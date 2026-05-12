@@ -19,15 +19,14 @@ final class ShoppingListStore: ObservableObject {
     var items: [ShoppingItem] { activeGroup.items }
 
     private init() {
-        // Pull anything iCloud has before reading — if another device wrote
-        // newer data, we want it in the App Group cache first.
+        // Render whatever we have locally first — instant. Backend fetch
+        // and iCloud mirror both fire in the background and overwrite if
+        // they bring back newer data.
         SharedStore.mirrorShoppingFromICloud()
         self.activeGroup = SharedStore.shoppingActiveGroup
         self.archive = SharedStore.shoppingArchive
 
-        // iCloud KVS posts this notification when another device's write
-        // syncs down. Refresh our @Published state from the (now-updated)
-        // local cache so the UI reflects the change live.
+        // iCloud KVS — cross-device propagation for the same Apple ID.
         NotificationCenter.default.addObserver(
             forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
             object: NSUbiquitousKeyValueStore.default,
@@ -35,18 +34,38 @@ final class ShoppingListStore: ObservableObject {
         ) { [weak self] _ in
             guard let self else { return }
             SharedStore.mirrorShoppingFromICloud()
-            // @Published mutation must happen on the main actor; the
-            // notification already arrives on the main queue.
             self.activeGroup = SharedStore.shoppingActiveGroup
             self.archive = SharedStore.shoppingArchive
         }
+
+        // Backend fetch — Limor's source of truth + cross-account access.
+        Task { await self.refreshFromBackend() }
     }
 
-    /// Pull-down refresh from any caller. Cheap — touches iCloud once.
+    /// Pull-down refresh — runs iCloud mirror AND backend fetch. Backend
+    /// is preferred (Limor can read it), but iCloud serves as a fallback
+    /// and as a cross-device hint while the network round-trip lands.
     func refreshFromICloud() {
         SharedStore.mirrorShoppingFromICloud()
-        self.activeGroup = SharedStore.shoppingActiveGroup
-        self.archive = SharedStore.shoppingArchive
+        activeGroup = SharedStore.shoppingActiveGroup
+        archive = SharedStore.shoppingArchive
+        Task { await refreshFromBackend() }
+    }
+
+    /// Fetch the user's full shopping state from the Limor backend.
+    /// Failures are silent — local + iCloud already painted something
+    /// useful, and the next sync will retry.
+    func refreshFromBackend() async {
+        do {
+            let state = try await APIClient.shared.getShoppingState()
+            activeGroup = state.active
+            archive = state.archive
+            // Mirror down to local cache so the next cold launch has it.
+            SharedStore.shoppingActiveGroup = state.active
+            SharedStore.shoppingArchive = state.archive
+        } catch {
+            print("[shopping] backend refresh failed: \(error.localizedDescription)")
+        }
     }
 
     /// Returns true if the item was added (false on duplicate of an open item).
@@ -129,6 +148,12 @@ final class ShoppingListStore: ObservableObject {
     private func persist() {
         SharedStore.shoppingActiveGroup = activeGroup
         SharedStore.shoppingArchive = archive
+        // Fire-and-forget push to the Limor backend so other devices /
+        // Limor's AI tools see the change. Failure here is silent — the
+        // local cache + iCloud keep working, and the next foreground
+        // refresh will reconcile.
+        let snapshot = ShoppingStateDTO(active: activeGroup, archive: archive)
+        Task { try? await APIClient.shared.putShoppingState(snapshot) }
     }
 }
 

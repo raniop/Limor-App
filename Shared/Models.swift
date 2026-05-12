@@ -411,6 +411,13 @@ struct ShoppingGroup: Codable, Identifiable, Hashable {
         self.archived_at = nil
     }
 
+    init(id: UUID, items: [ShoppingItem], created_at: String, archived_at: String?) {
+        self.id = id
+        self.items = items
+        self.created_at = created_at
+        self.archived_at = archived_at
+    }
+
     /// True when there's at least one item and they're all completed —
     /// the trigger condition for the auto-archive flow.
     var isFullyCompleted: Bool {
@@ -428,6 +435,14 @@ struct ShoppingGroup: Codable, Identifiable, Hashable {
             ?? Date()
         return f.string(from: date)
     }
+}
+
+/// Wire shape for the `/api/shopping` GET/PUT — mirrors the backend
+/// `ShoppingState` exactly. Same `ShoppingGroup` struct used locally
+/// just rides along.
+struct ShoppingStateDTO: Codable {
+    let active: ShoppingGroup
+    let archive: [ShoppingGroup]
 }
 
 // MARK: - Personal feed (user-chosen topics with web_search-powered updates)

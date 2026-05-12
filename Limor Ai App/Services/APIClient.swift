@@ -98,6 +98,20 @@ struct APIClient {
         let _: EmptyResponse = try await deleteReq("/api/reminders/\(id)")
     }
 
+    // MARK: - Shopping list
+
+    /// Fetch the user's full shopping state (active group + archived
+    /// groups). Used on cold launch and on every scenePhase=.active.
+    func getShoppingState() async throws -> ShoppingStateDTO {
+        try await get("/api/shopping")
+    }
+
+    /// PUT the entire shopping state. The iOS client is the source of
+    /// truth for ordering / IDs; server is dumb persistence + AI access.
+    func putShoppingState(_ state: ShoppingStateDTO) async throws {
+        let _: EmptyResponse = try await put("/api/shopping", body: state)
+    }
+
     // MARK: - Devices / Push
 
     func registerFcmToken(token: String, deviceName: String?) async throws {
@@ -418,6 +432,17 @@ struct APIClient {
         if let bearer = await freshIdToken() {
             req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
         }
+        return try await send(req)
+    }
+
+    private func put<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        var req = URLRequest(url: resolveURL(path))
+        req.httpMethod = "PUT"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let bearer = await freshIdToken() {
+            req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = try encoder.encode(body)
         return try await send(req)
     }
 
