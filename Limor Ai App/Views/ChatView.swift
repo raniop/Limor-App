@@ -868,6 +868,7 @@ struct ChatView: View {
                 attachment: attachmentForServer
             )
             usage = reply.usage
+            applyShoppingActions(reply.shopping_actions)
             withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
                 messages.append(ChatMessage(
                     role: .assistant,
@@ -878,6 +879,25 @@ struct ChatView: View {
         } catch {
             errorMessage = error.localizedDescription
             await loadHistory()
+        }
+    }
+
+    /// Apply the shopping mutations Limor asked us to perform during
+    /// this chat turn. The backend tracks every `add_shopping_item` /
+    /// `complete_shopping_item` tool call and ships the names back in
+    /// the chat reply — running them against the on-device store here
+    /// is what makes the bottom-tab list update immediately, without
+    /// depending on silent FCM pushes (which iOS deprioritises in
+    /// foreground). `add` / `completeByName` already dedup, so a
+    /// double-fire from a stray silent push won't add twice.
+    @MainActor
+    private func applyShoppingActions(_ actions: ChatReply.ShoppingActions?) {
+        guard let actions else { return }
+        for name in actions.adds {
+            _ = ShoppingListStore.shared.add(name)
+        }
+        for name in actions.completes {
+            _ = ShoppingListStore.shared.completeByName(name)
         }
     }
 
@@ -989,6 +1009,7 @@ struct ChatView: View {
                 attachment: attachment
             )
             usage = reply.usage
+            applyShoppingActions(reply.shopping_actions)
             withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
                 messages.append(ChatMessage(
                     role: .assistant,

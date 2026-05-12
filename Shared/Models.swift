@@ -281,6 +281,19 @@ struct ChatHistory: Decodable {
 struct ChatReply: Decodable {
     let reply: String
     let usage: ChatUsage
+    /// Shopping mutations the backend asked us to execute locally —
+    /// `add_shopping_item` / `complete_shopping_item` tool calls during
+    /// this chat turn. We run them against `ShoppingListStore` on the
+    /// device as soon as the response lands, instead of relying on the
+    /// silent FCM push (which iOS throttles when the app is foreground
+    /// and sometimes never delivers). Optional + defaulted to empty so
+    /// older backend builds keep decoding.
+    let shopping_actions: ShoppingActions?
+
+    struct ShoppingActions: Decodable {
+        let adds: [String]
+        let completes: [String]
+    }
 }
 
 struct FlightInsight: Codable, Identifiable, Hashable {
