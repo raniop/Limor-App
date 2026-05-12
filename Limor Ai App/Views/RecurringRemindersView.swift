@@ -10,7 +10,32 @@ final class RecurringRemindersStore: ObservableObject {
     @Published private(set) var items: [RecurringReminder]
 
     private init() {
+        // Pull anything iCloud has before reading local — if another
+        // device added a reminder, we want it in our local cache
+        // (and scheduled with iOS) immediately.
+        SharedStore.mirrorRemindersFromICloud()
         self.items = SharedStore.recurringReminders
+
+        // Refresh + reschedule whenever iCloud syncs in new data.
+        NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: NSUbiquitousKeyValueStore.default,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            SharedStore.mirrorRemindersFromICloud()
+            self.items = SharedStore.recurringReminders
+            Task { await RecurringRemindersScheduler.reschedule() }
+        }
+    }
+
+    /// Force-pull iCloud → local + reschedule. Called from
+    /// scenePhase=.active so the user doesn't have to wait for the
+    /// external-change notification (which can be slow).
+    func refreshFromICloud() {
+        SharedStore.mirrorRemindersFromICloud()
+        items = SharedStore.recurringReminders
+        Task { await RecurringRemindersScheduler.reschedule() }
     }
 
     func add(_ reminder: RecurringReminder) {

@@ -200,7 +200,10 @@ enum SharedStore {
     /// sync set up.
     static var meetingsNotifEnabled: Bool {
         get { defaults.bool(forKey: Keys.meetingsNotifEnabled) }
-        set { defaults.set(newValue, forKey: Keys.meetingsNotifEnabled) }
+        set {
+            defaults.set(newValue, forKey: Keys.meetingsNotifEnabled)
+            iCloud?.set(newValue, forKey: Keys.meetingsNotifEnabled)
+        }
     }
 
     /// Hour the local meetings notification fires (24h clock). Default 21:00
@@ -208,18 +211,26 @@ enum SharedStore {
     /// people, which is when a tomorrow-preview is most useful.
     static var meetingsNotifHour: Int {
         get { (defaults.object(forKey: Keys.meetingsNotifHour) as? Int) ?? 21 }
-        set { defaults.set(newValue, forKey: Keys.meetingsNotifHour) }
+        set {
+            defaults.set(newValue, forKey: Keys.meetingsNotifHour)
+            iCloud?.set(Int64(newValue), forKey: Keys.meetingsNotifHour)
+        }
     }
 
     static var meetingsNotifMinute: Int {
         get { defaults.integer(forKey: Keys.meetingsNotifMinute) }
-        set { defaults.set(newValue, forKey: Keys.meetingsNotifMinute) }
+        set {
+            defaults.set(newValue, forKey: Keys.meetingsNotifMinute)
+            iCloud?.set(Int64(newValue), forKey: Keys.meetingsNotifMinute)
+        }
     }
 
     /// Locally-persisted recurring reminders — fired by
-    /// `RecurringRemindersScheduler` via UNUserNotificationCenter. Backend
-    /// is intentionally not involved (the existing chat-driven `Reminder`
-    /// flow doesn't support recurrence or per-reminder pause).
+    /// `RecurringRemindersScheduler` via UNUserNotificationCenter on
+    /// each device. Synced via iCloud KVS so adding a recurring
+    /// reminder on one device shows up on the user's other devices
+    /// (each one schedules its own UNNotificationRequests from the
+    /// shared list, which is what we want).
     static var recurringReminders: [RecurringReminder] {
         get {
             guard let data = defaults.data(forKey: Keys.recurringReminders) else { return [] }
@@ -228,8 +239,60 @@ enum SharedStore {
         set {
             if let data = try? JSONEncoder().encode(newValue) {
                 defaults.set(data, forKey: Keys.recurringReminders)
+                if let cloud = iCloud {
+                    cloud.set(data, forKey: Keys.recurringReminders)
+                    cloud.synchronize()
+                    print("[icloud] wrote recurring reminders (\(data.count)B)")
+                }
             }
         }
+    }
+
+    /// Mirror recurring reminders from iCloud → local. Same first-run
+    /// migration shape as shopping: if iCloud is empty but local has
+    /// data, push local up.
+    static func mirrorRemindersFromICloud() {
+        guard let cloud = iCloud else { return }
+        cloud.synchronize()
+        let cloudData = cloud.data(forKey: Keys.recurringReminders)
+        let localData = defaults.data(forKey: Keys.recurringReminders)
+        if let data = cloudData {
+            defaults.set(data, forKey: Keys.recurringReminders)
+        } else if let data = localData {
+            cloud.set(data, forKey: Keys.recurringReminders)
+            cloud.synchronize()
+            print("[icloud] mirror: pushed local recurring reminders up (\(data.count)B)")
+        }
+    }
+
+    /// Sync the "tomorrow's meetings" notification prefs (enabled / hour /
+    /// minute) so a user who set 21:00 on the simulator gets the same
+    /// schedule on the iPhone without re-configuring.
+    static func mirrorMeetingsNotifFromICloud() {
+        guard let cloud = iCloud else { return }
+        cloud.synchronize()
+        if cloud.object(forKey: Keys.meetingsNotifEnabled) != nil {
+            defaults.set(cloud.bool(forKey: Keys.meetingsNotifEnabled),
+                         forKey: Keys.meetingsNotifEnabled)
+        } else if defaults.object(forKey: Keys.meetingsNotifEnabled) != nil {
+            cloud.set(defaults.bool(forKey: Keys.meetingsNotifEnabled),
+                      forKey: Keys.meetingsNotifEnabled)
+        }
+        if cloud.object(forKey: Keys.meetingsNotifHour) != nil {
+            defaults.set(cloud.longLong(forKey: Keys.meetingsNotifHour),
+                         forKey: Keys.meetingsNotifHour)
+        } else if defaults.object(forKey: Keys.meetingsNotifHour) != nil {
+            cloud.set(Int64(defaults.integer(forKey: Keys.meetingsNotifHour)),
+                      forKey: Keys.meetingsNotifHour)
+        }
+        if cloud.object(forKey: Keys.meetingsNotifMinute) != nil {
+            defaults.set(cloud.longLong(forKey: Keys.meetingsNotifMinute),
+                         forKey: Keys.meetingsNotifMinute)
+        } else if defaults.object(forKey: Keys.meetingsNotifMinute) != nil {
+            cloud.set(Int64(defaults.integer(forKey: Keys.meetingsNotifMinute)),
+                      forKey: Keys.meetingsNotifMinute)
+        }
+        cloud.synchronize()
     }
 
     /// Hide events that iOS Calendar marks as birthdays (the auto-generated
@@ -319,6 +382,15 @@ enum SharedStore {
         store.synchronize()
         return store
     }()
+
+    /// Run all iCloud KVS mirror passes — shopping + recurring reminders
+    /// + meetings-notification prefs — in one call. Cheap; ok to invoke
+    /// from `scenePhase=.active` and the change-externally notification.
+    static func mirrorAllFromICloud() {
+        mirrorShoppingFromICloud()
+        mirrorRemindersFromICloud()
+        mirrorMeetingsNotifFromICloud()
+    }
 
     /// Pull the latest shopping data from iCloud into local UserDefaults.
     /// On the very first run that has iCloud available, if local has data

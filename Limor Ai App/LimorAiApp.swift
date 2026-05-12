@@ -32,7 +32,9 @@ struct LimorAiApp: App {
                         // while we were backgrounded — the KVS external-
                         // change notification doesn't always fire on its
                         // own when the app first foregrounds.
+                        SharedStore.mirrorMeetingsNotifFromICloud()
                         ShoppingListStore.shared.refreshFromICloud()
+                        RecurringRemindersStore.shared.refreshFromICloud()
                     }
                 }
                 .onOpenURL { url in
