@@ -18,12 +18,16 @@ struct LimorAiApp: App {
                 .environmentObject(router)
                 .environment(\.layoutDirection, .rightToLeft)
                 .onChange(of: scenePhase) { _, newPhase in
-                    // Keep the on-device "tomorrow's meetings" notification
-                    // fresh — re-schedule whenever the app comes to the
-                    // foreground so newly-added events make it into the
-                    // next push without the user having to do anything.
+                    // Keep on-device notification schedules fresh — re-run
+                    // whenever the app comes to the foreground so iOS
+                    // doesn't end up with stale pending requests if
+                    // anything (event change, reminder edit, OS purge)
+                    // happened while we were backgrounded.
                     if newPhase == .active {
-                        Task { await MeetingsNotifier.reschedule() }
+                        Task {
+                            await MeetingsNotifier.reschedule()
+                            await RecurringRemindersScheduler.reschedule()
+                        }
                     }
                 }
                 .onOpenURL { url in

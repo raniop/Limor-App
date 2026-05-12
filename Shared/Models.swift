@@ -302,6 +302,37 @@ struct InsightsBundle: Codable {
     let generated_at: String?
 }
 
+// MARK: - Recurring reminders (local-only, scheduled via UNUserNotificationCenter)
+
+/// On-device recurring reminder — fires at the chosen hour/minute on the
+/// selected weekdays, with the default iOS notification sound. Stored
+/// locally in SharedStore; the backend chat-driven `Reminder` flow is
+/// separate and untouched.
+struct RecurringReminder: Codable, Identifiable, Hashable {
+    let id: UUID
+    var task: String
+    /// Calendar weekday integers (1 = Sunday, 7 = Saturday) — matches
+    /// `Calendar.component(.weekday, from:)`.
+    var daysOfWeek: Set<Int>
+    var hour: Int
+    var minute: Int
+    /// When true, all scheduled UNNotificationRequests for this reminder
+    /// are cancelled — useful for vacations. Toggling back to false
+    /// re-schedules.
+    var paused: Bool
+    let created_at: String
+
+    init(task: String, daysOfWeek: Set<Int>, hour: Int, minute: Int, paused: Bool = false) {
+        self.id = UUID()
+        self.task = task
+        self.daysOfWeek = daysOfWeek
+        self.hour = hour
+        self.minute = minute
+        self.paused = paused
+        self.created_at = ISO8601DateFormatter.limor.string(from: Date())
+    }
+}
+
 // MARK: - Shopping list (local-only, persisted in SharedStore)
 
 struct ShoppingItem: Codable, Identifiable, Hashable {

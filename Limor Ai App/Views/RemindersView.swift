@@ -62,6 +62,15 @@ struct RemindersView: View {
             .navigationTitle("תזכורות")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink(destination: RecurringRemindersView()) {
+                        Image(systemName: "alarm")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.limorIndigo)
+                            .frame(width: 36, height: 36)
+                            .background(Circle().fill(Color.limorIndigo.opacity(0.12)))
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingNew = true

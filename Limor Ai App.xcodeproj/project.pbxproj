@@ -13,6 +13,7 @@
 		153303E47D056412B3F13BE5 /* LimorWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD64DB77635DA9DB274B60E /* LimorWidgetBundle.swift */; };
 		2252284C93C5BD5A1B795D31 /* VoiceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B72EA9E69C14DC9A8337CB9 /* VoiceService.swift */; };
 		311C01C2EAF3B5193E40A7F3 /* LimorReminderAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C88EC958269D59320A5A646 /* LimorReminderAttributes.swift */; };
+		34DFDA76FE33363AE21BC1B6 /* RecurringRemindersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797212B58CC04F38D7A27921 /* RecurringRemindersView.swift */; };
 		35D584ECEF6598DF9CE8B423 /* NowWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F5700C27913E7F3435CEC5 /* NowWidget.swift */; };
 		3A33D0BADCF1C6C79B2D771D /* WidgetAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDA34640B05602CA3307600E /* WidgetAPI.swift */; };
 		3C3FE1E1E0881796643BA821 /* RemindersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE0594A9356AAF49921A7AE /* RemindersView.swift */; };
@@ -26,6 +27,7 @@
 		537E6F9E1F921C524BEA6A49 /* GoogleAPIs.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28D6A515676755BA91AC4E7 /* GoogleAPIs.swift */; };
 		55A92CE99B3BCC0A31993DB9 /* BiometricGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C274EB46CC2E7A135C0E5E43 /* BiometricGate.swift */; };
 		5B7FE264E3A3839E73EE54A0 /* HomeCardKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30076B044722A8FFD18B9866 /* HomeCardKind.swift */; };
+		5DF8CC6265DEC9BD1908F24C /* RecurringRemindersScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B02489380CF6CE39CD2B071 /* RecurringRemindersScheduler.swift */; };
 		659BE1570E6347F698D416A6 /* LimorAiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5C3335200C302E0C98B8F26 /* LimorAiApp.swift */; };
 		65CF58DE59CA2B02EF62A6DD /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F986D36044D42DACEFBBF9 /* Theme.swift */; };
 		67B68A5B697FD0788D05C573 /* CRMConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0A4CCE0C974DB2375D9873 /* CRMConnectView.swift */; };
@@ -109,6 +111,7 @@
 		2229A6ADD1D8CA1B496C395C /* MeetingsNotifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MeetingsNotifier.swift; sourceTree = "<group>"; };
 		260CD9022ECCA8236F6CC88E /* ProfileFactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileFactsView.swift; sourceTree = "<group>"; };
 		269CDD3F0374EC093CFB2851 /* LimorIntroChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorIntroChatView.swift; sourceTree = "<group>"; };
+		2B02489380CF6CE39CD2B071 /* RecurringRemindersScheduler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecurringRemindersScheduler.swift; sourceTree = "<group>"; };
 		2B72EA9E69C14DC9A8337CB9 /* VoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceService.swift; sourceTree = "<group>"; };
 		2C14813798F555401055250B /* FeedNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedNode.swift; sourceTree = "<group>"; };
 		2D0A4CCE0C974DB2375D9873 /* CRMConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CRMConnectView.swift; sourceTree = "<group>"; };
@@ -129,6 +132,7 @@
 		66F33C0D55910CD2EF115BD8 /* MicrosoftAPIs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MicrosoftAPIs.swift; sourceTree = "<group>"; };
 		6B43AF9EC5437EE160A94D6D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		70396FD611F130F479EC2B84 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		797212B58CC04F38D7A27921 /* RecurringRemindersView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecurringRemindersView.swift; sourceTree = "<group>"; };
 		81E476CAA1353471D85E0F79 /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
 		83328D4B558B22C5BCBD06EB /* LimorWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LimorWidget.entitlements; sourceTree = "<group>"; };
 		833DCEA3F6B5E318E0DF0E61 /* LimorLogoMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorLogoMark.swift; sourceTree = "<group>"; };
@@ -230,6 +234,7 @@
 				2B72EA9E69C14DC9A8337CB9 /* VoiceService.swift */,
 				66F33C0D55910CD2EF115BD8 /* MicrosoftAPIs.swift */,
 				2229A6ADD1D8CA1B496C395C /* MeetingsNotifier.swift */,
+				2B02489380CF6CE39CD2B071 /* RecurringRemindersScheduler.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -260,6 +265,7 @@
 				F9231AB15CD0F7563F824388 /* NotificationPrefsOnboardingView.swift */,
 				5F6F221E867B5452659406E0 /* MeetingsCard.swift */,
 				9391AB93715C0B98325D375B /* ShoppingListView.swift */,
+				797212B58CC04F38D7A27921 /* RecurringRemindersView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -446,6 +452,8 @@
 				C90DAB36E14115250F0E4905 /* MeetingsCard.swift in Sources */,
 				F2CAD522D29299A5CA245FC6 /* ShoppingListView.swift in Sources */,
 				E214B831BCD60C65642FECF8 /* MeetingsNotifier.swift in Sources */,
+				5DF8CC6265DEC9BD1908F24C /* RecurringRemindersScheduler.swift in Sources */,
+				34DFDA76FE33363AE21BC1B6 /* RecurringRemindersView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -45,6 +45,7 @@ enum SharedStore {
         static let meetingsNotifMinute = "limor.meetingsNotif.minute"
         static let chatLocalOverlay = "limor.chatLocalOverlay"
         static let customTabKind = "limor.customTabKind"
+        static let recurringReminders = "limor.recurringReminders"
     }
 
     static var bearer: String? {
@@ -208,6 +209,22 @@ enum SharedStore {
     static var meetingsNotifMinute: Int {
         get { defaults.integer(forKey: Keys.meetingsNotifMinute) }
         set { defaults.set(newValue, forKey: Keys.meetingsNotifMinute) }
+    }
+
+    /// Locally-persisted recurring reminders — fired by
+    /// `RecurringRemindersScheduler` via UNUserNotificationCenter. Backend
+    /// is intentionally not involved (the existing chat-driven `Reminder`
+    /// flow doesn't support recurrence or per-reminder pause).
+    static var recurringReminders: [RecurringReminder] {
+        get {
+            guard let data = defaults.data(forKey: Keys.recurringReminders) else { return [] }
+            return (try? JSONDecoder().decode([RecurringReminder].self, from: data)) ?? []
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) {
+                defaults.set(data, forKey: Keys.recurringReminders)
+            }
+        }
     }
 
     /// Local-only chat bubbles (shopping-list interceptions and similar
