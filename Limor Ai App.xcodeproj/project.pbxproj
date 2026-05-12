@@ -351,6 +351,7 @@
 				227A8471540009E43CC09F5E /* Resources */,
 				E5FA14122505F2D1F66B0F76 /* Frameworks */,
 				724F9366A34CAE43054FB7FB /* Embed Foundation Extensions */,
+				ACD0380F92C4E4585DE47126 /* Inject Git SHA */,
 			);
 			buildRules = (
 			);
@@ -428,6 +429,27 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		ACD0380F92C4E4585DE47126 /* Inject Git SHA */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Inject Git SHA";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Stamp the current git SHA onto the bundled Info.plist so the\n# in-app version footer shows the actual commit instead of \"dev\".\n# Reads `git rev-parse` from SRCROOT (worktree-aware) and falls\n# back to \"dev\" if git isn't available.\nset -eu\nGIT_SHA=$(git -C \"${SRCROOT}\" rev-parse --short HEAD 2>/dev/null || echo \"dev\")\nPLIST=\"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}\"\nif [ -f \"$PLIST\" ]; then\n  /usr/libexec/PlistBuddy -c \"Add :LIMOR_GIT_SHA string $GIT_SHA\" \"$PLIST\" 2>/dev/null \\\n    || /usr/libexec/PlistBuddy -c \"Set :LIMOR_GIT_SHA $GIT_SHA\" \"$PLIST\"\n  echo \"[inject-git-sha] LIMOR_GIT_SHA=$GIT_SHA → $PLIST\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		630B89083B64C66F9C596C9F /* Sources */ = {
@@ -599,6 +621,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Limor Ai App/Limor Ai App.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 6;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = "Limor Ai App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Limor AI";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -642,6 +665,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Limor Ai App/Limor Ai App.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 6;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = "Limor Ai App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Limor AI";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
