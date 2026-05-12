@@ -321,17 +321,37 @@ enum SharedStore {
     }()
 
     /// Pull the latest shopping data from iCloud into local UserDefaults.
-    /// Called on app launch and on the external-change notification so
-    /// changes made on another device propagate here.
+    /// On the very first run that has iCloud available, if local has data
+    /// but iCloud doesn't, push local up to iCloud — that's the one-time
+    /// migration for users who built up shopping/archive before the
+    /// entitlement was added.
     static func mirrorShoppingFromICloud() {
-        guard let cloud = iCloud else { return }
+        guard let cloud = iCloud else {
+            print("[icloud] mirror: NSUbiquitousKeyValueStore.default is nil — entitlement missing or iCloud unavailable")
+            return
+        }
+        let synced = cloud.synchronize()
+        let activeData = cloud.data(forKey: Keys.shoppingActiveGroup)
+        let archiveData = cloud.data(forKey: Keys.shoppingArchive)
+        let localActive = defaults.data(forKey: Keys.shoppingActiveGroup)
+        let localArchive = defaults.data(forKey: Keys.shoppingArchive)
+        print("[icloud] mirror: synchronize=\(synced) icloud(active=\(activeData?.count ?? 0)B,archive=\(archiveData?.count ?? 0)B) local(active=\(localActive?.count ?? 0)B,archive=\(localArchive?.count ?? 0)B)")
+
+        if let cloudData = activeData {
+            defaults.set(cloudData, forKey: Keys.shoppingActiveGroup)
+        } else if let localData = localActive {
+            // iCloud has nothing but local does — push local up so the
+            // user's existing list syncs to other devices.
+            cloud.set(localData, forKey: Keys.shoppingActiveGroup)
+            print("[icloud] mirror: pushed local active group up (\(localData.count)B)")
+        }
+        if let cloudData = archiveData {
+            defaults.set(cloudData, forKey: Keys.shoppingArchive)
+        } else if let localData = localArchive {
+            cloud.set(localData, forKey: Keys.shoppingArchive)
+            print("[icloud] mirror: pushed local archive up (\(localData.count)B)")
+        }
         cloud.synchronize()
-        if let data = cloud.data(forKey: Keys.shoppingActiveGroup) {
-            defaults.set(data, forKey: Keys.shoppingActiveGroup)
-        }
-        if let data = cloud.data(forKey: Keys.shoppingArchive) {
-            defaults.set(data, forKey: Keys.shoppingArchive)
-        }
     }
 
     /// Currently-open shopping group. Lazily initialised — if no group has
@@ -362,7 +382,13 @@ enum SharedStore {
         set {
             if let data = try? JSONEncoder().encode(newValue) {
                 defaults.set(data, forKey: Keys.shoppingActiveGroup)
-                iCloud?.set(data, forKey: Keys.shoppingActiveGroup)
+                if let cloud = iCloud {
+                    cloud.set(data, forKey: Keys.shoppingActiveGroup)
+                    let synced = cloud.synchronize()
+                    print("[icloud] wrote active group (\(data.count)B) synchronize=\(synced)")
+                } else {
+                    print("[icloud] wrote active group LOCAL ONLY — iCloud nil")
+                }
             }
         }
     }
@@ -379,7 +405,11 @@ enum SharedStore {
             let capped = Array(newValue.prefix(20))
             if let data = try? JSONEncoder().encode(capped) {
                 defaults.set(data, forKey: Keys.shoppingArchive)
-                iCloud?.set(data, forKey: Keys.shoppingArchive)
+                if let cloud = iCloud {
+                    cloud.set(data, forKey: Keys.shoppingArchive)
+                    let synced = cloud.synchronize()
+                    print("[icloud] wrote archive (\(data.count)B) synchronize=\(synced)")
+                }
             }
         }
     }
