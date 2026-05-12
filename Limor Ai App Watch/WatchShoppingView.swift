@@ -51,6 +51,12 @@ struct WatchShoppingView: View {
         .onReceive(NotificationCenter.default.publisher(
             for: NSUbiquitousKeyValueStore.didChangeExternallyNotification
         )) { _ in refresh() }
+        // WCSession path — the only one that works on simulator pairs
+        // (the App Group + iCloud KVS path requires real paired
+        // hardware to bridge between iPhone and watch).
+        .onReceive(NotificationCenter.default.publisher(
+            for: .watchSyncDidUpdate
+        )) { _ in refresh() }
     }
 
     private var openItems: [ShoppingItem] {

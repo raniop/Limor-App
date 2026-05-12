@@ -185,6 +185,10 @@ final class ShoppingListStore: ObservableObject {
         // refresh will reconcile.
         let snapshot = ShoppingStateDTO(active: activeGroup, archive: archive)
         Task { try? await APIClient.shared.putShoppingState(snapshot) }
+        // Mirror the change over WCSession to the watch — App Group +
+        // iCloud KVS don't bridge between simulator processes, and on
+        // real devices this is faster than waiting for the KVS push.
+        WatchSyncManager.shared.pushSnapshot()
     }
 }
 

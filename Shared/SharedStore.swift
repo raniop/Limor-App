@@ -97,6 +97,12 @@ enum SharedStore {
         return try? JSONDecoder().decode(NowResponse.self, from: data)
     }
 
+    /// Raw cached snapshot — used by `WatchSyncManager` so it can ship
+    /// the bytes over WCSession without decoding-then-re-encoding.
+    static func lastNowJSONData() -> Data? {
+        defaults.data(forKey: Keys.lastNow)
+    }
+
     /// Cached profile photo, base64 JPEG. Used by widget + tab bar avatar.
     static var photoB64: String? {
         get { defaults.string(forKey: Keys.photoB64) }

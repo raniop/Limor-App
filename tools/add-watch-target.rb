@@ -66,9 +66,14 @@ Dir.children(watch_dir_abs).sort.each do |name|
   end
 end
 
-# Also pull in the Shared models + the App-Group store; the watch UI
-# reads both directly.
-shared_files = ["Shared/Models.swift", "Shared/SharedStore.swift"]
+# Also pull in the Shared models + the App-Group store + the watch
+# connectivity bridge; the watch UI reads SharedStore directly and
+# `WatchSyncManager` is what receives WCSession context from iPhone.
+shared_files = [
+  "Shared/Models.swift",
+  "Shared/SharedStore.swift",
+  "Shared/WatchSyncManager.swift",
+]
 shared_files.each do |rel|
   basename = File.basename(rel)
   shared_group = project.main_group.children.find do |c|

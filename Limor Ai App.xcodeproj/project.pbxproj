@@ -16,6 +16,7 @@
 		2252284C93C5BD5A1B795D31 /* VoiceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B72EA9E69C14DC9A8337CB9 /* VoiceService.swift */; };
 		311C01C2EAF3B5193E40A7F3 /* LimorReminderAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C88EC958269D59320A5A646 /* LimorReminderAttributes.swift */; };
 		34DFDA76FE33363AE21BC1B6 /* RecurringRemindersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797212B58CC04F38D7A27921 /* RecurringRemindersView.swift */; };
+		34FDD193905F9C0FD3456ECA /* WatchSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF3296F31333CB7E1689D20 /* WatchSyncManager.swift */; };
 		35D584ECEF6598DF9CE8B423 /* NowWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F5700C27913E7F3435CEC5 /* NowWidget.swift */; };
 		3A33D0BADCF1C6C79B2D771D /* WidgetAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDA34640B05602CA3307600E /* WidgetAPI.swift */; };
 		3C3FE1E1E0881796643BA821 /* RemindersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE0594A9356AAF49921A7AE /* RemindersView.swift */; };
@@ -28,6 +29,7 @@
 		537AF0173950747BA7BEF962 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 478AFCC4F530569FD222FA03 /* ChatView.swift */; };
 		537E6F9E1F921C524BEA6A49 /* GoogleAPIs.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28D6A515676755BA91AC4E7 /* GoogleAPIs.swift */; };
 		55A92CE99B3BCC0A31993DB9 /* BiometricGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C274EB46CC2E7A135C0E5E43 /* BiometricGate.swift */; };
+		56D0F5FE7CE277C24BF9FD65 /* WatchSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF3296F31333CB7E1689D20 /* WatchSyncManager.swift */; };
 		5B7FE264E3A3839E73EE54A0 /* HomeCardKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30076B044722A8FFD18B9866 /* HomeCardKind.swift */; };
 		5BA2E4A16810167CA796C20F /* WatchNextReminderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 295A2C2FB2E3062850D01672 /* WatchNextReminderView.swift */; };
 		5CE1D1B0847542B764130F9D /* chime.caf in Resources */ = {isa = PBXBuildFile; fileRef = BD0ABA3DAF29A5B701496DB2 /* chime.caf */; };
@@ -151,6 +153,7 @@
 		4E3E42644D5D54B11F655BCA /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
 		4FE0594A9356AAF49921A7AE /* RemindersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersView.swift; sourceTree = "<group>"; };
 		53E604525A9C2720B95A39A4 /* morning.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = morning.caf; sourceTree = "<group>"; };
+		5DF3296F31333CB7E1689D20 /* WatchSyncManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchSyncManager.swift; sourceTree = "<group>"; };
 		5F6F221E867B5452659406E0 /* MeetingsCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MeetingsCard.swift; sourceTree = "<group>"; };
 		605673C35D91137A0F7E9887 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		60FBC4456DCB66433B5232E6 /* WatchRemindersListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchRemindersListView.swift; sourceTree = "<group>"; };
@@ -253,6 +256,7 @@
 				FFC2371869E57B0A6FA86FE0 /* Models.swift */,
 				B202F02E4586363CB10439EC /* SharedStore.swift */,
 				FDA34640B05602CA3307600E /* WidgetAPI.swift */,
+				5DF3296F31333CB7E1689D20 /* WatchSyncManager.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -553,6 +557,7 @@
 				BBB4601318DCD972FBFC11EB /* WatchShoppingView.swift in Sources */,
 				EC45D76119FF1B86393A2F2E /* Models.swift in Sources */,
 				884A908B1B8FB382D2123F7C /* SharedStore.swift in Sources */,
+				56D0F5FE7CE277C24BF9FD65 /* WatchSyncManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -610,6 +615,7 @@
 				5DF8CC6265DEC9BD1908F24C /* RecurringRemindersScheduler.swift in Sources */,
 				34DFDA76FE33363AE21BC1B6 /* RecurringRemindersView.swift in Sources */,
 				7CC2F244ED72316EE65CC6E4 /* LimorAppIntents.swift in Sources */,
+				34FDD193905F9C0FD3456ECA /* WatchSyncManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

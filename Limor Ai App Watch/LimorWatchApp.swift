@@ -9,6 +9,15 @@ import SwiftUI
 /// notification or its 5-second poll.
 @main
 struct LimorWatchApp: App {
+    init() {
+        // Activate the WCSession bridge straight away — the iPhone
+        // can't deliver context to the watch until it has a target
+        // session, and watchOS keeps the connection alive in the
+        // background so subsequent pushes arrive even when the watch
+        // app is dismissed.
+        WatchSyncManager.shared.activate()
+    }
+
     var body: some Scene {
         WindowGroup {
             WatchRootView()

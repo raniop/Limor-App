@@ -681,6 +681,10 @@ struct NowView: View {
             feed = fb
             if let data = try? JSONEncoder().encode(s) {
                 SharedStore.cacheLastNow(data)
+                // Mirror the just-cached snapshot to the watch so it
+                // gets the new "next reminder" / "weather" without
+                // waiting for the iCloud KVS propagation window.
+                WatchSyncManager.shared.pushSnapshot()
             }
             await ActivityController.sync(with: s.next_reminder)
             withAnimation(.spring) { errorMessage = nil }

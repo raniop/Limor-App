@@ -10,6 +10,14 @@ struct LimorAiApp: App {
     @StateObject private var router = AppRouter.shared
     @Environment(\.scenePhase) private var scenePhase
 
+    init() {
+        // Wire up the Watch-Connectivity bridge as early as possible so
+        // the first SharedStore writes after app launch can already
+        // ride a delivered context to the watch instead of waiting for
+        // the next mutation.
+        WatchSyncManager.shared.activate()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -35,6 +43,10 @@ struct LimorAiApp: App {
                         SharedStore.mirrorMeetingsNotifFromICloud()
                         ShoppingListStore.shared.refreshFromICloud()
                         RecurringRemindersStore.shared.refreshFromICloud()
+                        // Re-push the latest snapshot to the watch — covers
+                        // simulator pairs where App Group + iCloud don't
+                        // bridge between the iPhone and Watch processes.
+                        WatchSyncManager.shared.pushSnapshot()
                     }
                 }
                 .onOpenURL { url in

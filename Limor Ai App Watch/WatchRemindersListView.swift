@@ -30,6 +30,11 @@ struct WatchRemindersListView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active { refresh() }
         }
+        // Phone pushed a new snapshot — re-read the cached
+        // `NowResponse` so the watch hero updates instantly.
+        .onReceive(NotificationCenter.default.publisher(
+            for: .watchSyncDidUpdate
+        )) { _ in refresh() }
     }
 
     private func refresh() {

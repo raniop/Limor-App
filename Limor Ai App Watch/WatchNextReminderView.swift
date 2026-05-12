@@ -20,8 +20,14 @@ struct WatchNextReminderView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active { refresh() }
         }
+        // KVS notification covers real-device sync; WCSession
+        // notification covers the simulator pair and gives instant
+        // updates on hardware too.
         .onReceive(NotificationCenter.default.publisher(
             for: NSUbiquitousKeyValueStore.didChangeExternallyNotification
+        )) { _ in refresh() }
+        .onReceive(NotificationCenter.default.publisher(
+            for: .watchSyncDidUpdate
         )) { _ in refresh() }
     }
 
