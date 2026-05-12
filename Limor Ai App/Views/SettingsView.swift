@@ -73,39 +73,65 @@ struct SettingsView: View {
             }
             .onChange(of: calendarSources) { oldValue, newValue in
                 SharedStore.calendarSources = newValue
-                // Only newly-added cloud sources need an OAuth round-trip;
-                // unchecking a source just stops syncing it.
                 let added = newValue.subtracting(oldValue)
-                if added.contains(.google) {
-                    Task {
+                // Removing a source is instant (no OAuth needed). Adding one
+                // kicks off OAuth — if that fails we revert the checkbox so
+                // the UI doesn't lie about which providers are connected.
+                if added.isEmpty {
+                    Task { await SyncManager.shared.syncCalendar(force: true) }
+                    return
+                }
+                Task {
+                    var failed: Set<DataSource> = []
+                    if added.contains(.google) {
                         do { try await GoogleAPIs.ensureScopes([GoogleAPIs.calendarReadOnlyScope]) }
-                        catch { errorMessage = error.localizedDescription }
+                        catch {
+                            failed.insert(.google)
+                            errorMessage = error.localizedDescription
+                        }
                     }
-                }
-                if added.contains(.microsoft) {
-                    Task {
+                    if added.contains(.microsoft) {
                         do { try await MicrosoftAPIs.ensureScopes([MicrosoftAPIs.calendarReadScope]) }
-                        catch { errorMessage = error.localizedDescription }
+                        catch {
+                            failed.insert(.microsoft)
+                            errorMessage = error.localizedDescription
+                        }
                     }
+                    if !failed.isEmpty {
+                        calendarSources.subtract(failed)
+                        // SharedStore is updated by the re-fired onChange.
+                    }
+                    await SyncManager.shared.syncCalendar(force: true)
                 }
-                Task { await SyncManager.shared.syncCalendar(force: true) }
             }
             .onChange(of: emailSources) { oldValue, newValue in
                 SharedStore.emailSources = newValue
                 let added = newValue.subtracting(oldValue)
-                if added.contains(.google) {
-                    Task {
+                if added.isEmpty {
+                    Task { await SyncManager.shared.syncEmail(force: true) }
+                    return
+                }
+                Task {
+                    var failed: Set<DataSource> = []
+                    if added.contains(.google) {
                         do { try await GoogleAPIs.ensureScopes([GoogleAPIs.gmailReadOnlyScope]) }
-                        catch { errorMessage = error.localizedDescription }
+                        catch {
+                            failed.insert(.google)
+                            errorMessage = error.localizedDescription
+                        }
                     }
-                }
-                if added.contains(.microsoft) {
-                    Task {
+                    if added.contains(.microsoft) {
                         do { try await MicrosoftAPIs.ensureScopes([MicrosoftAPIs.mailReadScope]) }
-                        catch { errorMessage = error.localizedDescription }
+                        catch {
+                            failed.insert(.microsoft)
+                            errorMessage = error.localizedDescription
+                        }
                     }
+                    if !failed.isEmpty {
+                        emailSources.subtract(failed)
+                    }
+                    await SyncManager.shared.syncEmail(force: true)
                 }
-                Task { await SyncManager.shared.syncEmail(force: true) }
             }
             .alert("שגיאה", isPresented: .init(
                 get: { errorMessage != nil },
