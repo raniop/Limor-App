@@ -46,6 +46,7 @@ struct SettingsView: View {
                         remindersListCard
                         permissionsCard
                         accountCard
+                        buildFooter
                     }
                     .padding(.horizontal, 18)
                     .padding(.bottom, 32)
@@ -691,6 +692,23 @@ struct SettingsView: View {
                 )
             }
         }
+    }
+
+    /// Small build-id footer so we can verify which commit + build the
+    /// user is actually running — debugging "I rebuilt but my fix
+    /// isn't there" is otherwise blind.
+    private var buildFooter: some View {
+        let info = Bundle.main.infoDictionary
+        let short = (info?["CFBundleShortVersionString"] as? String) ?? "?"
+        let build = (info?["CFBundleVersion"] as? String) ?? "?"
+        let gitSha = (info?["LIMOR_GIT_SHA"] as? String) ?? "dev"
+        return VStack(spacing: 4) {
+            Text("גרסה \(short) (\(build)) · \(gitSha)")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.limorMuted)
+        }
+        .padding(.top, 8)
+        .frame(maxWidth: .infinity)
     }
 
     private var accountCard: some View {
