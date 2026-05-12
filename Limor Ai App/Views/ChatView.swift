@@ -636,36 +636,51 @@ struct ChatView: View {
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || attachmentData != nil else { return }
 
-        // Smart shopping list — a single short word with no attachment is
-        // almost always something the user wants added to the cart, not a
-        // chat message. Intercept locally so we don't burn tokens on a
-        // round-trip just to hear "ok, added".
-        if attachmentData == nil, ShoppingDetector.looksLikeShoppingItem(text) {
-            let added = ShoppingListStore.shared.add(text)
-            let userBubble = ChatMessage(
-                role: .user,
-                content: text,
-                created_at: ISO8601DateFormatter.limor.string(from: Date())
-            )
-            let confirmation = added
-                ? "🛒 הוספתי את \"\(text)\" לרשימת הקניות שלך."
-                : "🛒 \"\(text)\" כבר ברשימת הקניות שלך."
-            let replyBubble = ChatMessage(
-                role: .assistant,
-                content: confirmation,
-                created_at: ISO8601DateFormatter.limor.string(from: Date())
-            )
-            messages.append(userBubble)
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                messages.append(replyBubble)
+        // Smart shopping list — when the input looks like a grocery list
+        // (single word, comma-separated, or one item per line) intercept
+        // locally instead of burning chat tokens on "ok, added".
+        if attachmentData == nil {
+            let items = ShoppingDetector.extractShoppingItems(text)
+            if !items.isEmpty {
+                var addedNames: [String] = []
+                var existingNames: [String] = []
+                for item in items {
+                    if ShoppingListStore.shared.add(item) {
+                        addedNames.append(item)
+                    } else {
+                        existingNames.append(item)
+                    }
+                }
+                let userBubble = ChatMessage(
+                    role: .user,
+                    content: text,
+                    created_at: ISO8601DateFormatter.limor.string(from: Date())
+                )
+                var lines: [String] = []
+                if !addedNames.isEmpty {
+                    let joined = addedNames.joined(separator: ", ")
+                    let verb = addedNames.count == 1 ? "הוספתי" : "הוספתי \(addedNames.count) פריטים"
+                    lines.append("🛒 \(verb) לרשימת הקניות: \(joined)")
+                }
+                if !existingNames.isEmpty {
+                    let joined = existingNames.joined(separator: ", ")
+                    lines.append("ℹ️ כבר היו ברשימה: \(joined)")
+                }
+                let replyBubble = ChatMessage(
+                    role: .assistant,
+                    content: lines.joined(separator: "\n"),
+                    created_at: ISO8601DateFormatter.limor.string(from: Date())
+                )
+                messages.append(userBubble)
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                    messages.append(replyBubble)
+                }
+                var overlay = SharedStore.chatLocalOverlay
+                overlay.append(userBubble)
+                overlay.append(replyBubble)
+                SharedStore.chatLocalOverlay = overlay
+                return
             }
-            // Persist to local overlay so the bubbles survive a tab-switch
-            // reload — the server has no record of them.
-            var overlay = SharedStore.chatLocalOverlay
-            overlay.append(userBubble)
-            overlay.append(replyBubble)
-            SharedStore.chatLocalOverlay = overlay
-            return
         }
 
         let payloadText = text.isEmpty ? defaultPromptForAttachment() : text

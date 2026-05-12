@@ -65,43 +65,92 @@ final class ShoppingListStore: ObservableObject {
     }
 }
 
-// MARK: - Single-word shopping detection
+// MARK: - Shopping-list detection
 //
-// Heuristic: if the user's chat input is a single short word in Hebrew or
-// English (and isn't a common conversational reply like "כן"/"thanks"),
-// treat it as a shopping list addition instead of a chat message. The user
-// can always force a chat by typing more than one word or adding "?".
+// Heuristic for the chat composer: pull out grocery items from inputs that
+// look like a shopping list, otherwise let the message go to the chat
+// backend. Supports:
+//   - Single word ("חלב")
+//   - Multi-line list (one item per line, separated by \n)
+//   - Comma-separated list ("חלב, לחם, ביצים")
+//   - Items with up to ~4 words ("תירס שימורים", "milk 2% lite")
+// Rejects anything that smells like a question / imperative ("תזכיר…",
+// "what's…", trailing "?").
 enum ShoppingDetector {
 
-    /// Stopwords we explicitly DON'T want to treat as groceries — these are
-    /// common short chat replies. Lowercased; comparison is case-insensitive.
-    private static let stopwords: Set<String> = [
-        // Hebrew chat replies
-        "כן", "לא", "אוקיי", "אוקי", "תודה", "תודות", "סליחה", "היי", "שלום", "ביי",
-        "וואלה", "וואו", "אוף", "אהה", "אה", "מה", "מי", "איך", "מתי", "איפה", "למה",
-        "טוב", "רע", "בסדר", "מעולה", "נהדר", "סבבה",
-        // English chat replies
-        "yes", "no", "ok", "okay", "thanks", "thank", "hi", "hello", "hey",
-        "bye", "wow", "what", "who", "how", "when", "where", "why",
-        "sure", "yep", "yeah", "nope", "fine", "good", "bad", "great",
+    /// Returns the grocery items extracted from `text`. Empty array means
+    /// "this doesn't look like shopping — send to chat".
+    static func extractShoppingItems(_ text: String) -> [String] {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        // Quick reject for anything that looks like a chat sentence — a
+        // question / command, a long-form prose, etc.
+        if hasChatMarkers(trimmed) { return [] }
+
+        // Split on newlines, commas, semicolons, and Hebrew-style bullets
+        // (•, *). The user might type "חלב, לחם, ביצים" inline, or each
+        // item on its own line.
+        let pieces = trimmed
+            .components(separatedBy: CharacterSet.newlines.union(.init(charactersIn: ",;•*")))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !pieces.isEmpty else { return [] }
+
+        var items: [String] = []
+        for piece in pieces {
+            guard looksLikeItem(piece) else { return [] } // All-or-nothing
+            items.append(piece)
+        }
+        return items
+    }
+
+    /// Words that strongly imply the user is talking TO Limor rather than
+    /// dictating a shopping list. Substring match against the lowercased
+    /// input so "תזכיר לי" / "remind me" / "what's…" all bail out.
+    private static let chatMarkers: [String] = [
+        "תזכיר", "תזכרי", "תכניסי", "תוסיפי", "תוכל", "תוכלי", "האם",
+        "מתי", "איך", "איפה", "למה", "כמה",
+        "remind", "what", "when", "where", "why", "how", "can you",
     ]
 
-    static func looksLikeShoppingItem(_ text: String) -> Bool {
+    private static func hasChatMarkers(_ text: String) -> Bool {
+        if text.contains("?") { return true }
+        let lower = text.lowercased()
+        return chatMarkers.contains { lower.contains($0) }
+    }
+
+    /// Stopwords for SINGLE-word inputs only — multi-word items like
+    /// "תירס שימורים" don't get checked against this list (each part can
+    /// be anything; the whole-string allowance is what matters).
+    private static let singleWordStopwords: Set<String> = [
+        "כן", "לא", "אוקיי", "אוקי", "תודה", "תודות", "סליחה", "היי", "שלום", "ביי",
+        "וואלה", "וואו", "אוף", "אהה", "אה", "מה", "מי", "טוב", "רע", "בסדר", "מעולה",
+        "נהדר", "סבבה",
+        "yes", "no", "ok", "okay", "thanks", "thank", "hi", "hello", "hey",
+        "bye", "wow", "what", "who", "sure", "yep", "yeah", "nope",
+        "fine", "good", "bad", "great",
+    ]
+
+    private static func looksLikeItem(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Reject if contains spaces (must be exactly one word).
-        if trimmed.contains(" ") { return false }
-        // Reject if it has typical "chat" punctuation.
-        if trimmed.contains("?") || trimmed.contains("!") || trimmed.contains(",") {
+        guard trimmed.count >= 2, trimmed.count <= 40 else { return false }
+
+        let words = trimmed.split(whereSeparator: { $0.isWhitespace })
+        guard !words.isEmpty, words.count <= 4 else { return false }
+
+        // Each character must be a letter, digit, space, or one of the
+        // grocery-friendly punctuation marks ('-', "'", '%', '/', '.').
+        let allowed: (Character) -> Bool = { c in
+            c.isLetter || c.isNumber || c.isWhitespace
+                || c == "-" || c == "'" || c == "\"" || c == "%" || c == "/" || c == "."
+        }
+        guard trimmed.allSatisfy(allowed) else { return false }
+
+        if words.count == 1, singleWordStopwords.contains(trimmed.lowercased()) {
             return false
         }
-        // Sanity bounds — 2..30 chars, letters only.
-        guard trimmed.count >= 2, trimmed.count <= 30 else { return false }
-        let isLetter: (Character) -> Bool = { c in
-            c.isLetter || c == "'" || c == "-" || c == "\""
-        }
-        guard trimmed.allSatisfy(isLetter) else { return false }
-        // Stopword check, case-insensitive.
-        if stopwords.contains(trimmed.lowercased()) { return false }
         return true
     }
 }
