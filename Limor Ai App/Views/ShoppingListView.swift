@@ -19,6 +19,32 @@ final class ShoppingListStore: ObservableObject {
     var items: [ShoppingItem] { activeGroup.items }
 
     private init() {
+        // Pull anything iCloud has before reading — if another device wrote
+        // newer data, we want it in the App Group cache first.
+        SharedStore.mirrorShoppingFromICloud()
+        self.activeGroup = SharedStore.shoppingActiveGroup
+        self.archive = SharedStore.shoppingArchive
+
+        // iCloud KVS posts this notification when another device's write
+        // syncs down. Refresh our @Published state from the (now-updated)
+        // local cache so the UI reflects the change live.
+        NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: NSUbiquitousKeyValueStore.default,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            SharedStore.mirrorShoppingFromICloud()
+            // @Published mutation must happen on the main actor; the
+            // notification already arrives on the main queue.
+            self.activeGroup = SharedStore.shoppingActiveGroup
+            self.archive = SharedStore.shoppingArchive
+        }
+    }
+
+    /// Pull-down refresh from any caller. Cheap — touches iCloud once.
+    func refreshFromICloud() {
+        SharedStore.mirrorShoppingFromICloud()
         self.activeGroup = SharedStore.shoppingActiveGroup
         self.archive = SharedStore.shoppingArchive
     }
@@ -221,22 +247,21 @@ struct ShoppingListView: View {
         .toolbar {
             // Archive button on the leading side — only renders once the
             // user has at least one archived group to look back at.
+            // Inline label with the count so we don't have to lay out a
+            // floating badge inside a navigation-bar item (cramped).
             if !store.archive.isEmpty {
                 ToolbarItem(placement: .topBarLeading) {
                     NavigationLink(destination: ShoppingArchiveView()) {
-                        Image(systemName: "tray.full")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.limorIndigo)
-                            .frame(width: 36, height: 36)
-                            .background(Circle().fill(Color.limorIndigo.opacity(0.12)))
-                            .overlay(alignment: .topTrailing) {
-                                Text("\(store.archive.count)")
-                                    .font(.caption2.weight(.bold))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 4).padding(.vertical, 1)
-                                    .background(Capsule().fill(Color.limorIndigo))
-                                    .offset(x: 4, y: -4)
-                            }
+                        HStack(spacing: 4) {
+                            Image(systemName: "tray.full")
+                                .font(.subheadline.weight(.semibold))
+                            Text("\(store.archive.count)")
+                                .font(.caption.weight(.bold))
+                                .monospacedDigit()
+                        }
+                        .foregroundStyle(.limorIndigo)
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(Capsule().fill(Color.limorIndigo.opacity(0.12)))
                     }
                 }
             }
@@ -436,7 +461,7 @@ struct ShoppingArchiveView: View {
                         Button {
                             withAnimation { store.restoreFromArchive(group.id) }
                         } label: {
-                            Label("הוסף שוב לרשימה", systemImage: "arrow.uturn.backward.circle.fill")
+                            Label("שכפל לרשימה הפעילה", systemImage: "doc.on.doc.fill")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 12).padding(.vertical, 7)

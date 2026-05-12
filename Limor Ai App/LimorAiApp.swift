@@ -28,6 +28,11 @@ struct LimorAiApp: App {
                             await MeetingsNotifier.reschedule()
                             await RecurringRemindersScheduler.reschedule()
                         }
+                        // Pull any iCloud changes other devices wrote
+                        // while we were backgrounded — the KVS external-
+                        // change notification doesn't always fire on its
+                        // own when the app first foregrounds.
+                        ShoppingListStore.shared.refreshFromICloud()
                     }
                 }
                 .onOpenURL { url in

@@ -309,11 +309,36 @@ enum SharedStore {
         set { defaults.set(newValue ?? "", forKey: Keys.customTabKind) }
     }
 
+    /// iCloud Key-Value Store — synced across the user's Apple devices
+    /// (when they're signed into the same iCloud account). We mirror the
+    /// shopping list here so the user sees the same items on simulator
+    /// and iPhone without any backend involvement. Falls back to nil if
+    /// iCloud is unavailable (entitlement missing, signed out, etc.).
+    private static let iCloud: NSUbiquitousKeyValueStore? = {
+        let store = NSUbiquitousKeyValueStore.default
+        store.synchronize()
+        return store
+    }()
+
+    /// Pull the latest shopping data from iCloud into local UserDefaults.
+    /// Called on app launch and on the external-change notification so
+    /// changes made on another device propagate here.
+    static func mirrorShoppingFromICloud() {
+        guard let cloud = iCloud else { return }
+        cloud.synchronize()
+        if let data = cloud.data(forKey: Keys.shoppingActiveGroup) {
+            defaults.set(data, forKey: Keys.shoppingActiveGroup)
+        }
+        if let data = cloud.data(forKey: Keys.shoppingArchive) {
+            defaults.set(data, forKey: Keys.shoppingArchive)
+        }
+    }
+
     /// Currently-open shopping group. Lazily initialised — if no group has
     /// been saved yet, returns a freshly-created empty one (the user just
-    /// hasn't added anything yet). On first read after the multi-group
-    /// upgrade, migrates the legacy `shoppingItems` flat array into the
-    /// new group shape.
+    /// hasn't added anything yet). Migrates the legacy `shoppingItems`
+    /// flat array on first read. Writes dual-write to App Group
+    /// UserDefaults (instant local read) AND iCloud KVS (cross-device).
     static var shoppingActiveGroup: ShoppingGroup {
         get {
             if let data = defaults.data(forKey: Keys.shoppingActiveGroup),
@@ -327,6 +352,7 @@ enum SharedStore {
                 let migrated = ShoppingGroup(items: legacyItems)
                 if let encoded = try? JSONEncoder().encode(migrated) {
                     defaults.set(encoded, forKey: Keys.shoppingActiveGroup)
+                    iCloud?.set(encoded, forKey: Keys.shoppingActiveGroup)
                 }
                 defaults.removeObject(forKey: Keys.shoppingItems)
                 return migrated
@@ -336,24 +362,24 @@ enum SharedStore {
         set {
             if let data = try? JSONEncoder().encode(newValue) {
                 defaults.set(data, forKey: Keys.shoppingActiveGroup)
+                iCloud?.set(data, forKey: Keys.shoppingActiveGroup)
             }
         }
     }
 
     /// Archived shopping groups, newest first. The list view shows them
     /// under an expandable "רשימות קודמות" section so the user can scan
-    /// what they bought last week / month.
+    /// what they bought last week / month. Mirrored to iCloud KVS.
     static var shoppingArchive: [ShoppingGroup] {
         get {
             guard let data = defaults.data(forKey: Keys.shoppingArchive) else { return [] }
             return (try? JSONDecoder().decode([ShoppingGroup].self, from: data)) ?? []
         }
         set {
-            // Cap at the 20 most recent — keeps the on-disk JSON small
-            // and the archive UI scannable. Older lists are evicted.
             let capped = Array(newValue.prefix(20))
             if let data = try? JSONEncoder().encode(capped) {
                 defaults.set(data, forKey: Keys.shoppingArchive)
+                iCloud?.set(data, forKey: Keys.shoppingArchive)
             }
         }
     }
