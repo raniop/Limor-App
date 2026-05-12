@@ -268,12 +268,28 @@ enum ShoppingDetector {
     private static func wordLooksLikeGroceryAtom(_ word: String) -> Bool {
         let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2, trimmed.count <= 20 else { return false }
-        let allowed: (Character) -> Bool = { c in
-            c.isLetter || c.isNumber || c == "-" || c == "'" || c == "%"
-        }
-        guard trimmed.allSatisfy(allowed) else { return false }
+        guard trimmed.allSatisfy(Self.isGroceryChar) else { return false }
         if stopwords.contains(trimmed.lowercased()) { return false }
         return true
+    }
+
+    /// Whitelist of characters that can appear inside a grocery item
+    /// name. Covers Hebrew + English letters, digits, whitespace, and
+    /// the handful of punctuation marks that legitimately turn up in
+    /// product names ("2%", "1/2 kg", "tirelle's", "ביה״ס", "קוטג׳").
+    /// Without the Hebrew Geresh + Gershayim entries the detector
+    /// silently rejected the whole input on multi-line lists that
+    /// included "קוטג׳", and the Limor LLM then "added" the items via
+    /// chat but the changes never propagated back to iCloud.
+    private static func isGroceryChar(_ c: Character) -> Bool {
+        if c.isLetter || c.isNumber || c.isWhitespace { return true }
+        switch c {
+        case "-", "'", "\"", "%", "/", ".": return true
+        case "\u{05F3}", "\u{05F4}":         return true // ׳ Geresh, ״ Gershayim
+        case "\u{2019}", "\u{2018}":         return true // curly ’ ‘
+        case "\u{201C}", "\u{201D}":         return true // curly “ ”
+        default:                              return false
+        }
     }
 
     /// Words that strongly imply the user is talking TO Limor rather than
@@ -318,11 +334,12 @@ enum ShoppingDetector {
 
         // Each character must be a letter, digit, space, or one of the
         // grocery-friendly punctuation marks ('-', "'", '%', '/', '.').
-        let allowed: (Character) -> Bool = { c in
-            c.isLetter || c.isNumber || c.isWhitespace
-                || c == "-" || c == "'" || c == "\"" || c == "%" || c == "/" || c == "."
-        }
-        guard trimmed.allSatisfy(allowed) else { return false }
+        // Also accept the Hebrew Geresh (׳, U+05F3) and Gershayim (״,
+        // U+05F4) — they're standard punctuation inside Hebrew nouns
+        // like "קוטג׳", "פרופ׳", "ביה״ס", and Unicode classifies them
+        // as `Po` (Other_Punctuation), not `Letter`, so the
+        // `isLetter` check rejects them otherwise.
+        guard trimmed.allSatisfy(Self.isGroceryChar) else { return false }
 
         // ANY stopword anywhere disqualifies — multi-word inputs like
         // "כן היום" / "yes today" / "wait מחר" aren't shopping lists.
