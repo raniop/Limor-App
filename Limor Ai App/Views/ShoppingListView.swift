@@ -46,7 +46,7 @@ final class ShoppingListStore: ObservableObject {
         // store is alive (it's a singleton — never deallocs), calling
         // synchronize() to nudge iCloud and re-read if anything changed.
         // Cheap: the SDK skips the network when there's nothing new.
-        Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.pollICloudIfChanged() }
         }
     }
@@ -291,6 +291,13 @@ struct ShoppingListView: View {
         }
         .navigationTitle("רשימת קניות")
         .navigationBarTitleDisplayMode(.large)
+        .task {
+            // Wake iCloud + force a re-read the moment the user opens
+            // the shopping screen. Catches whatever propagated since
+            // the last poll without waiting up to 5 seconds.
+            NSUbiquitousKeyValueStore.default.synchronize()
+            store.refreshFromICloud()
+        }
         .toolbar {
             // Archive button on the leading side — only renders once the
             // user has at least one archived group to look back at.
