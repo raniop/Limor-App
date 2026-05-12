@@ -152,19 +152,17 @@ final class WatchSyncManager: NSObject, ObservableObject {
 
     /// iPhone-side handler for the watch's PTT button. Mirrors what
     /// `ChatView.send(text:)` does: first runs the on-device
-    /// `ShoppingDetector` intercept (which is what actually writes
-    /// items into `ShoppingListStore` — without this, a single word
-    /// like "עגבניות" lands in the chat backend whose LLM sometimes
-    /// confirms "הוספתי" without calling the tool, leaving the list
-    /// empty). Only when the intercept doesn't fire do we hit the
-    /// chat backend.
+    /// `ShoppingDetector` intercept; only when it returns empty do
+    /// we hit the chat backend. Verbose logs on every path so the
+    /// "Limor said added but the list is empty" reports we keep
+    /// getting are diagnosable from the Xcode console.
     func relayLimorMessage(_ text: String, replyHandler: @escaping ([String: Any]) -> Void) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        print("[wc] relayLimorMessage trimmed=\(trimmed.prefix(120))")
 
-        // 1. Local grocery intercept — same logic the text-side chat
-        //    uses. Writes directly to the on-device store, no network
-        //    round-trip, never lies.
+        // 1. Local grocery intercept.
         let items = ShoppingDetector.extractShoppingItems(trimmed)
+        print("[wc] ShoppingDetector → \(items)")
         if !items.isEmpty {
             var added: [String] = []
             var existing: [String] = []
@@ -175,6 +173,7 @@ final class WatchSyncManager: NSObject, ObservableObject {
                     existing.append(item)
                 }
             }
+            print("[wc] local intercept added=\(added) existing=\(existing)")
             var lines: [String] = []
             if !added.isEmpty {
                 let joined = added.joined(separator: ", ")
@@ -190,8 +189,8 @@ final class WatchSyncManager: NSObject, ObservableObject {
             return
         }
 
-        // 2. Otherwise — chat backend. Honor the same
-        //    `shopping_actions` echo path the iOS chat already runs.
+        // 2. Otherwise — chat backend.
+        print("[wc] forwarding to chat backend")
         do {
             let reply = try await APIClient.shared.sendChat(
                 token: "",
@@ -200,19 +199,23 @@ final class WatchSyncManager: NSObject, ObservableObject {
                 lng: nil,
                 attachment: nil
             )
+            let addCount = reply.shopping_actions?.adds.count ?? 0
+            let completeCount = reply.shopping_actions?.completes.count ?? 0
+            print("[wc] backend replied. shopping_actions adds=\(addCount) completes=\(completeCount)")
             if let actions = reply.shopping_actions {
                 for name in actions.adds {
-                    _ = ShoppingListStore.shared.add(name)
+                    let didAdd = ShoppingListStore.shared.add(name)
+                    print("[wc]   adds add('\(name)') → \(didAdd)")
                 }
                 for name in actions.completes {
-                    _ = ShoppingListStore.shared.completeByName(name)
+                    let didDone = ShoppingListStore.shared.completeByName(name)
+                    print("[wc]   completes completeByName('\(name)') → \(didDone)")
                 }
             }
             replyHandler(["reply": reply.reply])
-            // Re-push the latest state to the watch so the shopping
-            // list reflects whatever changed.
             pushSnapshot()
         } catch {
+            print("[wc] backend error: \(error.localizedDescription)")
             replyHandler(["error": error.localizedDescription])
         }
     }
