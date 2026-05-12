@@ -306,9 +306,19 @@ enum ShoppingDetector {
     ]
 
     private static func hasChatMarkers(_ text: String) -> Bool {
-        if text.contains("?") { return true }
-        let lower = text.lowercased()
-        return chatMarkers.contains { lower.contains($0) }
+        // iOS dictation occasionally appends a "?" to a perfectly
+        // good grocery utterance ("ביצים?", "חלב!"). Treating any
+        // input that contains "?" as a chat reply killed the
+        // intercept for those dictations and forced the message
+        // through the chat LLM — which would then claim to add the
+        // items, while `ShoppingListStore` stayed empty. Strip
+        // trailing punctuation before scanning; the marker word
+        // list below still catches real questions ("מה ברשימה?",
+        // "תוסיפי לי חלב?") because they contain `מה` / `תוסיפי`.
+        let stripped = text
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".!?;:"))
+            .lowercased()
+        return chatMarkers.contains { stripped.contains($0) }
     }
 
     /// Conversational words that should NEVER appear inside a shopping
