@@ -40,6 +40,155 @@ final class RecurringRemindersStore: ObservableObject {
     }
 }
 
+// MARK: - Chat intent parser
+//
+// Pulls a recurring-reminder draft out of a free-text chat message like
+// "תכניסי לי תזכורת קבועה לכל יום ג׳ בשעה 8:15 פילאטיס". Best-effort,
+// permissive — anything we don't recognize falls back to a reasonable
+// default so the editor sheet can open pre-filled and let the user
+// review/correct before saving. NLP is intentionally minimal here; if
+// we want robust parsing we'll route through the backend LLM later.
+enum RecurringReminderParser {
+
+    struct Draft {
+        var task: String
+        var daysOfWeek: Set<Int>   // Calendar.weekday, 1 = Sunday
+        var hour: Int
+        var minute: Int
+    }
+
+    /// Returns a `Draft` only if the input clearly intends a recurring
+    /// reminder (keyword + a parseable time). Otherwise nil — let the
+    /// chat message go to the backend as usual.
+    static func tryParse(_ text: String) -> Draft? {
+        guard hasRecurringIntent(text) else { return nil }
+        guard let (hour, minute) = extractTime(text) else { return nil }
+        let days = extractDays(text)
+        let task = extractTask(text)
+        return Draft(
+            task: task,
+            daysOfWeek: days.isEmpty ? [Calendar.current.component(.weekday, from: Date())] : days,
+            hour: hour,
+            minute: minute
+        )
+    }
+
+    // MARK: Intent
+
+    private static let intentMarkers: [String] = [
+        "תזכורת קבועה", "תזכורת חוזרת", "תזכורות קבועות",
+        "כל יום", "בכל יום", "כל שבוע", "בכל שבוע",
+        "recurring reminder", "every week", "every day", "weekly reminder",
+    ]
+
+    private static func hasRecurringIntent(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        return intentMarkers.contains { lower.contains($0) }
+    }
+
+    // MARK: Time
+
+    /// Finds an HH:MM (with optional leading zero) anywhere in the text.
+    /// Range: 0–23 hour, 0–59 minute.
+    private static func extractTime(_ text: String) -> (Int, Int)? {
+        let pattern = #"\b(\d{1,2}):(\d{2})\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(text.startIndex..., in: text)
+        guard let match = regex.firstMatch(in: text, range: range) else { return nil }
+        guard let hourRange = Range(match.range(at: 1), in: text),
+              let minRange = Range(match.range(at: 2), in: text) else { return nil }
+        guard let hour = Int(text[hourRange]), let minute = Int(text[minRange]) else { return nil }
+        guard (0...23).contains(hour), (0...59).contains(minute) else { return nil }
+        return (hour, minute)
+    }
+
+    // MARK: Days
+
+    /// Maps each Hebrew day mention to a weekday integer. Detects long
+    /// form ("יום שלישי"), short form ("שלישי"), and the abbreviated
+    /// "ג'" / "ג׳" letter forms.
+    private static let dayMap: [(needle: String, weekday: Int)] = [
+        ("ראשון", 1), ("שני", 2), ("שלישי", 3), ("רביעי", 4),
+        ("חמישי", 5), ("שישי", 6), ("שבת", 7),
+        ("sunday", 1), ("monday", 2), ("tuesday", 3), ("wednesday", 4),
+        ("thursday", 5), ("friday", 6), ("saturday", 7),
+    ]
+
+    /// Single-letter abbreviations need surrounding context to avoid
+    /// false positives ("א" appears in tons of Hebrew words). Match
+    /// only when followed by `'` or `׳`.
+    private static let dayLetterMap: [(letter: Character, weekday: Int)] = [
+        ("א", 1), ("ב", 2), ("ג", 3), ("ד", 4),
+        ("ה", 5), ("ו", 6), ("ש", 7),
+    ]
+
+    private static func extractDays(_ text: String) -> Set<Int> {
+        let lower = text.lowercased()
+
+        // Macro keywords first — these override individual day mentions.
+        if lower.contains("ימי חול") { return [1, 2, 3, 4, 5] }
+        if lower.contains("סופ״ש") || lower.contains("סוף שבוע") || lower.contains("weekend") {
+            return [6, 7]
+        }
+        if lower.contains("כל יום") || lower.contains("everyday") || lower.contains("every day") {
+            return [1, 2, 3, 4, 5, 6, 7]
+        }
+
+        var days: Set<Int> = []
+        for (needle, weekday) in dayMap where lower.contains(needle) {
+            days.insert(weekday)
+        }
+        // Look for letter-form abbreviations like "ג'" / "ג׳" — both the
+        // ASCII apostrophe and the Hebrew geresh.
+        for (letter, weekday) in dayLetterMap {
+            if text.contains("\(letter)'") || text.contains("\(letter)׳") {
+                days.insert(weekday)
+            }
+        }
+        return days
+    }
+
+    // MARK: Task
+
+    /// Strip out the conversational scaffolding so what's left is the
+    /// actual thing to remind about. Best-effort — anything tricky stays
+    /// in the result and the user can clean it up in the editor.
+    private static func extractTask(_ text: String) -> String {
+        var s = text
+        // Time
+        s = s.replacingOccurrences(of: #"\b\d{1,2}:\d{2}\b"#, with: "", options: .regularExpression)
+        // Day mentions
+        for (needle, _) in dayMap {
+            s = s.replacingOccurrences(of: needle, with: "", options: .caseInsensitive)
+        }
+        for (letter, _) in dayLetterMap {
+            s = s.replacingOccurrences(of: "\(letter)'", with: "")
+            s = s.replacingOccurrences(of: "\(letter)׳", with: "")
+        }
+        // Filler phrases
+        let fillers = [
+            "תזכורת קבועה", "תזכורת חוזרת", "תזכורות קבועות",
+            "תכניסי לי", "תכניס לי", "תזכירי לי", "תזכיר לי",
+            "כל יום", "בכל יום", "כל שבוע", "בכל שבוע",
+            "ימי חול", "סופ״ש", "סוף שבוע",
+            "בשעה", "לשעה", "השעה",
+            "recurring reminder", "every day", "every week",
+            "remind me", "reminder",
+        ]
+        for filler in fillers {
+            s = s.replacingOccurrences(of: filler, with: "", options: .caseInsensitive)
+        }
+        // Particles / connectives the user usually says around a request
+        let particles = [" יום ", " ב־", " ל־", " של ", " על ", " ש", "  "]
+        for p in particles {
+            s = s.replacingOccurrences(of: p, with: " ")
+        }
+        // Compact whitespace and trim
+        s = s.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 // MARK: - Hebrew weekday labels
 
 private let weekdayShort = ["א", "ב", "ג", "ד", "ה", "ו", "ש"]
@@ -220,6 +369,21 @@ struct RecurringReminderEditor: View {
         var comps = DateComponents()
         comps.hour = initial?.hour ?? 7
         comps.minute = initial?.minute ?? 45
+        _time = State(initialValue: Calendar.current.date(from: comps) ?? Date())
+    }
+
+    /// Convenience init for the ChatView intent-parser flow: open the
+    /// editor pre-filled from a free-text chat message ("תזכורת קבועה כל
+    /// יום ג׳ בשעה 8:15 פילאטיס"). User reviews and saves — anything the
+    /// parser got wrong is one tap to correct.
+    init(draft: RecurringReminderParser.Draft, onSave: @escaping (RecurringReminder) -> Void) {
+        self.initial = nil
+        self.onSave = onSave
+        _task = State(initialValue: draft.task)
+        _days = State(initialValue: draft.daysOfWeek)
+        var comps = DateComponents()
+        comps.hour = draft.hour
+        comps.minute = draft.minute
         _time = State(initialValue: Calendar.current.date(from: comps) ?? Date())
     }
 

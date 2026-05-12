@@ -18,6 +18,12 @@ struct ChatView: View {
     /// the user enters the tab.
     @State private var initialScrollDone = false
 
+    /// When the user's chat message looks like a recurring-reminder
+    /// request ("תכניסי לי תזכורת קבועה כל יום ג׳ בשעה 8:15…") we open
+    /// the editor pre-filled and let them review/save. nil = no draft
+    /// pending. Cleared when the sheet dismisses.
+    @State private var pendingRecurringDraft: RecurringReminderParser.Draft?
+
     // Voice-message gesture state.
     //
     // The mic supports two modes:
@@ -211,7 +217,46 @@ struct ChatView: View {
             } message: {
                 Text(errorMessage ?? "")
             }
+            .sheet(isPresented: Binding(
+                get: { pendingRecurringDraft != nil },
+                set: { if !$0 { pendingRecurringDraft = nil } }
+            )) {
+                if let draft = pendingRecurringDraft {
+                    RecurringReminderEditor(draft: draft) { reminder in
+                        RecurringRemindersStore.shared.add(reminder)
+                        Task { await RecurringRemindersScheduler.ensureAuthorization() }
+                        // Append a confirmation bubble to the chat thread
+                        // so the user sees what was actually saved.
+                        let savedBubble = ChatMessage(
+                            role: .assistant,
+                            content: "✅ תזכורת קבועה נשמרה: \(reminder.task) — \(formatRecurringSummary(reminder))",
+                            created_at: ISO8601DateFormatter.limor.string(from: Date())
+                        )
+                        messages.append(savedBubble)
+                        var overlay = SharedStore.chatLocalOverlay
+                        overlay.append(savedBubble)
+                        SharedStore.chatLocalOverlay = overlay
+                    }
+                    .presentationDetents([.medium, .large])
+                }
+            }
         }
+    }
+
+    private func formatRecurringSummary(_ r: RecurringReminder) -> String {
+        let time = String(format: "%02d:%02d", r.hour, r.minute)
+        let weekdayShort = ["א", "ב", "ג", "ד", "ה", "ו", "ש"]
+        let dayLabel: String
+        if r.daysOfWeek.count == 7 {
+            dayLabel = "כל יום"
+        } else if r.daysOfWeek == [1, 2, 3, 4, 5] {
+            dayLabel = "ימי חול"
+        } else if r.daysOfWeek == [6, 7] {
+            dayLabel = "סופ״ש"
+        } else {
+            dayLabel = r.daysOfWeek.sorted().map { weekdayShort[$0 - 1] }.joined(separator: ", ")
+        }
+        return "\(dayLabel) ב-\(time)"
     }
 
     // MARK: - Empty / suggestions
@@ -682,6 +727,33 @@ struct ChatView: View {
     private func send(text rawText: String) async {
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || attachmentData != nil else { return }
+
+        // Recurring-reminder intent — "תזכורת קבועה כל יום ג' בשעה 8:15…"
+        // Open the editor pre-filled with whatever we parsed; the user
+        // reviews/saves. We append the original message + a guidance
+        // bubble so the chat thread reflects what happened.
+        if attachmentData == nil, let draft = RecurringReminderParser.tryParse(text) {
+            pendingRecurringDraft = draft
+            let userBubble = ChatMessage(
+                role: .user,
+                content: text,
+                created_at: ISO8601DateFormatter.limor.string(from: Date())
+            )
+            let replyBubble = ChatMessage(
+                role: .assistant,
+                content: "⏰ פתחתי לך טופס לתזכורת קבועה. תאשרי או תערכי ושמרי — אני אזכיר בלי backend.",
+                created_at: ISO8601DateFormatter.limor.string(from: Date())
+            )
+            messages.append(userBubble)
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                messages.append(replyBubble)
+            }
+            var overlay = SharedStore.chatLocalOverlay
+            overlay.append(userBubble)
+            overlay.append(replyBubble)
+            SharedStore.chatLocalOverlay = overlay
+            return
+        }
 
         // Smart shopping list — when the input looks like a grocery list
         // (single word, comma-separated, or one item per line) intercept
