@@ -55,9 +55,23 @@ final class ShoppingListStore: ObservableObject {
     /// Fetch the user's full shopping state from the Limor backend.
     /// Failures are silent — local + iCloud already painted something
     /// useful, and the next sync will retry.
+    ///
+    /// First-launch migration: if the server returns an empty state but
+    /// the device already has items (from local cache / iCloud), push
+    /// the local state UP to the server instead of overwriting with
+    /// empty. That's the case where the user built up a list before the
+    /// backend was wired in.
     func refreshFromBackend() async {
         do {
             let state = try await APIClient.shared.getShoppingState()
+            let backendEmpty = state.active.items.isEmpty && state.archive.isEmpty
+            let localHasContent = !activeGroup.items.isEmpty || !archive.isEmpty
+            if backendEmpty && localHasContent {
+                let snapshot = ShoppingStateDTO(active: activeGroup, archive: archive)
+                try? await APIClient.shared.putShoppingState(snapshot)
+                print("[shopping] backend was empty — pushed local state up (\(activeGroup.items.count) active, \(archive.count) archive)")
+                return
+            }
             activeGroup = state.active
             archive = state.archive
             // Mirror down to local cache so the next cold launch has it.
