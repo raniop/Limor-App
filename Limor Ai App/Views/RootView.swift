@@ -32,7 +32,9 @@ struct RootView: View {
                     .transition(.opacity)
             }
         }
-        .preferredColorScheme(.light)
+        // Let the OS decide — `Theme.swift` exposes light/dark variants
+        // for every brand-surface color, so honoring the system
+        // appearance "just works" without us having to override here.
         .animation(.easeInOut(duration: 0.5), value: showSplash)
         .task {
             await auth.bootstrap()

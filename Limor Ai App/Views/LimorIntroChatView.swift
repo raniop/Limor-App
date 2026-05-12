@@ -157,7 +157,8 @@ struct LimorIntroChatView: View {
                 composerForStep
             }
         }
-        .preferredColorScheme(.light)
+        // No `.preferredColorScheme(.light)` — the theme has dark
+        // variants and the intro reads cleanly on either appearance.
         .onAppear {
             currentAnswer = Self.steps[stepIndex].prefill?(auth) ?? ""
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

@@ -179,7 +179,7 @@ struct NowView: View {
 
             Text(name?.isEmpty == false ? name! : "שלום")
                 .font(.system(size: 32, weight: .heavy, design: .rounded))
-                .foregroundStyle(Color.black)
+                .foregroundStyle(.limorInk)
         }
     }
 
