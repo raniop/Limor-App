@@ -194,6 +194,12 @@ enum ShoppingDetector {
         // question / command, a long-form prose, etc.
         if hasChatMarkers(trimmed) { return [] }
 
+        // iOS dictation with `addsPunctuation` likes to drop a sentence-
+        // final period or exclamation onto the last item ("ביצים חלב
+        // גבינה."), which kills the per-word allowed-character check.
+        // Strip those off every piece + every space-split atom.
+        let trailingPunct = CharacterSet(charactersIn: ".!?;:")
+
         // Split on newlines, commas, semicolons, and Hebrew-style bullets
         // (•, *). The user might type "חלב, לחם, ביצים" inline, or each
         // item on its own line.
@@ -201,7 +207,7 @@ enum ShoppingDetector {
         let hasDelimiters = trimmed.unicodeScalars.contains { delimiterSet.contains($0) }
         let pieces = trimmed
             .components(separatedBy: delimiterSet)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines.union(trailingPunct)) }
             .filter { !$0.isEmpty }
 
         guard !pieces.isEmpty else { return [] }
@@ -215,7 +221,10 @@ enum ShoppingDetector {
         // useful to the list. Trade-off: compound items like "שוקולד
         // השחר" get split into two, which the user can manually merge.
         if !hasDelimiters && pieces.count == 1 {
-            let words = pieces[0].split(whereSeparator: { $0.isWhitespace }).map(String.init)
+            let words = pieces[0]
+                .split(whereSeparator: { $0.isWhitespace })
+                .map { String($0).trimmingCharacters(in: trailingPunct) }
+                .filter { !$0.isEmpty }
             if words.count >= 3 {
                 var atoms: [String] = []
                 for word in words {
