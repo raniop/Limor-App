@@ -16,7 +16,7 @@ final class AppRouter: ObservableObject {
     @Published var pendingChatMessage: String?
 
     enum Tab: Hashable {
-        case now, reminders, chat, settings
+        case now, reminders, chat, settings, custom
     }
 
     /// Convenience: jump to chat and queue a message for auto-send.

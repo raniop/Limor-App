@@ -36,6 +36,8 @@ enum SharedStore {
         static let meetingsNotifEnabled = "limor.meetingsNotif.enabled"
         static let meetingsNotifHour = "limor.meetingsNotif.hour"
         static let meetingsNotifMinute = "limor.meetingsNotif.minute"
+        static let chatLocalOverlay = "limor.chatLocalOverlay"
+        static let customTabKind = "limor.customTabKind"
     }
 
     static var bearer: String? {
@@ -199,6 +201,35 @@ enum SharedStore {
     static var meetingsNotifMinute: Int {
         get { defaults.integer(forKey: Keys.meetingsNotifMinute) }
         set { defaults.set(newValue, forKey: Keys.meetingsNotifMinute) }
+    }
+
+    /// Local-only chat bubbles (shopping-list interceptions and similar
+    /// purely-on-device interactions). The server's chat history endpoint
+    /// doesn't know about these — without persisting them locally they'd
+    /// disappear every time the user switches tabs and ChatView reloads
+    /// from the server. Capped at 50 most-recent items to stay tiny.
+    static var chatLocalOverlay: [ChatMessage] {
+        get {
+            guard let data = defaults.data(forKey: Keys.chatLocalOverlay) else { return [] }
+            return (try? JSONDecoder().decode([ChatMessage].self, from: data)) ?? []
+        }
+        set {
+            let capped = Array(newValue.suffix(50))
+            if let data = try? JSONEncoder().encode(capped) {
+                defaults.set(data, forKey: Keys.chatLocalOverlay)
+            }
+        }
+    }
+
+    /// Optional extra tab the user can pin to the bottom tab bar (the
+    /// default 4 — now, reminders, chat, settings — get a 5th of the
+    /// user's choice). Empty string / nil = no extra tab.
+    static var customTabKind: String? {
+        get {
+            let raw = defaults.string(forKey: Keys.customTabKind) ?? ""
+            return raw.isEmpty ? nil : raw
+        }
+        set { defaults.set(newValue ?? "", forKey: Keys.customTabKind) }
     }
 
     /// Locally-persisted shopping list. Backend syncing is intentionally out

@@ -598,13 +598,25 @@ struct ChatView: View {
     // MARK: - Networking
 
     private func loadHistory() async {
+        // Local overlay (shopping-list interception bubbles, etc.) is always
+        // shown — even if the server fetch fails — so the user's quick
+        // captures don't disappear on a tab switch or offline reload.
+        let overlay = SharedStore.chatLocalOverlay
         do {
             let h = try await APIClient.shared.chatHistory(token: auth.token ?? "")
-            self.messages = h.messages
+            self.messages = mergeWithOverlay(server: h.messages, overlay: overlay)
             self.usage = h.usage
         } catch {
+            self.messages = overlay
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func mergeWithOverlay(server: [ChatMessage], overlay: [ChatMessage]) -> [ChatMessage] {
+        // Naive concat + sort by timestamp. Server messages never collide with
+        // overlay messages (the overlay only holds bubbles the backend never
+        // saw), so no dedup needed.
+        (server + overlay).sorted { $0.created_at < $1.created_at }
     }
 
     /// If a CTA on another tab queued a message for Limor, fire it
@@ -647,6 +659,12 @@ struct ChatView: View {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
                 messages.append(replyBubble)
             }
+            // Persist to local overlay so the bubbles survive a tab-switch
+            // reload — the server has no record of them.
+            var overlay = SharedStore.chatLocalOverlay
+            overlay.append(userBubble)
+            overlay.append(replyBubble)
+            SharedStore.chatLocalOverlay = overlay
             return
         }
 
@@ -821,7 +839,10 @@ private struct ChatComposerInput: View {
                 // because lineLimit(1...5) allows the frame to grow
                 // past 44pt as the user types more.
                 .frame(minHeight: 44)
-                .submitLabel(.send)
+                // Plain return key — pressing it inserts a newline rather
+                // than triggering Send, so the user can compose multi-line
+                // messages without accidentally firing.
+                .submitLabel(.return)
                 .background(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .fill(.regularMaterial)

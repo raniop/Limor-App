@@ -18,18 +18,30 @@ final class ShoppingListStore: ObservableObject {
     }
 
     /// Returns true if the item was added (false on duplicate of an open item).
+    /// Comparison is case-insensitive AND diacritic-insensitive so "חלב",
+    /// "חָלָב" (with niqqud) and "Milk" / "milk" all collapse to the same
+    /// entry. Completed items DON'T block — if you bought milk and now need
+    /// to buy it again, the second add is a fresh entry on purpose.
     @discardableResult
     func add(_ rawName: String) -> Bool {
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return false }
-        // Reject duplicates of an open (not-yet-completed) entry —
-        // re-adding "חלב" twice in a row makes no sense.
-        if items.contains(where: { !$0.completed && $0.name.compare(name, options: .caseInsensitive) == .orderedSame }) {
+        let normalized = Self.normalize(name)
+        if items.contains(where: { !$0.completed && Self.normalize($0.name) == normalized }) {
             return false
         }
         items.insert(ShoppingItem(name: name), at: 0)
         persist()
         return true
+    }
+
+    /// Casefolded + diacritic-stripped form used for duplicate detection.
+    /// `localizedLowercase` handles Turkish/German edge cases; folding to
+    /// `String.CompareOptions.diacriticInsensitive` via `folding(options:locale:)`
+    /// strips Hebrew niqqud + accent marks on Latin characters.
+    private static func normalize(_ s: String) -> String {
+        s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "he_IL"))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func toggle(_ id: UUID) {

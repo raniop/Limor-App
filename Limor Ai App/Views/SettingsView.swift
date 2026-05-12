@@ -37,6 +37,7 @@ struct SettingsView: View {
                             crmCard
                         }
                         sourcesCard
+                        customTabCard
                         remindersListCard
                         permissionsCard
                         accountCard
@@ -441,6 +442,55 @@ struct SettingsView: View {
                 )
             }
         }
+    }
+
+    // MARK: Custom tab bar slot
+
+    /// Lets the user pin one extra shortcut to the bottom tab bar — useful
+    /// for jumping straight into the shopping list or the meetings detail
+    /// screen without going through NowView. Backed by `@AppStorage` in
+    /// `MainTabs`, so toggling here reactively rebuilds the tab bar.
+    private var customTabCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionLabel(icon: "rectangle.stack.badge.plus", title: "כפתור מהיר בתחתית")
+
+                Text("אפשר להצמיד קיצור דרך נוסף לסרגל התחתון, ליד \"עכשיו\".")
+                    .font(.caption)
+                    .foregroundStyle(.limorMuted)
+
+                VStack(spacing: 6) {
+                    customTabRow(value: nil, label: "ללא", icon: "minus.circle")
+                    customTabRow(value: .shoppingList, label: "רשימת קניות", icon: "cart.fill")
+                    customTabRow(value: .meetings, label: "פגישות", icon: "calendar")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func customTabRow(value: CustomTabKind?, label: String, icon: String) -> some View {
+        let selected = (SharedStore.customTabKind ?? "") == (value?.rawValue ?? "")
+        Button {
+            SharedStore.customTabKind = value?.rawValue
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                    .foregroundStyle(Color.limorIndigo)
+                Image(systemName: icon)
+                    .foregroundStyle(.limorIndigo)
+                Text(label)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.limorInk)
+                Spacer()
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(selected ? Color.limorIndigo.opacity(0.1) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: Reminders list picker

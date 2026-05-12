@@ -167,8 +167,8 @@ struct NowResponse: Codable {
     struct User: Codable { let display_name: String? }
 }
 
-struct ChatMessage: Decodable, Identifiable, Hashable {
-    enum Role: String, Decodable, Hashable { case user, assistant }
+struct ChatMessage: Codable, Identifiable, Hashable {
+    enum Role: String, Codable, Hashable { case user, assistant }
     var id: String { "\(role.rawValue)-\(created_at)-\(content.hashValue)" }
     let role: Role
     let content: String
@@ -184,8 +184,19 @@ struct ChatMessage: Decodable, Identifiable, Hashable {
     var localAudioURL: URL? = nil
     var localAudioDuration: TimeInterval? = nil
 
+    /// Only role/content/created_at round-trip — the local* fields are
+    /// view-only state that doesn't make sense to persist. Encoding
+    /// is symmetric so we can stash messages in SharedStore (chat overlay
+    /// for shopping-list interceptions etc.).
     private enum CodingKeys: String, CodingKey {
         case role, content, created_at
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(role, forKey: .role)
+        try c.encode(content, forKey: .content)
+        try c.encode(created_at, forKey: .created_at)
     }
 
     init(role: Role, content: String, created_at: String,

@@ -268,8 +268,38 @@ private struct SplashView: View {
 
 // MARK: - Main tabs
 
+/// User-selectable extra tab pinned to the bottom bar. Mirrors a subset of
+/// HomeCardKind — anything that's also a worthwhile "I want to jump
+/// straight here" destination. Persisted via SharedStore.customTabKind.
+enum CustomTabKind: String, CaseIterable, Identifiable {
+    case shoppingList = "shopping"
+    case meetings = "meetings"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .shoppingList: return "קניות"
+        case .meetings:     return "פגישות"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .shoppingList: return "cart.fill"
+        case .meetings:     return "calendar"
+        }
+    }
+}
+
 struct MainTabs: View {
     @EnvironmentObject private var router: AppRouter
+    @AppStorage("limor.customTabKind", store: UserDefaults(suiteName: "group.com.rani.Limor-Ai-App"))
+    private var customTabRaw: String = ""
+
+    private var customTab: CustomTabKind? {
+        CustomTabKind(rawValue: customTabRaw)
+    }
 
     init() {
         let appearance = UITabBarAppearance()
@@ -285,6 +315,11 @@ struct MainTabs: View {
             NowView()
                 .tabItem { Label("עכשיו", systemImage: "sparkles") }
                 .tag(AppRouter.Tab.now)
+            if let custom = customTab {
+                customTabContent(custom)
+                    .tabItem { Label(custom.title, systemImage: custom.icon) }
+                    .tag(AppRouter.Tab.custom)
+            }
             RemindersView()
                 .tabItem { Label("תזכורות", systemImage: "bell.fill") }
                 .tag(AppRouter.Tab.reminders)
@@ -296,5 +331,15 @@ struct MainTabs: View {
                 .tag(AppRouter.Tab.settings)
         }
         .tint(.limorIndigo)
+    }
+
+    @ViewBuilder
+    private func customTabContent(_ kind: CustomTabKind) -> some View {
+        NavigationStack {
+            switch kind {
+            case .shoppingList: ShoppingListView()
+            case .meetings:     MeetingsListView()
+            }
+        }
     }
 }
