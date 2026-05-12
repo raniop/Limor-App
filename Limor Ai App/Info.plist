@@ -43,6 +43,11 @@
 	<string>1043813835619-j123901uoudhqjqlip0aqm8b3idm6f0s.apps.googleusercontent.com</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>msauthv2</string>
+		<string>msauthv3</string>
+	</array>
 	<key>LIMOR_API_BASE_URL</key>
 	<string>$(LIMOR_API_BASE_URL)</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
