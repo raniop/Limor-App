@@ -98,6 +98,29 @@ struct APIClient {
         let _: EmptyResponse = try await deleteReq("/api/reminders/\(id)")
     }
 
+    /// Patch task text and/or due time on an existing reminder. Either
+    /// argument can be nil — backend will only touch the fields the
+    /// caller actually sent. Used by the iOS edit-reminder sheet.
+    func updateReminder(id: String, task: String?, dueAt: Date?) async throws -> Reminder {
+        struct Body: Encodable {
+            let task: String?
+            let due_at: String?
+        }
+        let body = Body(
+            task: task,
+            due_at: dueAt.map { ISO8601DateFormatter.limor.string(from: $0) }
+        )
+        var req = URLRequest(url: resolveURL("/api/reminders/\(id)"))
+        req.httpMethod = "PATCH"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let bearer = await freshIdToken() {
+            req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = try encoder.encode(body)
+        let env: ReminderEnvelope = try await send(req)
+        return env.reminder
+    }
+
     // MARK: - Shopping list
 
     /// Fetch the user's full shopping state (active group + archived

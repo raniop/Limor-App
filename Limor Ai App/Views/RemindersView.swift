@@ -7,6 +7,10 @@ struct RemindersView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showingNew = false
+    /// When non-nil, the edit sheet is open for this reminder — same
+    /// `NewReminderSheet` UI, just pre-filled with the current task +
+    /// due time so the user can tweak either.
+    @State private var editingReminder: Reminder?
 
     private let lightImpact = UIImpactFeedbackGenerator(style: .light)
     private let successHaptic = UINotificationFeedbackGenerator()
@@ -35,7 +39,8 @@ struct RemindersView: View {
                                     section: section,
                                     onComplete: { r in await complete(r) },
                                     onDelete: { r in await remove(r) },
-                                    onSnooze: { r, m in await snooze(r, minutes: m) }
+                                    onSnooze: { r, m in await snooze(r, minutes: m) },
+                                    onEdit: { r in editingReminder = r }
                                 )
                             }
 
@@ -50,6 +55,7 @@ struct RemindersView: View {
                                     onComplete: { _ in },
                                     onDelete: { r in await remove(r) },
                                     onSnooze: { _, _ in },
+                                    onEdit: { _ in },
                                     showActions: false
                                 )
                             }
@@ -87,8 +93,14 @@ struct RemindersView: View {
             .refreshable { await reload() }
             .task { await reload() }
             .sheet(isPresented: $showingNew) {
-                NewReminderSheet { task, dueAt in
+                NewReminderSheet(initial: nil) { task, dueAt in
                     await create(task: task, dueAt: dueAt)
+                }
+                .presentationDetents([.medium, .large])
+            }
+            .sheet(item: $editingReminder) { r in
+                NewReminderSheet(initial: r) { task, dueAt in
+                    await update(r, task: task, dueAt: dueAt)
                 }
                 .presentationDetents([.medium, .large])
             }
@@ -261,6 +273,42 @@ struct RemindersView: View {
         }
     }
 
+    /// Optimistic edit: patch the local copy + ship the change to
+    /// backend in the background. Rolls back on failure (full reload).
+    /// Only the fields the user actually changed get sent — keeps the
+    /// payload tiny and avoids accidentally clobbering server-side
+    /// fields we didn't touch.
+    private func update(_ original: Reminder, task: String, dueAt: Date) async {
+        lightImpact.impactOccurred()
+        let trimmedTask = task.trimmingCharacters(in: .whitespacesAndNewlines)
+        let taskChanged = trimmedTask != original.task && !trimmedTask.isEmpty
+        let dueChanged = abs(dueAt.timeIntervalSince(original.dueDate)) > 30
+        guard taskChanged || dueChanged else { return }
+
+        applyLocalUpdate(id: original.id) { current in
+            Reminder(
+                id: current.id,
+                task: taskChanged ? trimmedTask : current.task,
+                due_at: dueChanged ? ISO8601DateFormatter.limor.string(from: dueAt) : current.due_at,
+                status: current.status,
+                created_at: current.created_at,
+                completed_at: current.completed_at,
+                msUntilDue: dueChanged ? dueAt.timeIntervalSinceNow * 1000 : current.msUntilDue,
+                isOverdue: dueChanged ? dueAt < Date() : current.isOverdue
+            )
+        }
+        do {
+            _ = try await APIClient.shared.updateReminder(
+                id: original.id,
+                task: taskChanged ? trimmedTask : nil,
+                dueAt: dueChanged ? dueAt : nil
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+            await reload()
+        }
+    }
+
     private func remove(_ r: Reminder) async {
         lightImpact.impactOccurred()
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
@@ -341,6 +389,7 @@ private struct ReminderSection: View {
     let onComplete: (Reminder) async -> Void
     let onDelete: (Reminder) async -> Void
     let onSnooze: (Reminder, Int) async -> Void
+    let onEdit: (Reminder) -> Void
     var showActions: Bool = true
 
     var body: some View {
@@ -366,7 +415,8 @@ private struct ReminderSection: View {
                         showActions: showActions,
                         onComplete: { await onComplete(r) },
                         onSnooze: { m in await onSnooze(r, m) },
-                        onDelete: { await onDelete(r) }
+                        onDelete: { await onDelete(r) },
+                        onEdit: { onEdit(r) }
                     )
                 }
             }
@@ -382,6 +432,7 @@ private struct ReminderCard: View {
     let onComplete: () async -> Void
     let onSnooze: (Int) async -> Void
     let onDelete: () async -> Void
+    let onEdit: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -435,6 +486,9 @@ private struct ReminderCard: View {
         }
         .contextMenu {
             if showActions {
+                Button { onEdit() } label: {
+                    Label("ערוך", systemImage: "pencil")
+                }
                 Button {
                     Task { await onComplete() }
                 } label: { Label("סמן כבוצע", systemImage: "checkmark") }
@@ -449,17 +503,34 @@ private struct ReminderCard: View {
                 Task { await onDelete() }
             } label: { Label("מחק", systemImage: "trash") }
         }
+        // Single tap opens the edit sheet — bare scrolls still scroll
+        // because the swipe action and context menu both intercept
+        // long-press; this leaves room for the tap intent.
+        .onTapGesture {
+            if showActions { onEdit() }
+        }
     }
 }
 
 // MARK: - New Reminder Sheet
 
 private struct NewReminderSheet: View {
+    /// When non-nil the sheet runs in EDIT mode — pre-fills the task
+    /// and due time from the existing reminder and changes the title +
+    /// save-button copy. Same form, two callers.
+    let initial: Reminder?
     let onSubmit: (String, Date) async -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var task = ""
-    @State private var dueAt: Date = Date().addingTimeInterval(3600)
+    @State private var task: String
+    @State private var dueAt: Date
     @State private var isSubmitting = false
+
+    init(initial: Reminder?, onSubmit: @escaping (String, Date) async -> Void) {
+        self.initial = initial
+        self.onSubmit = onSubmit
+        _task = State(initialValue: initial?.task ?? "")
+        _dueAt = State(initialValue: initial?.dueDate ?? Date().addingTimeInterval(3600))
+    }
 
     var body: some View {
         NavigationStack {
@@ -498,7 +569,10 @@ private struct NewReminderSheet: View {
                                 }
                             }
 
-                            DatePicker("", selection: $dueAt, in: Date()..., displayedComponents: [.date, .hourAndMinute])
+                            // Allow past times when editing — useful for
+                            // fixing a misparsed "quarter to 4" that
+                            // landed in the future as "quarter to 5".
+                            DatePicker("", selection: $dueAt, displayedComponents: [.date, .hourAndMinute])
                                 .datePickerStyle(.graphical)
                                 .environment(\.locale, Locale(identifier: "he_IL"))
                                 .padding(8)
@@ -517,8 +591,8 @@ private struct NewReminderSheet: View {
                             }
                         } label: {
                             HStack {
-                                Image(systemName: "bell.badge.fill")
-                                Text("שמור תזכורת")
+                                Image(systemName: initial == nil ? "bell.badge.fill" : "checkmark.circle.fill")
+                                Text(initial == nil ? "שמור תזכורת" : "עדכן תזכורת")
                             }
                         }
                         .buttonStyle(.limorPrimary)
@@ -528,7 +602,7 @@ private struct NewReminderSheet: View {
                     .padding(20)
                 }
             }
-            .navigationTitle("תזכורת חדשה")
+            .navigationTitle(initial == nil ? "תזכורת חדשה" : "עריכת תזכורת")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
