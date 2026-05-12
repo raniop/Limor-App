@@ -911,24 +911,31 @@ private struct FlightCard: View {
                     Spacer()
                 }
 
-                HStack(spacing: 12) {
+                // Two-row layout — cramming date + airline + flight number
+                // on one line was truncating the departure time ("09:30 →
+                // 09,...") on smaller widths. Date+time stays prominent on
+                // its own row, airline + #number ride below.
+                VStack(alignment: .leading, spacing: 6) {
                     if let date = flight.departureDate {
                         Label(formatDate(date), systemImage: "calendar")
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
                     }
-                    if let airline = flight.airline {
-                        Label(airline, systemImage: "building.2")
-                    }
-                    if let fno = flight.flight_number {
-                        Text("#\(fno)").font(.caption.weight(.semibold).monospacedDigit())
-                            .padding(.horizontal, 8).padding(.vertical, 3)
-                            .background(Capsule().fill(.white.opacity(0.18)))
+                    HStack(spacing: 10) {
+                        if let airline = flight.airline {
+                            Label(airline, systemImage: "building.2")
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
+                        if let fno = flight.flight_number {
+                            Text("#\(fno)").font(.caption.weight(.semibold).monospacedDigit())
+                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .background(Capsule().fill(.white.opacity(0.18)))
+                        }
                     }
                 }
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.9))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .minimumScaleFactor(0.85)
 
                 if let ref = flight.booking_reference {
                     HStack(spacing: 6) {
