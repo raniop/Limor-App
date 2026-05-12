@@ -224,23 +224,29 @@ enum ShoppingDetector {
         return chatMarkers.contains { lower.contains($0) }
     }
 
-    /// Stopwords for SINGLE-word inputs only — multi-word items like
-    /// "תירס שימורים" don't get checked against this list (each part can
-    /// be anything; the whole-string allowance is what matters).
-    private static let singleWordStopwords: Set<String> = [
+    /// Conversational words that should NEVER appear inside a shopping
+    /// item. If we see any of these anywhere in the input we treat it as
+    /// a chat reply, not a grocery line — covers cases like "כן היום"
+    /// (answering Limor's "when?") that would otherwise slip past the
+    /// single-word stopword check.
+    private static let stopwords: Set<String> = [
+        // Hebrew chat replies / function words
         "כן", "לא", "אוקיי", "אוקי", "תודה", "תודות", "סליחה", "היי", "שלום", "ביי",
         "וואלה", "וואו", "אוף", "אהה", "אה", "מה", "מי", "טוב", "רע", "בסדר", "מעולה",
         "נהדר", "סבבה",
+        "היום", "מחר", "אתמול", "עכשיו", "אחר", "כך", "בבוקר", "בערב", "בלילה",
+        // English chat replies / function words
         "yes", "no", "ok", "okay", "thanks", "thank", "hi", "hello", "hey",
         "bye", "wow", "what", "who", "sure", "yep", "yeah", "nope",
         "fine", "good", "bad", "great",
+        "today", "tomorrow", "yesterday", "now", "later",
     ]
 
     private static func looksLikeItem(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2, trimmed.count <= 40 else { return false }
 
-        let words = trimmed.split(whereSeparator: { $0.isWhitespace })
+        let words = trimmed.split(whereSeparator: { $0.isWhitespace }).map(String.init)
         guard !words.isEmpty, words.count <= 4 else { return false }
 
         // Each character must be a letter, digit, space, or one of the
@@ -251,8 +257,10 @@ enum ShoppingDetector {
         }
         guard trimmed.allSatisfy(allowed) else { return false }
 
-        if words.count == 1, singleWordStopwords.contains(trimmed.lowercased()) {
-            return false
+        // ANY stopword anywhere disqualifies — multi-word inputs like
+        // "כן היום" / "yes today" / "wait מחר" aren't shopping lists.
+        for word in words {
+            if stopwords.contains(word.lowercased()) { return false }
         }
         return true
     }

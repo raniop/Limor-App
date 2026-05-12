@@ -186,6 +186,17 @@ struct ChatView: View {
                 await loadHistory()
                 await consumePendingMessageIfAny()
             }
+            // Refresh the chat when another device's iCloud write lands —
+            // covers the case where the simulator did a shopping-list
+            // interception (purely-local bubbles) and we want the iPhone's
+            // chat tab to show those bubbles too.
+            .onReceive(NotificationCenter.default.publisher(
+                for: NSUbiquitousKeyValueStore.didChangeExternallyNotification
+            )) { _ in
+                SharedStore.mirrorChatOverlayFromICloud()
+                let overlay = SharedStore.chatLocalOverlay
+                self.messages = mergeWithOverlay(server: SharedStore.chatHistoryCache, overlay: overlay)
+            }
             .onChange(of: router.pendingChatMessage) { _, newValue in
                 // The user tapped a CTA on another tab — fire it off as a
                 // chat message as soon as it lands.

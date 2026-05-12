@@ -361,6 +361,9 @@ enum SharedStore {
     /// doesn't know about these — without persisting them locally they'd
     /// disappear every time the user switches tabs and ChatView reloads
     /// from the server. Capped at 50 most-recent items to stay tiny.
+    /// Mirrored to iCloud KVS so the simulator's "🛒 הוספתי..." bubbles
+    /// show up on the iPhone too — without that, the user sees the
+    /// interception only on the device that triggered it.
     static var chatLocalOverlay: [ChatMessage] {
         get {
             guard let data = defaults.data(forKey: Keys.chatLocalOverlay) else { return [] }
@@ -370,7 +373,21 @@ enum SharedStore {
             let capped = Array(newValue.suffix(50))
             if let data = try? JSONEncoder().encode(capped) {
                 defaults.set(data, forKey: Keys.chatLocalOverlay)
+                iCloud?.set(data, forKey: Keys.chatLocalOverlay)
             }
+        }
+    }
+
+    /// Mirror the chat overlay from iCloud → local. Called on launch and
+    /// scenePhase=.active so shopping-list interception bubbles from
+    /// other devices land in the chat tab.
+    static func mirrorChatOverlayFromICloud() {
+        guard let cloud = iCloud else { return }
+        cloud.synchronize()
+        if let data = cloud.data(forKey: Keys.chatLocalOverlay) {
+            defaults.set(data, forKey: Keys.chatLocalOverlay)
+        } else if let local = defaults.data(forKey: Keys.chatLocalOverlay) {
+            cloud.set(local, forKey: Keys.chatLocalOverlay)
         }
     }
 
@@ -403,6 +420,7 @@ enum SharedStore {
         mirrorShoppingFromICloud()
         mirrorRemindersFromICloud()
         mirrorMeetingsNotifFromICloud()
+        mirrorChatOverlayFromICloud()
     }
 
     /// Pull the latest shopping data from iCloud into local UserDefaults.
