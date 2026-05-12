@@ -74,6 +74,7 @@
 		C426955A7E56C6F1357366F6 /* HealthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DB07E2C95CA5E81B2B0467E /* HealthManager.swift */; };
 		C90DAB36E14115250F0E4905 /* MeetingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F6F221E867B5452659406E0 /* MeetingsCard.swift */; };
 		C971164640BA0BAA2980F04D /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E3E42644D5D54B11F655BCA /* AppRouter.swift */; };
+		CD0A960866D7AD10CFE44048 /* WatchMeetingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85D9ADA7BDCC93B3968E27B2 /* WatchMeetingsView.swift */; };
 		D10EB884647A3890000FDDB3 /* FeedNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C14813798F555401055250B /* FeedNode.swift */; };
 		D244D7234A83BF2EDBCFF914 /* bell.caf in Resources */ = {isa = PBXBuildFile; fileRef = 058B29D5197CF2387FD39915 /* bell.caf */; };
 		D3EBD1DC243A3A675E42DFBE /* RemindersWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B54FB305BDEB96228F61AB55 /* RemindersWriter.swift */; };
@@ -187,6 +188,7 @@
 		81E476CAA1353471D85E0F79 /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
 		83328D4B558B22C5BCBD06EB /* LimorWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LimorWidget.entitlements; sourceTree = "<group>"; };
 		833DCEA3F6B5E318E0DF0E61 /* LimorLogoMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorLogoMark.swift; sourceTree = "<group>"; };
+		85D9ADA7BDCC93B3968E27B2 /* WatchMeetingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchMeetingsView.swift; sourceTree = "<group>"; };
 		8C88EC958269D59320A5A646 /* LimorReminderAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorReminderAttributes.swift; sourceTree = "<group>"; };
 		9391AB93715C0B98325D375B /* ShoppingListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingListView.swift; sourceTree = "<group>"; };
 		9A5D1D5B83E2A988DCED1752 /* RelationshipsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RelationshipsView.swift; sourceTree = "<group>"; };
@@ -395,6 +397,7 @@
 				4CD3E0A0A70017FC8B0459C7 /* Assets.xcassets */,
 				C0ABE1E35925201FBC74B654 /* WatchPTTView.swift */,
 				DA991E0A38C31369BE6F0193 /* WatchAudioRecorder.swift */,
+				85D9ADA7BDCC93B3968E27B2 /* WatchMeetingsView.swift */,
 			);
 			name = "Limor Ai App Watch";
 			path = "Limor Ai App Watch";
@@ -587,6 +590,7 @@
 				56D0F5FE7CE277C24BF9FD65 /* WatchSyncManager.swift in Sources */,
 				AEE00835135110547AAE7307 /* WatchPTTView.swift in Sources */,
 				B8C6D01592C48AA39DD282C6 /* WatchAudioRecorder.swift in Sources */,
+				CD0A960866D7AD10CFE44048 /* WatchMeetingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

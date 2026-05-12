@@ -22,6 +22,8 @@ enum SharedStore {
         static let lat = "limor.lastLat"
         static let lng = "limor.lastLng"
         static let lastNow = "limor.lastNowJSON"
+        static let cachedReminders = "limor.cachedRemindersJSON"
+        static let cachedMeetings = "limor.cachedMeetingsJSON"
         static let photoB64 = "limor.photoB64"
         /// Legacy single-value keys — read once during migration to the new
         /// multi-source sets, then ignored. Kept around so we can recover the
@@ -101,6 +103,48 @@ enum SharedStore {
     /// the bytes over WCSession without decoding-then-re-encoding.
     static func lastNowJSONData() -> Data? {
         defaults.data(forKey: Keys.lastNow)
+    }
+
+    // MARK: - Reminders mirror (for watch)
+
+    static func cacheReminders(_ list: [Reminder]) {
+        if let data = try? JSONEncoder().encode(list) {
+            defaults.set(data, forKey: Keys.cachedReminders)
+        }
+    }
+
+    static func loadReminders() -> [Reminder] {
+        guard let data = defaults.data(forKey: Keys.cachedReminders) else { return [] }
+        return (try? JSONDecoder().decode([Reminder].self, from: data)) ?? []
+    }
+
+    static func cachedRemindersData() -> Data? {
+        defaults.data(forKey: Keys.cachedReminders)
+    }
+
+    static func setCachedRemindersData(_ data: Data) {
+        defaults.set(data, forKey: Keys.cachedReminders)
+    }
+
+    // MARK: - Meetings mirror (for watch)
+
+    static func cacheMeetings(_ events: [CalendarEventDTO]) {
+        if let data = try? JSONEncoder().encode(events) {
+            defaults.set(data, forKey: Keys.cachedMeetings)
+        }
+    }
+
+    static func loadMeetings() -> [CalendarEventDTO] {
+        guard let data = defaults.data(forKey: Keys.cachedMeetings) else { return [] }
+        return (try? JSONDecoder().decode([CalendarEventDTO].self, from: data)) ?? []
+    }
+
+    static func cachedMeetingsData() -> Data? {
+        defaults.data(forKey: Keys.cachedMeetings)
+    }
+
+    static func setCachedMeetingsData(_ data: Data) {
+        defaults.set(data, forKey: Keys.cachedMeetings)
     }
 
     /// Cached profile photo, base64 JPEG. Used by widget + tab bar avatar.

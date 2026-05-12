@@ -681,11 +681,21 @@ struct NowView: View {
             feed = fb
             if let data = try? JSONEncoder().encode(s) {
                 SharedStore.cacheLastNow(data)
-                // Mirror the just-cached snapshot to the watch so it
-                // gets the new "next reminder" / "weather" without
-                // waiting for the iCloud KVS propagation window.
-                WatchSyncManager.shared.pushSnapshot()
             }
+            // Cache the full reminders list + upcoming meetings so
+            // the watch's "תזכורות" and "פגישות" tabs aren't limited
+            // to the single `next_reminder` packed inside NowResponse.
+            // EventKit is iOS-only so the watch can't fetch meetings
+            // itself; we stash the rendered DTOs in SharedStore and
+            // ride them over WCSession.
+            SharedStore.cacheReminders(l)
+            let upcomingEvents = CalendarManager.shared
+                .fetchUpcomingEvents(daysAhead: 14)
+                .prefix(30)
+                .map { $0 }
+            SharedStore.cacheMeetings(Array(upcomingEvents))
+            // Mirror everything to the watch in a single context push.
+            WatchSyncManager.shared.pushSnapshot()
             await ActivityController.sync(with: s.next_reminder)
             withAnimation(.spring) { errorMessage = nil }
         } catch {

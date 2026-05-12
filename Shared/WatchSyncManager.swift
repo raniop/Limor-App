@@ -104,6 +104,14 @@ final class WatchSyncManager: NSObject, ObservableObject {
             SharedStore.shoppingActiveGroup = group
             didChange = true
         }
+        if let remindersData = payload["reminders"] as? Data {
+            SharedStore.setCachedRemindersData(remindersData)
+            didChange = true
+        }
+        if let meetingsData = payload["meetings"] as? Data {
+            SharedStore.setCachedMeetingsData(meetingsData)
+            didChange = true
+        }
         if didChange {
             NotificationCenter.default.post(name: .watchSyncDidUpdate, object: nil)
         }
@@ -113,6 +121,11 @@ final class WatchSyncManager: NSObject, ObservableObject {
     /// between `updateApplicationContext` (iPhone push) and the
     /// `didReceiveMessage` reply (response to watch's request) so the
     /// two channels stay perfectly aligned.
+    ///
+    /// Includes the full reminders list and the next ~30 upcoming
+    /// calendar events — the watch can't pull those itself (no
+    /// EventKit, no Firebase ID-token-bearing API client), so the
+    /// iPhone has to serve them through this channel.
     func buildSnapshotPayload() -> [String: Any] {
         var payload: [String: Any] = [:]
         if let nowData = SharedStore.lastNowJSONData() {
@@ -120,6 +133,12 @@ final class WatchSyncManager: NSObject, ObservableObject {
         }
         if let shoppingData = try? JSONEncoder().encode(SharedStore.shoppingActiveGroup) {
             payload["shoppingActive"] = shoppingData
+        }
+        if let remindersData = SharedStore.cachedRemindersData() {
+            payload["reminders"] = remindersData
+        }
+        if let meetingsData = SharedStore.cachedMeetingsData() {
+            payload["meetings"] = meetingsData
         }
         return payload
     }

@@ -1,28 +1,37 @@
 import SwiftUI
 
-/// All pending reminders, sorted by due time. Read-only on watch —
-/// completing one happens on the iPhone (the iCloud-only flow we use
-/// for shopping doesn't extend to reminders, which live on the
-/// backend and need a network call to mark complete).
+/// All pending reminders, sorted by due time. Reads from the cached
+/// list the iPhone mirrors via WCSession (`SharedStore.loadReminders`)
+/// so the watch can show more than just the single `next_reminder`
+/// that lives inside `NowResponse`. The list is read-only on watch
+/// for now — completing one still requires opening the iPhone, since
+/// the call needs a Firebase ID token and a backend round-trip.
 struct WatchRemindersListView: View {
     @Environment(\.scenePhase) private var scenePhase
-    @State private var snapshot: NowResponse? = SharedStore.loadLastNow()
+    @State private var reminders: [Reminder] = SharedStore.loadReminders()
 
     var body: some View {
         List {
-            if let next = snapshot?.next_reminder {
+            if pending.isEmpty {
+                emptyRow
+            } else {
                 Section {
-                    row(for: next)
+                    ForEach(pending) { r in
+                        row(for: r)
+                    }
                 } header: {
-                    Text("הקרוב")
+                    Text("פעילות (\(pending.count))")
                 }
             }
-            // The cached `NowResponse` only carries the next reminder.
-            // For now that's all we can show without a network call;
-            // when the user taps "open in app" we hand off to the
-            // iPhone via the standard watchOS Continue activity.
-            if snapshot?.next_reminder == nil {
-                emptyRow
+            if !completed.isEmpty {
+                Section {
+                    ForEach(completed.prefix(5)) { r in
+                        row(for: r)
+                            .opacity(0.6)
+                    }
+                } header: {
+                    Text("הושלמו")
+                }
             }
         }
         .navigationTitle("תזכורות")
@@ -36,15 +45,25 @@ struct WatchRemindersListView: View {
                 WatchSyncManager.shared.requestSnapshotFromPhone()
             }
         }
-        // Phone pushed a new snapshot — re-read the cached
-        // `NowResponse` so the watch hero updates instantly.
         .onReceive(NotificationCenter.default.publisher(
             for: .watchSyncDidUpdate
         )) { _ in refresh() }
     }
 
+    private var pending: [Reminder] {
+        reminders
+            .filter { $0.status == .pending }
+            .sorted { $0.dueDate < $1.dueDate }
+    }
+
+    private var completed: [Reminder] {
+        reminders
+            .filter { $0.status == .completed }
+            .sorted { ($0.completed_at ?? "") > ($1.completed_at ?? "") }
+    }
+
     private func refresh() {
-        snapshot = SharedStore.loadLastNow()
+        reminders = SharedStore.loadReminders()
     }
 
     private func row(for r: Reminder) -> some View {
@@ -52,10 +71,12 @@ struct WatchRemindersListView: View {
             Text(r.task)
                 .font(.body.weight(.medium))
                 .lineLimit(2)
+                .strikethrough(r.status == .completed)
             HStack(spacing: 4) {
-                Image(systemName: "clock")
+                Image(systemName: r.isOverdue ? "exclamationmark.triangle.fill" : "clock")
                 Text(r.dueDate, style: .time)
                     .monospacedDigit()
+                Text("·")
                 Text(r.dueDate, style: .relative)
                     .monospacedDigit()
             }

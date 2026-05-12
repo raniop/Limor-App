@@ -8,7 +8,6 @@ struct WatchRootView: View {
     var body: some View {
         TabView {
             // PTT first — that's the headline feature on the wrist.
-            // Press-and-hold the mic to dictate, release to send.
             WatchPTTView()
                 .tabItem { Text("שאל") }
             WatchNextReminderView()
@@ -17,6 +16,8 @@ struct WatchRootView: View {
                 .tabItem { Text("קניות") }
             WatchRemindersListView()
                 .tabItem { Text("תזכורות") }
+            WatchMeetingsView()
+                .tabItem { Text("פגישות") }
         }
         .tabViewStyle(.verticalPage)
     }
