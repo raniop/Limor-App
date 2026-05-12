@@ -1,3 +1,5 @@
+import GoogleSignIn
+import MSAL
 import SwiftUI
 
 @main
@@ -14,6 +16,19 @@ struct LimorAiApp: App {
                 .environmentObject(push)
                 .environmentObject(router)
                 .environment(\.layoutDirection, .rightToLeft)
+                .onOpenURL { url in
+                    // SwiftUI delivers scene-routed URLs here. The
+                    // UIApplicationDelegate `open url` callback isn't always
+                    // fired in scene-based apps, so the Microsoft
+                    // Authenticator broker handoff (which returns via
+                    // `msauth.<bundle>://`) was getting dropped. Route the
+                    // URL to both auth SDKs — whichever owns it consumes it,
+                    // the other no-ops.
+                    print("[url] onOpenURL fired: \(url)")
+                    if GIDSignIn.sharedInstance.handle(url) { return }
+                    let handled = MSALPublicClientApplication.handleMSALResponse(url, sourceApplication: nil)
+                    print("[url] MSAL handled response: \(handled)")
+                }
         }
     }
 }

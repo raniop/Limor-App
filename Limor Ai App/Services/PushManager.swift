@@ -89,11 +89,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
 
     /// Google Sign-In and MSAL both complete by opening a custom URL back into
     /// the app — this hook hands it off to whichever library claims it.
+    /// `LimorAiApp.body` also calls `MSALPublicClientApplication.handleMSALResponse`
+    /// from `.onOpenURL`; whichever fires first owns the URL and the other no-ops.
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        let sourceApp = options[.sourceApplication] as? String
+        print("[url] AppDelegate open url: \(url) source=\(sourceApp ?? "nil")")
         if GIDSignIn.sharedInstance.handle(url) {
             return true
         }
-        let sourceApp = options[.sourceApplication] as? String
         return MSALPublicClientApplication.handleMSALResponse(url, sourceApplication: sourceApp)
     }
 
