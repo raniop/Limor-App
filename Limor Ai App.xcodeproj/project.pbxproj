@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		042FC0511AE6CABA8A117A16 /* LimorIntroChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 269CDD3F0374EC093CFB2851 /* LimorIntroChatView.swift */; };
+		0966AC82C419D5C86EA5EB9A /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6D5726DADBB4830BFA6BA44F /* Foundation.framework */; };
 		0E44575EE0AF6D1D69E0D633 /* ContactPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CF766704AC4044C593F2D83 /* ContactPicker.swift */; };
 		0EDB95E57BF4900C05283F56 /* LimorReminderAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C88EC958269D59320A5A646 /* LimorReminderAttributes.swift */; };
 		153303E47D056412B3F13BE5 /* LimorWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD64DB77635DA9DB274B60E /* LimorWidgetBundle.swift */; };
@@ -27,6 +28,7 @@
 		537E6F9E1F921C524BEA6A49 /* GoogleAPIs.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28D6A515676755BA91AC4E7 /* GoogleAPIs.swift */; };
 		55A92CE99B3BCC0A31993DB9 /* BiometricGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C274EB46CC2E7A135C0E5E43 /* BiometricGate.swift */; };
 		5B7FE264E3A3839E73EE54A0 /* HomeCardKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30076B044722A8FFD18B9866 /* HomeCardKind.swift */; };
+		5BA2E4A16810167CA796C20F /* WatchNextReminderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 295A2C2FB2E3062850D01672 /* WatchNextReminderView.swift */; };
 		5CE1D1B0847542B764130F9D /* chime.caf in Resources */ = {isa = PBXBuildFile; fileRef = BD0ABA3DAF29A5B701496DB2 /* chime.caf */; };
 		5DF8CC6265DEC9BD1908F24C /* RecurringRemindersScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B02489380CF6CE39CD2B071 /* RecurringRemindersScheduler.swift */; };
 		63456B75052BC663841DCD03 /* digital.caf in Resources */ = {isa = PBXBuildFile; fileRef = BA9F1428DBC55A03AB08EC14 /* digital.caf */; };
@@ -47,7 +49,9 @@
 		80B9DFE8EBA69C8081268633 /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B202F02E4586363CB10439EC /* SharedStore.swift */; };
 		80D0D4111FB1C5FAB7F113A9 /* HealthDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D91250B8286E7E09A1FFCA /* HealthDetailView.swift */; };
 		823B6C53BB8E1F79DC82F866 /* NotificationPrefsOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9231AB15CD0F7563F824388 /* NotificationPrefsOnboardingView.swift */; };
+		884A908B1B8FB382D2123F7C /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B202F02E4586363CB10439EC /* SharedStore.swift */; };
 		8886A3241F88880F504F73CF /* classic.caf in Resources */ = {isa = PBXBuildFile; fileRef = 151D8C3C8FD37BA26B30B465 /* classic.caf */; };
+		8D8D717A8EEF19CB86BAF033 /* WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17089D68725F2C53CC18BF39 /* WatchRootView.swift */; };
 		970535E828F3B85A5262B709 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 6E18B4CE5B475EDA16EE3B27 /* FirebaseAuth */; };
 		994B236101BE0D6BECE36F83 /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 6B7A88E4DA45A88462BA0EDC /* MSAL */; };
 		9A1DB10483B0DD2F42738908 /* WidgetAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDA34640B05602CA3307600E /* WidgetAPI.swift */; };
@@ -56,7 +60,10 @@
 		A74A4CFE9735A6282E7A6FE7 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0920F870874E0CF9DB671EA4 /* RootView.swift */; };
 		A8F273771B99CC4C0A008867 /* ProfileFactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 260CD9022ECCA8236F6CC88E /* ProfileFactsView.swift */; };
 		AEE7EFB5AEC926AFCE0E8402 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BC4F6E9C9C972C8BD4AE955 /* APIClient.swift */; };
+		B5C758653B22AE323D9CA90E /* LimorWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040907D22505852D85491C79 /* LimorWatchApp.swift */; };
+		B99A4E6659BC68042EF52B0D /* WatchRemindersListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60FBC4456DCB66433B5232E6 /* WatchRemindersListView.swift */; };
 		BA3F0CEDFE573CDFF414311E /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0126DBEFE9D0FD9C09A0F184 /* GoogleService-Info.plist */; };
+		BBB4601318DCD972FBFC11EB /* WatchShoppingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E0C6ECB8251522681972999 /* WatchShoppingView.swift */; };
 		C186FB50EC1DD6B541F9F7C3 /* VoiceInputSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A23BC6C1BD773FDD3C2D6C3 /* VoiceInputSheet.swift */; };
 		C355EB2FF013CA1DDA4D4436 /* NowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040FFCD9DC418611AA006C63 /* NowView.swift */; };
 		C426955A7E56C6F1357366F6 /* HealthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DB07E2C95CA5E81B2B0467E /* HealthManager.swift */; };
@@ -71,6 +78,7 @@
 		E7DEFBA29167CE5B97D89A16 /* SyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B58A40BF66B16677563B90 /* SyncManager.swift */; };
 		EA6C1B260BC00F2763775067 /* ReminderLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BDC1EAA445B4E2AA5340AF /* ReminderLiveActivity.swift */; };
 		EBDD4CEE77B4BE59DDD50A90 /* LimorLogoMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833DCEA3F6B5E318E0DF0E61 /* LimorLogoMark.swift */; };
+		EC45D76119FF1B86393A2F2E /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC2371869E57B0A6FA86FE0 /* Models.swift */; };
 		EFB113609F0ADAFDF7480ED6 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 0EC30F115E0DFB641D7EBC79 /* GoogleSignIn */; };
 		F2CAD522D29299A5CA245FC6 /* ShoppingListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9391AB93715C0B98325D375B /* ShoppingListView.swift */; };
 		F33CBE9E0BBAE4720E850843 /* CalendarManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FEA6C80C01305F2D1B2D993 /* CalendarManager.swift */; };
@@ -107,18 +115,22 @@
 /* Begin PBXFileReference section */
 		0126DBEFE9D0FD9C09A0F184 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		032BFD663A4822AE6207BA95 /* WeatherDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherDetailView.swift; sourceTree = "<group>"; };
+		040907D22505852D85491C79 /* LimorWatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LimorWatchApp.swift; sourceTree = "<group>"; };
 		040FFCD9DC418611AA006C63 /* NowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowView.swift; sourceTree = "<group>"; };
 		058B29D5197CF2387FD39915 /* bell.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = bell.caf; sourceTree = "<group>"; };
 		0920F870874E0CF9DB671EA4 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		0A23BC6C1BD773FDD3C2D6C3 /* VoiceInputSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputSheet.swift; sourceTree = "<group>"; };
+		100EC212676B9B6AA064B60C /* LimorWatch.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = LimorWatch.entitlements; sourceTree = "<group>"; };
 		10F5700C27913E7F3435CEC5 /* NowWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowWidget.swift; sourceTree = "<group>"; };
 		151D8C3C8FD37BA26B30B465 /* classic.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = classic.caf; sourceTree = "<group>"; };
+		17089D68725F2C53CC18BF39 /* WatchRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchRootView.swift; sourceTree = "<group>"; };
 		183836D13AC3A9864529799A /* Limor Ai App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Limor Ai App.entitlements"; sourceTree = "<group>"; };
 		1AB17F49E0B92D41CBEB78F2 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		1BC4F6E9C9C972C8BD4AE955 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		2229A6ADD1D8CA1B496C395C /* MeetingsNotifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MeetingsNotifier.swift; sourceTree = "<group>"; };
 		260CD9022ECCA8236F6CC88E /* ProfileFactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileFactsView.swift; sourceTree = "<group>"; };
 		269CDD3F0374EC093CFB2851 /* LimorIntroChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorIntroChatView.swift; sourceTree = "<group>"; };
+		295A2C2FB2E3062850D01672 /* WatchNextReminderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchNextReminderView.swift; sourceTree = "<group>"; };
 		2B02489380CF6CE39CD2B071 /* RecurringRemindersScheduler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecurringRemindersScheduler.swift; sourceTree = "<group>"; };
 		2B72EA9E69C14DC9A8337CB9 /* VoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceService.swift; sourceTree = "<group>"; };
 		2C14813798F555401055250B /* FeedNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedNode.swift; sourceTree = "<group>"; };
@@ -139,8 +151,11 @@
 		53E604525A9C2720B95A39A4 /* morning.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = morning.caf; sourceTree = "<group>"; };
 		5F6F221E867B5452659406E0 /* MeetingsCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MeetingsCard.swift; sourceTree = "<group>"; };
 		605673C35D91137A0F7E9887 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		60FBC4456DCB66433B5232E6 /* WatchRemindersListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchRemindersListView.swift; sourceTree = "<group>"; };
 		66F33C0D55910CD2EF115BD8 /* MicrosoftAPIs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MicrosoftAPIs.swift; sourceTree = "<group>"; };
 		6B43AF9EC5437EE160A94D6D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		6D5726DADBB4830BFA6BA44F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS11.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		6E0C6ECB8251522681972999 /* WatchShoppingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchShoppingView.swift; sourceTree = "<group>"; };
 		70396FD611F130F479EC2B84 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		797212B58CC04F38D7A27921 /* RecurringRemindersView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecurringRemindersView.swift; sourceTree = "<group>"; };
 		81E476CAA1353471D85E0F79 /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
@@ -160,8 +175,10 @@
 		BD0ABA3DAF29A5B701496DB2 /* chime.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = chime.caf; sourceTree = "<group>"; };
 		C274EB46CC2E7A135C0E5E43 /* BiometricGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricGate.swift; sourceTree = "<group>"; };
 		C5C3335200C302E0C98B8F26 /* LimorAiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorAiApp.swift; sourceTree = "<group>"; };
+		CD2308FCAB6A8F06F68E1DEF /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D158BA54A5B1C18A5ED2CD2F /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		DD03C0C2E3CB7D86833DFAC9 /* ActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityController.swift; sourceTree = "<group>"; };
+		DE3796EDF9B6675BBE13322F /* Limor Ai App Watch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Limor Ai App Watch.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E07C0CEB4AD38CED9FBE3231 /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
 		E37DE61A7E69CFA5FD06DAB8 /* ContactsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsManager.swift; sourceTree = "<group>"; };
 		E5BDC1EAA445B4E2AA5340AF /* ReminderLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderLiveActivity.swift; sourceTree = "<group>"; };
@@ -175,6 +192,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		D70EB33D30D1ECEDC2C1F648 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0966AC82C419D5C86EA5EB9A /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E5FA14122505F2D1F66B0F76 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -237,6 +262,8 @@
 				D808FE960BFBE94A1293EE6E /* Limor Ai App Widget */,
 				3E19560350D634D5B9A17CBB /* Shared */,
 				6DF2F6DCBD8C56B850362F34 /* Products */,
+				8D5C587E16C62A87FC4FCFC1 /* Frameworks */,
+				E02E544D5B45BB1407EC072A /* Limor Ai App Watch */,
 			);
 			sourceTree = "<group>";
 		};
@@ -301,8 +328,17 @@
 			children = (
 				ADD7F1B823C26AD027A926D4 /* Limor Ai App Widget.appex */,
 				44CB3C3B381DA79889FA5A25 /* Limor Ai App.app */,
+				DE3796EDF9B6675BBE13322F /* Limor Ai App Watch.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		8D5C587E16C62A87FC4FCFC1 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				FDAA5FC68C768E2227455C97 /* watchOS */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		D808FE960BFBE94A1293EE6E /* Limor Ai App Widget */ = {
@@ -317,6 +353,21 @@
 			path = "Limor Ai App Widget";
 			sourceTree = "<group>";
 		};
+		E02E544D5B45BB1407EC072A /* Limor Ai App Watch */ = {
+			isa = PBXGroup;
+			children = (
+				CD2308FCAB6A8F06F68E1DEF /* Info.plist */,
+				100EC212676B9B6AA064B60C /* LimorWatch.entitlements */,
+				040907D22505852D85491C79 /* LimorWatchApp.swift */,
+				295A2C2FB2E3062850D01672 /* WatchNextReminderView.swift */,
+				60FBC4456DCB66433B5232E6 /* WatchRemindersListView.swift */,
+				17089D68725F2C53CC18BF39 /* WatchRootView.swift */,
+				6E0C6ECB8251522681972999 /* WatchShoppingView.swift */,
+			);
+			name = "Limor Ai App Watch";
+			path = "Limor Ai App Watch";
+			sourceTree = "<group>";
+		};
 		E990BA0CF84A9569C992E77C /* Theme */ = {
 			isa = PBXGroup;
 			children = (
@@ -325,6 +376,14 @@
 				F7F986D36044D42DACEFBBF9 /* Theme.swift */,
 			);
 			path = Theme;
+			sourceTree = "<group>";
+		};
+		FDAA5FC68C768E2227455C97 /* watchOS */ = {
+			isa = PBXGroup;
+			children = (
+				6D5726DADBB4830BFA6BA44F /* Foundation.framework */,
+			);
+			name = watchOS;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -344,6 +403,23 @@
 			productName = "Limor Ai App Widget";
 			productReference = ADD7F1B823C26AD027A926D4 /* Limor Ai App Widget.appex */;
 			productType = "com.apple.product-type.app-extension";
+		};
+		5740B85AFD9A4E1736FC39EE /* Limor Ai App Watch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EB0CC957A3A38B608B2226C4 /* Build configuration list for PBXNativeTarget "Limor Ai App Watch" */;
+			buildPhases = (
+				5B8672174D61400A20C9257F /* Sources */,
+				D70EB33D30D1ECEDC2C1F648 /* Frameworks */,
+				BED420D33325C4962FED2ACE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Limor Ai App Watch";
+			productName = "Limor Ai App Watch";
+			productReference = DE3796EDF9B6675BBE13322F /* Limor Ai App Watch.app */;
+			productType = "com.apple.product-type.application";
 		};
 		D587977B98F41FBB29EE3EBC /* Limor Ai App */ = {
 			isa = PBXNativeTarget;
@@ -410,6 +486,7 @@
 			targets = (
 				D587977B98F41FBB29EE3EBC /* Limor Ai App */,
 				2A5514722D091C42702FCD61 /* Limor Ai App Widget */,
+				5740B85AFD9A4E1736FC39EE /* Limor Ai App Watch */,
 			);
 		};
 /* End PBXProject section */
@@ -427,6 +504,13 @@
 				63456B75052BC663841DCD03 /* digital.caf in Resources */,
 				8886A3241F88880F504F73CF /* classic.caf in Resources */,
 				6DC10B5199467D742514BDC2 /* morning.caf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BED420D33325C4962FED2ACE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -449,11 +533,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Stamp the current git SHA onto the bundled Info.plist so the\n# in-app version footer shows the actual commit instead of \"dev\".\n# Reads `git rev-parse` from SRCROOT (worktree-aware) and falls\n# back to \"dev\" if git isn't available.\nset -eu\nGIT_SHA=$(git -C \"${SRCROOT}\" rev-parse --short HEAD 2>/dev/null || echo \"dev\")\nPLIST=\"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}\"\nif [ -f \"$PLIST\" ]; then\n  /usr/libexec/PlistBuddy -c \"Add :LIMOR_GIT_SHA string $GIT_SHA\" \"$PLIST\" 2>/dev/null \\\n    || /usr/libexec/PlistBuddy -c \"Set :LIMOR_GIT_SHA $GIT_SHA\" \"$PLIST\"\n  echo \"[inject-git-sha] LIMOR_GIT_SHA=$GIT_SHA → $PLIST\"\nfi\n";
+			shellScript = "# Stamp the current git SHA onto the bundled Info.plist so the\n# in-app version footer shows the actual commit instead of \"dev\".\n# Reads `git rev-parse` from SRCROOT (worktree-aware) and falls\n# back to \"dev\" if git isn't available. Errors are non-fatal —\n# version footer is a debugging aid, not something worth blocking\n# the whole build for. `|| true` keeps `set -e` from killing us\n# when both Add and Set fail (e.g. plist isn't writable in this\n# build phase ordering).\nGIT_SHA=$(git -C \"${SRCROOT}\" rev-parse --short HEAD 2>/dev/null || echo \"dev\")\nPLIST=\"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}\"\nif [ -f \"$PLIST\" ]; then\n  (/usr/libexec/PlistBuddy -c \"Add :LIMOR_GIT_SHA string $GIT_SHA\" \"$PLIST\" 2>/dev/null \\\n    || /usr/libexec/PlistBuddy -c \"Set :LIMOR_GIT_SHA $GIT_SHA\" \"$PLIST\" 2>/dev/null) || true\n  echo \"[inject-git-sha] LIMOR_GIT_SHA=$GIT_SHA → $PLIST\"\nfi\nexit 0\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		5B8672174D61400A20C9257F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B5C758653B22AE323D9CA90E /* LimorWatchApp.swift in Sources */,
+				5BA2E4A16810167CA796C20F /* WatchNextReminderView.swift in Sources */,
+				B99A4E6659BC68042EF52B0D /* WatchRemindersListView.swift in Sources */,
+				8D8D717A8EEF19CB86BAF033 /* WatchRootView.swift in Sources */,
+				BBB4601318DCD972FBFC11EB /* WatchShoppingView.swift in Sources */,
+				EC45D76119FF1B86393A2F2E /* Models.swift in Sources */,
+				884A908B1B8FB382D2123F7C /* SharedStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		630B89083B64C66F9C596C9F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -536,6 +634,32 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		0663B03AAFADF644BF28304D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Limor Ai App Watch/LimorWatch.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 11;
+				DEVELOPMENT_TEAM = TFG2H9C76N;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Limor Ai App Watch/Info.plist";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.rani.Limor-Ai-App.watchkitapp";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Debug;
+		};
 		1F65D61E80D57A7C4803AC1C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -638,6 +762,33 @@
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		9CC61D3F2C938E4C3A8F7AED /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Limor Ai App Watch/LimorWatch.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 11;
+				DEVELOPMENT_TEAM = TFG2H9C76N;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Limor Ai App Watch/Info.plist";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.rani.Limor-Ai-App.watchkitapp";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
 			};
 			name = Release;
 		};
@@ -782,6 +933,15 @@
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
+		};
+		EB0CC957A3A38B608B2226C4 /* Build configuration list for PBXNativeTarget "Limor Ai App Watch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9CC61D3F2C938E4C3A8F7AED /* Release */,
+				0663B03AAFADF644BF28304D /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 

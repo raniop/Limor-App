@@ -24,15 +24,19 @@ SHELL_SCRIPT = <<~SHELL
   # Stamp the current git SHA onto the bundled Info.plist so the
   # in-app version footer shows the actual commit instead of "dev".
   # Reads `git rev-parse` from SRCROOT (worktree-aware) and falls
-  # back to "dev" if git isn't available.
-  set -eu
+  # back to "dev" if git isn't available. Errors are non-fatal —
+  # version footer is a debugging aid, not something worth blocking
+  # the whole build for. `|| true` keeps `set -e` from killing us
+  # when both Add and Set fail (e.g. plist isn't writable in this
+  # build phase ordering).
   GIT_SHA=$(git -C "${SRCROOT}" rev-parse --short HEAD 2>/dev/null || echo "dev")
   PLIST="${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}"
   if [ -f "$PLIST" ]; then
-    /usr/libexec/PlistBuddy -c "Add :LIMOR_GIT_SHA string $GIT_SHA" "$PLIST" 2>/dev/null \\
-      || /usr/libexec/PlistBuddy -c "Set :LIMOR_GIT_SHA $GIT_SHA" "$PLIST"
+    (/usr/libexec/PlistBuddy -c "Add :LIMOR_GIT_SHA string $GIT_SHA" "$PLIST" 2>/dev/null \\
+      || /usr/libexec/PlistBuddy -c "Set :LIMOR_GIT_SHA $GIT_SHA" "$PLIST" 2>/dev/null) || true
     echo "[inject-git-sha] LIMOR_GIT_SHA=$GIT_SHA → $PLIST"
   fi
+  exit 0
 SHELL
 
 project = Xcodeproj::Project.open(PROJECT_PATH)
