@@ -18,15 +18,17 @@ final class ShoppingListStore: ObservableObject {
     /// sites that just want "what's in the cart right now" read this.
     var items: [ShoppingItem] { activeGroup.items }
 
+    private var poller: Timer?
+
     private init() {
-        // Render whatever we have locally first — instant. Backend fetch
-        // and iCloud mirror both fire in the background and overwrite if
-        // they bring back newer data.
+        // iCloud is the source of truth for cross-device sync. Backend
+        // PUT still happens so Limor's AI tools can read the list, but
+        // we never READ FROM the backend — that overwrite path was
+        // wiping items the user added on the other device.
         SharedStore.mirrorShoppingFromICloud()
         self.activeGroup = SharedStore.shoppingActiveGroup
         self.archive = SharedStore.shoppingArchive
 
-        // iCloud KVS — cross-device propagation for the same Apple ID.
         NotificationCenter.default.addObserver(
             forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
             object: NSUbiquitousKeyValueStore.default,
@@ -35,54 +37,52 @@ final class ShoppingListStore: ObservableObject {
             guard let self else { return }
             let keys = (note.userInfo?[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String]) ?? []
             print("[icloud] external change keys=\(keys)")
-            SharedStore.mirrorShoppingFromICloud()
-            self.activeGroup = SharedStore.shoppingActiveGroup
-            self.archive = SharedStore.shoppingArchive
-            print("[shopping] applied iCloud change — active=\(self.activeGroup.items.count) archive=\(self.archive.count)")
+            self.applyICloud()
         }
 
-        // Backend fetch — Limor's source of truth + cross-account access.
-        Task { await self.refreshFromBackend() }
+        // iCloud KVS doesn't always fire the external-change notification
+        // promptly while the app is in the foreground — simulator → real
+        // device pairs are particularly flaky. Poll every 15s while the
+        // store is alive (it's a singleton — never deallocs), calling
+        // synchronize() to nudge iCloud and re-read if anything changed.
+        // Cheap: the SDK skips the network when there's nothing new.
+        Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.pollICloudIfChanged() }
+        }
     }
 
-    /// Pull-down refresh — runs iCloud mirror AND backend fetch. Backend
-    /// is preferred (Limor can read it), but iCloud serves as a fallback
-    /// and as a cross-device hint while the network round-trip lands.
+    /// Pull-down refresh — runs iCloud mirror + re-applies. Called from
+    /// LimorAiApp.scenePhase=.active so iCloud propagation gets one more
+    /// chance the moment the user comes back to the app.
     func refreshFromICloud() {
-        SharedStore.mirrorShoppingFromICloud()
-        activeGroup = SharedStore.shoppingActiveGroup
-        archive = SharedStore.shoppingArchive
-        Task { await refreshFromBackend() }
+        applyICloud()
     }
 
-    /// Fetch the user's full shopping state from the Limor backend.
-    /// Failures are silent — local + iCloud already painted something
-    /// useful, and the next sync will retry.
-    ///
-    /// First-launch migration: if the server returns an empty state but
-    /// the device already has items (from local cache / iCloud), push
-    /// the local state UP to the server instead of overwriting with
-    /// empty. That's the case where the user built up a list before the
-    /// backend was wired in.
-    func refreshFromBackend() async {
-        do {
-            let state = try await APIClient.shared.getShoppingState()
-            let backendEmpty = state.active.items.isEmpty && state.archive.isEmpty
-            let localHasContent = !activeGroup.items.isEmpty || !archive.isEmpty
-            if backendEmpty && localHasContent {
-                let snapshot = ShoppingStateDTO(active: activeGroup, archive: archive)
-                try? await APIClient.shared.putShoppingState(snapshot)
-                print("[shopping] backend was empty — pushed local state up (\(activeGroup.items.count) active, \(archive.count) archive)")
-                return
-            }
-            activeGroup = state.active
-            archive = state.archive
-            // Mirror down to local cache so the next cold launch has it.
-            SharedStore.shoppingActiveGroup = state.active
-            SharedStore.shoppingArchive = state.archive
-        } catch {
-            print("[shopping] backend refresh failed: \(error.localizedDescription)")
+    /// Re-read iCloud and update @Published state if it differs from
+    /// what we already have. Avoids needless UI churn when nothing
+    /// changed.
+    private func applyICloud() {
+        SharedStore.mirrorShoppingFromICloud()
+        let newActive = SharedStore.shoppingActiveGroup
+        let newArchive = SharedStore.shoppingArchive
+        if newActive != activeGroup || newArchive != archive {
+            activeGroup = newActive
+            archive = newArchive
+            print("[shopping] applied iCloud change — active=\(activeGroup.items.count) archive=\(archive.count)")
         }
+    }
+
+    private func pollICloudIfChanged() {
+        NSUbiquitousKeyValueStore.default.synchronize()
+        applyICloud()
+    }
+
+    /// Old backend-fetch entry point — kept so the silent-push handler
+    /// (when APNs is fixed) and any external callers continue to compile.
+    /// Now a thin wrapper around iCloud refresh so we never overwrite
+    /// local state with a stale backend snapshot.
+    func refreshFromBackend() async {
+        applyICloud()
     }
 
     /// Returns true if the item was added (false on duplicate of an open item).
