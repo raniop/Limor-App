@@ -39,6 +39,7 @@
 		70B279B52E1532273A83E19C /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = D158BA54A5B1C18A5ED2CD2F /* LaunchScreen.storyboard */; };
 		77E462D336AFE40C4D6C1774 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = DD2D905D34B76D74AB8F0FC1 /* GoogleSignInSwift */; };
 		78CA4F3E8BA7783F93573729 /* ActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD03C0C2E3CB7D86833DFAC9 /* ActivityController.swift */; };
+		7CC2F244ED72316EE65CC6E4 /* LimorAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 322926CD1BEDCBCACDA79830 /* LimorAppIntents.swift */; };
 		7CCA754A19F639E5935FB3F2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6B43AF9EC5437EE160A94D6D /* Assets.xcassets */; };
 		7EEA832AC477FD3BDD1B4B64 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F350B8D6038DF33D6298ABF7 /* SettingsView.swift */; };
 		7F5AA7209F01C34C3BEB90A3 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E07C0CEB4AD38CED9FBE3231 /* AuthManager.swift */; };
@@ -124,6 +125,7 @@
 		2D0A4CCE0C974DB2375D9873 /* CRMConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CRMConnectView.swift; sourceTree = "<group>"; };
 		2FEA6C80C01305F2D1B2D993 /* CalendarManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarManager.swift; sourceTree = "<group>"; };
 		30076B044722A8FFD18B9866 /* HomeCardKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeCardKind.swift; sourceTree = "<group>"; };
+		322926CD1BEDCBCACDA79830 /* LimorAppIntents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LimorAppIntents.swift; sourceTree = "<group>"; };
 		3720B9F23F3177BDEAE1F4B7 /* NotificationsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsSettingsView.swift; sourceTree = "<group>"; };
 		3A828CE65F6E915FA08837DA /* CustomizeHomeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizeHomeSheet.swift; sourceTree = "<group>"; };
 		3C1DD35067CE05EE90665BFF /* FeedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCard.swift; sourceTree = "<group>"; };
@@ -258,6 +260,7 @@
 				66F33C0D55910CD2EF115BD8 /* MicrosoftAPIs.swift */,
 				2229A6ADD1D8CA1B496C395C /* MeetingsNotifier.swift */,
 				2B02489380CF6CE39CD2B071 /* RecurringRemindersScheduler.swift */,
+				322926CD1BEDCBCACDA79830 /* LimorAppIntents.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -504,6 +507,7 @@
 				E214B831BCD60C65642FECF8 /* MeetingsNotifier.swift in Sources */,
 				5DF8CC6265DEC9BD1908F24C /* RecurringRemindersScheduler.swift in Sources */,
 				34DFDA76FE33363AE21BC1B6 /* RecurringRemindersView.swift in Sources */,
+				7CC2F244ED72316EE65CC6E4 /* LimorAppIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
