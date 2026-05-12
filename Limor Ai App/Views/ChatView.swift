@@ -12,6 +12,11 @@ struct ChatView: View {
     @State private var usage: ChatUsage?
     @State private var isSending = false
     @State private var errorMessage: String?
+    /// First scroll-to-bottom on view appear is instant (no animation) so
+    /// the chat opens already pinned to the latest message instead of
+    /// playing a visible scroll animation from top to bottom every time
+    /// the user enters the tab.
+    @State private var initialScrollDone = false
 
     // Voice-message gesture state.
     //
@@ -129,7 +134,12 @@ struct ChatView: View {
                             }
                         }
                         .scrollDismissesKeyboard(.interactively)
-                        .onChange(of: messages.count) { _, _ in scrollToBottom(proxy) }
+                        .onChange(of: messages.count) { _, _ in
+                            // First scroll (from empty → primed cache) is
+                            // instant; subsequent message arrivals animate.
+                            scrollToBottom(proxy, animated: initialScrollDone)
+                            initialScrollDone = true
+                        }
 
                         composer(scrollProxy: proxy)
                     }
@@ -162,6 +172,11 @@ struct ChatView: View {
             }
             .task {
                 location.requestWhenInUseAndStart()
+                // Show cached history + overlay instantly so the tab feels
+                // ready on the first frame — even before the server fetch
+                // lands. `loadHistory()` runs after and silently replaces
+                // these with the fresh server view.
+                primeFromCache()
                 await loadHistory()
                 await consumePendingMessageIfAny()
             }
@@ -503,9 +518,16 @@ struct ChatView: View {
         }
     }
 
-    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+    private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            withAnimation(.easeOut(duration: 0.25)) {
+            if animated {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
+            } else {
+                // No withAnimation — jump straight to the bottom on the
+                // first paint so the user doesn't see the chat scroll up
+                // from the top every time the tab opens.
                 proxy.scrollTo("bottom", anchor: .bottom)
             }
         }
@@ -597,6 +619,23 @@ struct ChatView: View {
 
     // MARK: - Networking
 
+    /// Synchronously paint cached server history + the local overlay so
+    /// the chat tab has content on the very first frame after the user
+    /// taps it — even before the network round-trip in `loadHistory()`
+    /// completes. Safe to call repeatedly: it only writes if our @State
+    /// is still empty (so we don't clobber a freshly-loaded list).
+    private func primeFromCache() {
+        guard messages.isEmpty else { return }
+        let cached = SharedStore.chatHistoryCache
+        let overlay = SharedStore.chatLocalOverlay
+        if !cached.isEmpty || !overlay.isEmpty {
+            self.messages = mergeWithOverlay(server: cached, overlay: overlay)
+        }
+        if usage == nil {
+            self.usage = SharedStore.chatUsageCache
+        }
+    }
+
     private func loadHistory() async {
         // Local overlay (shopping-list interception bubbles, etc.) is always
         // shown — even if the server fetch fails — so the user's quick
@@ -606,8 +645,16 @@ struct ChatView: View {
             let h = try await APIClient.shared.chatHistory(token: auth.token ?? "")
             self.messages = mergeWithOverlay(server: h.messages, overlay: overlay)
             self.usage = h.usage
+            // Persist for the next cold launch — next time we'll have
+            // something to paint synchronously and the user won't see
+            // the empty-then-fill jump.
+            SharedStore.chatHistoryCache = h.messages
+            SharedStore.chatUsageCache = h.usage
         } catch {
-            self.messages = overlay
+            if messages.isEmpty {
+                self.messages = SharedStore.chatHistoryCache.isEmpty ? overlay
+                    : mergeWithOverlay(server: SharedStore.chatHistoryCache, overlay: overlay)
+            }
             errorMessage = error.localizedDescription
         }
     }

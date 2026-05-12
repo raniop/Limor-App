@@ -232,7 +232,7 @@ struct ChatAttachment: Encodable {
     let filename: String?
 }
 
-struct ChatUsage: Decodable, Hashable {
+struct ChatUsage: Codable, Hashable {
     let messages_today: Int
     let tokens_in_today: Int
     let tokens_out_today: Int

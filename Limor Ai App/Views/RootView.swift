@@ -83,16 +83,31 @@ struct RootView: View {
     /// so NowView reads from cache on first appear, with no loading skeleton.
     /// Bounded by a 4s timeout — better to flash a near-empty home screen than
     /// keep the user staring at the splash on a slow connection.
+    /// Also warms the chat history cache in the background so the Chat tab
+    /// opens instantly without the visible "empty → fill → scroll-down jump".
     private func preloadHomeContent() async {
         let coords = SharedStore.lastCoordinate
+        let token = auth.token ?? ""
         await withTaskGroup(of: Void.self) { group in
             group.addTask {
                 if let snap = try? await APIClient.shared.now(
-                    token: auth.token ?? "",
+                    token: token,
                     lat: coords?.lat,
                     lng: coords?.lng
                 ), let data = try? JSONEncoder().encode(snap) {
                     SharedStore.cacheLastNow(data)
+                }
+            }
+            // Fire-and-forget chat history warm-up — independent of the
+            // 4s now() timeout, can finish later. ChatView's .task will
+            // still re-fetch on tab entry, but if this lands first the
+            // cache is already fresh.
+            group.addTask {
+                if let history = try? await APIClient.shared.chatHistory(token: token) {
+                    await MainActor.run {
+                        SharedStore.chatHistoryCache = history.messages
+                        SharedStore.chatUsageCache = history.usage
+                    }
                 }
             }
             group.addTask {

@@ -46,6 +46,8 @@ enum SharedStore {
         static let chatLocalOverlay = "limor.chatLocalOverlay"
         static let customTabKind = "limor.customTabKind"
         static let recurringReminders = "limor.recurringReminders"
+        static let chatHistoryCache = "limor.chatHistoryCache"
+        static let chatUsageCache = "limor.chatUsageCache"
     }
 
     static var bearer: String? {
@@ -223,6 +225,40 @@ enum SharedStore {
         set {
             if let data = try? JSONEncoder().encode(newValue) {
                 defaults.set(data, forKey: Keys.recurringReminders)
+            }
+        }
+    }
+
+    /// Last fetched server chat history. Written after every successful
+    /// `APIClient.chatHistory(token:)` so the next cold launch can render
+    /// ChatView instantly — even before the new server fetch completes.
+    /// Capped at the last 200 messages so the on-disk JSON stays small.
+    static var chatHistoryCache: [ChatMessage] {
+        get {
+            guard let data = defaults.data(forKey: Keys.chatHistoryCache) else { return [] }
+            return (try? JSONDecoder().decode([ChatMessage].self, from: data)) ?? []
+        }
+        set {
+            let capped = Array(newValue.suffix(200))
+            if let data = try? JSONEncoder().encode(capped) {
+                defaults.set(data, forKey: Keys.chatHistoryCache)
+            }
+        }
+    }
+
+    /// Last seen usage envelope from the chat history endpoint — cached so
+    /// the usage badge in the toolbar can render immediately on cold launch
+    /// rather than blinking in once the network fetch lands.
+    static var chatUsageCache: ChatUsage? {
+        get {
+            guard let data = defaults.data(forKey: Keys.chatUsageCache) else { return nil }
+            return try? JSONDecoder().decode(ChatUsage.self, from: data)
+        }
+        set {
+            if let value = newValue, let data = try? JSONEncoder().encode(value) {
+                defaults.set(data, forKey: Keys.chatUsageCache)
+            } else {
+                defaults.removeObject(forKey: Keys.chatUsageCache)
             }
         }
     }
