@@ -197,12 +197,34 @@ enum ShoppingDetector {
         // Split on newlines, commas, semicolons, and Hebrew-style bullets
         // (•, *). The user might type "חלב, לחם, ביצים" inline, or each
         // item on its own line.
+        let delimiterSet = CharacterSet.newlines.union(.init(charactersIn: ",;•*"))
+        let hasDelimiters = trimmed.unicodeScalars.contains { delimiterSet.contains($0) }
         let pieces = trimmed
-            .components(separatedBy: CharacterSet.newlines.union(.init(charactersIn: ",;•*")))
+            .components(separatedBy: delimiterSet)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
         guard !pieces.isEmpty else { return [] }
+
+        // Voice-dictation case: one long piece with no delimiters and 3+
+        // words. Hebrew speech-to-text rarely inserts commas between
+        // dictated grocery items, so "ביצים חלב גבינה" arrives as a
+        // single space-separated string. Without this fallback the
+        // detector either rejects the whole thing (>4 words) or treats
+        // it as one weird 5-word item — neither of which adds anything
+        // useful to the list. Trade-off: compound items like "שוקולד
+        // השחר" get split into two, which the user can manually merge.
+        if !hasDelimiters && pieces.count == 1 {
+            let words = pieces[0].split(whereSeparator: { $0.isWhitespace }).map(String.init)
+            if words.count >= 3 {
+                var atoms: [String] = []
+                for word in words {
+                    guard wordLooksLikeGroceryAtom(word) else { return [] }
+                    atoms.append(word)
+                }
+                return atoms
+            }
+        }
 
         var items: [String] = []
         for piece in pieces {
@@ -210,6 +232,22 @@ enum ShoppingDetector {
             items.append(piece)
         }
         return items
+    }
+
+    /// Stricter per-word check used when we're treating each space-
+    /// separated word as its own grocery (voice-dictation fallback).
+    /// Single chat words ("כן", "טוב", "what") must NEVER survive this
+    /// path — otherwise a stray "כן" mid-conversation would land on the
+    /// shopping list.
+    private static func wordLooksLikeGroceryAtom(_ word: String) -> Bool {
+        let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2, trimmed.count <= 20 else { return false }
+        let allowed: (Character) -> Bool = { c in
+            c.isLetter || c.isNumber || c == "-" || c == "'" || c == "%"
+        }
+        guard trimmed.allSatisfy(allowed) else { return false }
+        if stopwords.contains(trimmed.lowercased()) { return false }
+        return true
     }
 
     /// Words that strongly imply the user is talking TO Limor rather than
