@@ -20,6 +20,11 @@ struct SettingsView: View {
     @State private var crmStatus: CrmStatus?
     @State private var crmPushPending = false
 
+    /// Selected custom tab kind, mirrored from SharedStore via @AppStorage
+    /// so toggling here reactively redraws both this view AND MainTabs.
+    @AppStorage("limor.customTabKind", store: UserDefaults(suiteName: "group.com.rani.Limor-Ai-App"))
+    private var customTabRaw: String = ""
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -470,9 +475,9 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func customTabRow(value: CustomTabKind?, label: String, icon: String) -> some View {
-        let selected = (SharedStore.customTabKind ?? "") == (value?.rawValue ?? "")
+        let selected = customTabRaw == (value?.rawValue ?? "")
         Button {
-            SharedStore.customTabKind = value?.rawValue
+            customTabRaw = value?.rawValue ?? ""
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: selected ? "largecircle.fill.circle" : "circle")
