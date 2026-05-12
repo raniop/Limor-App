@@ -82,6 +82,7 @@
 		EA6C1B260BC00F2763775067 /* ReminderLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BDC1EAA445B4E2AA5340AF /* ReminderLiveActivity.swift */; };
 		EBDD4CEE77B4BE59DDD50A90 /* LimorLogoMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833DCEA3F6B5E318E0DF0E61 /* LimorLogoMark.swift */; };
 		EC45D76119FF1B86393A2F2E /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC2371869E57B0A6FA86FE0 /* Models.swift */; };
+		ED7E4747753CB6D3179A6C7B /* Limor Ai App Watch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = DE3796EDF9B6675BBE13322F /* Limor Ai App Watch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		EFB113609F0ADAFDF7480ED6 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 0EC30F115E0DFB641D7EBC79 /* GoogleSignIn */; };
 		F2CAD522D29299A5CA245FC6 /* ShoppingListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9391AB93715C0B98325D375B /* ShoppingListView.swift */; };
 		F33CBE9E0BBAE4720E850843 /* CalendarManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FEA6C80C01305F2D1B2D993 /* CalendarManager.swift */; };
@@ -92,6 +93,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		1639F31FE7AC676CF24FF6F0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 296FB07DB041A797FDF75A71 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5740B85AFD9A4E1736FC39EE;
+			remoteInfo = "Limor Ai App Watch";
+		};
 		7B3CB57563FE34C600CF4876 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 296FB07DB041A797FDF75A71 /* Project object */;
@@ -111,6 +119,17 @@
 				A35725A80CD0720ED8E721E7 /* Limor Ai App Widget.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BD0A360649E2A58E7191FC47 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				ED7E4747753CB6D3179A6C7B /* Limor Ai App Watch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -437,11 +456,13 @@
 				E5FA14122505F2D1F66B0F76 /* Frameworks */,
 				724F9366A34CAE43054FB7FB /* Embed Foundation Extensions */,
 				EF378A632077F5EC80D209E4 /* Inject Git SHA */,
+				BD0A360649E2A58E7191FC47 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				50FF598A663BED2B4798C686 /* PBXTargetDependency */,
+				3242271AA7E795A185B914F7 /* PBXTargetDependency */,
 			);
 			name = "Limor Ai App";
 			packageProductDependencies = (
@@ -636,6 +657,12 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		3242271AA7E795A185B914F7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = "Limor Ai App Watch";
+			target = 5740B85AFD9A4E1736FC39EE /* Limor Ai App Watch */;
+			targetProxy = 1639F31FE7AC676CF24FF6F0 /* PBXContainerItemProxy */;
+		};
 		50FF598A663BED2B4798C686 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 2A5514722D091C42702FCD61 /* Limor Ai App Widget */;

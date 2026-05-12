@@ -109,6 +109,15 @@ unless already_embedded
   puts "[add-watch] embedded watch product into iOS target"
 end
 
+# Explicit target dependency — without this, Xcode happily runs the
+# embed copy-phase before the watch app has been built, blowing up
+# with "no such file: Limor Ai App Watch.app". `add_file_reference`
+# alone doesn't add the dependency on every Xcode version.
+unless ios_target.dependencies.any? { |d| d.target == watch_target }
+  ios_target.add_dependency(watch_target)
+  puts "[add-watch] added target dependency: '#{IOS_TARGET_NAME}' → '#{WATCH_TARGET}'"
+end
+
 # --- Build settings on the watch target ------------------------------------
 
 watch_target.build_configurations.each do |config|
