@@ -123,6 +123,103 @@ final class WatchSyncManager: NSObject, ObservableObject {
         }
         return payload
     }
+
+    #if os(iOS)
+    /// iPhone-side handler for the watch's PTT button. Forwards the
+    /// dictated text into the standard chat backend pipeline,
+    /// applies any `shopping_actions` the LLM emits, and returns
+    /// Limor's reply text inline to the watch.
+    func relayLimorMessage(_ text: String, replyHandler: @escaping ([String: Any]) -> Void) async {
+        do {
+            let reply = try await APIClient.shared.sendChat(
+                token: "",
+                message: text,
+                lat: nil,
+                lng: nil,
+                attachment: nil
+            )
+            if let actions = reply.shopping_actions {
+                for name in actions.adds {
+                    _ = ShoppingListStore.shared.add(name)
+                }
+                for name in actions.completes {
+                    _ = ShoppingListStore.shared.completeByName(name)
+                }
+            }
+            replyHandler(["reply": reply.reply])
+            // Re-push the latest state to the watch so the shopping
+            // list reflects whatever the LLM just added.
+            pushSnapshot()
+        } catch {
+            replyHandler(["error": error.localizedDescription])
+        }
+    }
+    #endif
+
+    #if os(watchOS)
+    /// Watch → iPhone PTT bridge. Ships the transcribed user message
+    /// over `sendMessage`, the iPhone forwards it to Limor's chat
+    /// backend, and the reply comes back inline via the reply
+    /// handler. Completion fires on the main actor.
+    func askLimor(_ message: String, completion: @escaping (Result<String, Error>) -> Void) {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            completion(.failure(WatchSyncError.emptyMessage))
+            return
+        }
+        guard let session = activeSession else {
+            completion(.failure(WatchSyncError.notSupported))
+            return
+        }
+        guard session.activationState == .activated else {
+            completion(.failure(WatchSyncError.notActivated))
+            return
+        }
+        guard session.isReachable else {
+            completion(.failure(WatchSyncError.phoneUnreachable))
+            return
+        }
+        session.sendMessage(
+            ["limorMessage": trimmed],
+            replyHandler: { reply in
+                Task { @MainActor in
+                    if let text = reply["reply"] as? String {
+                        completion(.success(text))
+                    } else if let err = reply["error"] as? String {
+                        completion(.failure(WatchSyncError.phone(message: err)))
+                    } else {
+                        completion(.failure(WatchSyncError.malformedReply))
+                    }
+                }
+            },
+            errorHandler: { error in
+                Task { @MainActor in
+                    completion(.failure(error))
+                }
+            }
+        )
+    }
+    #endif
+}
+
+enum WatchSyncError: LocalizedError {
+    case emptyMessage
+    case notSupported
+    case notActivated
+    case phoneUnreachable
+    case phone(message: String)
+    case malformedReply
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyMessage:      return "אין מה לשלוח"
+        case .notSupported:      return "WCSession לא נתמך"
+        case .notActivated:      return "החיבור לאייפון עוד לא מוכן"
+        case .phoneUnreachable:  return "האייפון לא בטווח"
+        case .phone(let m):      return m
+        case .malformedReply:    return "התשובה מהאייפון לא תקינה"
+        }
+    }
 }
 
 extension WatchSyncManager: WCSessionDelegate {
@@ -155,8 +252,9 @@ extension WatchSyncManager: WCSessionDelegate {
     }
 
     /// Watch sends `{requestSnapshot: true}` on appear — reply with the
-    /// current SharedStore mirror. Handled inline so we don't have to
-    /// hop back through `updateApplicationContext` for the first paint.
+    /// current SharedStore mirror. The PTT button on the watch sends
+    /// `{limorMessage: text}` — iPhone hands it to Limor's chat
+    /// backend and returns the reply in the reply handler.
     nonisolated func session(
         _ session: WCSession,
         didReceiveMessage message: [String: Any],
@@ -168,9 +266,17 @@ extension WatchSyncManager: WCSessionDelegate {
                 print("[wc] replying to requestSnapshot with keys=\(payload.keys.sorted())")
                 replyHandler(payload)
             }
-        } else {
-            replyHandler([:])
+            return
         }
+        #if os(iOS)
+        if let text = message["limorMessage"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Task { @MainActor in
+                await WatchSyncManager.shared.relayLimorMessage(text, replyHandler: replyHandler)
+            }
+            return
+        }
+        #endif
+        replyHandler([:])
     }
 
     /// Reachability flipped — iPhone learns the watch app just woke up,

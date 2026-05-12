@@ -62,6 +62,7 @@
 		A35725A80CD0720ED8E721E7 /* Limor Ai App Widget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ADD7F1B823C26AD027A926D4 /* Limor Ai App Widget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A74A4CFE9735A6282E7A6FE7 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0920F870874E0CF9DB671EA4 /* RootView.swift */; };
 		A8F273771B99CC4C0A008867 /* ProfileFactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 260CD9022ECCA8236F6CC88E /* ProfileFactsView.swift */; };
+		AEE00835135110547AAE7307 /* WatchPTTView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ABE1E35925201FBC74B654 /* WatchPTTView.swift */; };
 		AEE7EFB5AEC926AFCE0E8402 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BC4F6E9C9C972C8BD4AE955 /* APIClient.swift */; };
 		B5C758653B22AE323D9CA90E /* LimorWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040907D22505852D85491C79 /* LimorWatchApp.swift */; };
 		B99A4E6659BC68042EF52B0D /* WatchRemindersListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60FBC4456DCB66433B5232E6 /* WatchRemindersListView.swift */; };
@@ -197,6 +198,7 @@
 		B54FB305BDEB96228F61AB55 /* RemindersWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersWriter.swift; sourceTree = "<group>"; };
 		BA9F1428DBC55A03AB08EC14 /* digital.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = digital.caf; sourceTree = "<group>"; };
 		BD0ABA3DAF29A5B701496DB2 /* chime.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = chime.caf; sourceTree = "<group>"; };
+		C0ABE1E35925201FBC74B654 /* WatchPTTView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchPTTView.swift; sourceTree = "<group>"; };
 		C274EB46CC2E7A135C0E5E43 /* BiometricGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricGate.swift; sourceTree = "<group>"; };
 		C5C3335200C302E0C98B8F26 /* LimorAiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorAiApp.swift; sourceTree = "<group>"; };
 		CD2308FCAB6A8F06F68E1DEF /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -389,6 +391,7 @@
 				17089D68725F2C53CC18BF39 /* WatchRootView.swift */,
 				6E0C6ECB8251522681972999 /* WatchShoppingView.swift */,
 				4CD3E0A0A70017FC8B0459C7 /* Assets.xcassets */,
+				C0ABE1E35925201FBC74B654 /* WatchPTTView.swift */,
 			);
 			name = "Limor Ai App Watch";
 			path = "Limor Ai App Watch";
@@ -579,6 +582,7 @@
 				EC45D76119FF1B86393A2F2E /* Models.swift in Sources */,
 				884A908B1B8FB382D2123F7C /* SharedStore.swift in Sources */,
 				56D0F5FE7CE277C24BF9FD65 /* WatchSyncManager.swift in Sources */,
+				AEE00835135110547AAE7307 /* WatchPTTView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

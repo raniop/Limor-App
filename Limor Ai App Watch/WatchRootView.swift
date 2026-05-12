@@ -7,6 +7,10 @@ import SwiftUI
 struct WatchRootView: View {
     var body: some View {
         TabView {
+            // PTT first — that's the headline feature on the wrist.
+            // Press-and-hold the mic to dictate, release to send.
+            WatchPTTView()
+                .tabItem { Text("שאל") }
             WatchNextReminderView()
                 .tabItem { Text("עכשיו") }
             WatchShoppingView()

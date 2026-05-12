@@ -20,6 +20,10 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>לימור משתמשת במיקרופון כדי לקלוט את מה שאת אומרת ולשלוח אליה.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>לימור משתמשת בזיהוי דיבור כדי להמיר את הקול שלך לטקסט שהיא יכולה להבין.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<false/>
 	<key>UISupportedInterfaceOrientations</key>
