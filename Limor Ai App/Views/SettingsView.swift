@@ -6,6 +6,7 @@ import UserNotifications
 
 struct SettingsView: View {
     @EnvironmentObject private var auth: AuthManager
+    @Environment(\.scenePhase) private var scenePhase
     @State private var nameDraft: String = ""
     @State private var photoItem: PhotosPickerItem?
     @State private var savingPhoto = false
@@ -71,6 +72,14 @@ struct SettingsView: View {
                 guard let newItem else { return }
                 Task { await loadAndSavePhoto(item: newItem) }
             }
+            .onChange(of: scenePhase) { _, newPhase in
+                // After the user returns from Authenticator / Google sign-in,
+                // re-check granted scopes so the permission rows reflect the
+                // new state without needing the user to leave Settings.
+                if newPhase == .active {
+                    Task { await refreshPermissions() }
+                }
+            }
             .onChange(of: calendarSources) { oldValue, newValue in
                 SharedStore.calendarSources = newValue
                 let added = newValue.subtracting(oldValue)
@@ -101,6 +110,10 @@ struct SettingsView: View {
                         calendarSources.subtract(failed)
                         // SharedStore is updated by the re-fired onChange.
                     }
+                    // Refresh the permissions snapshot so the row below the
+                    // picker flips from "הפעל" to "מאושר" without needing the
+                    // user to leave Settings and come back.
+                    await refreshPermissions()
                     await SyncManager.shared.syncCalendar(force: true)
                 }
             }
@@ -130,6 +143,7 @@ struct SettingsView: View {
                     if !failed.isEmpty {
                         emailSources.subtract(failed)
                     }
+                    await refreshPermissions()
                     await SyncManager.shared.syncEmail(force: true)
                 }
             }
