@@ -39,7 +39,9 @@ enum SharedStore {
         static let remindersListId = "limor.remindersListId"
         static let homeCardOrder = "limor.homeCardOrder"
         static let homeCardHidden = "limor.homeCardHidden"
-        static let shoppingItems = "limor.shoppingItems"
+        static let shoppingItems = "limor.shoppingItems" // legacy — migrated to shoppingActiveGroup
+        static let shoppingActiveGroup = "limor.shoppingActiveGroup"
+        static let shoppingArchive = "limor.shoppingArchive"
         static let meetingsNotifEnabled = "limor.meetingsNotif.enabled"
         static let meetingsNotifHour = "limor.meetingsNotif.hour"
         static let meetingsNotifMinute = "limor.meetingsNotif.minute"
@@ -48,6 +50,7 @@ enum SharedStore {
         static let recurringReminders = "limor.recurringReminders"
         static let chatHistoryCache = "limor.chatHistoryCache"
         static let chatUsageCache = "limor.chatUsageCache"
+        static let hideBirthdayEvents = "limor.hideBirthdayEvents"
     }
 
     static var bearer: String? {
@@ -229,6 +232,20 @@ enum SharedStore {
         }
     }
 
+    /// Hide events that iOS Calendar marks as birthdays (the auto-generated
+    /// calendar pulled from Contacts). Default true — most users have a
+    /// lot of these and they crowd out actual meetings on the home card.
+    /// Toggle from the MeetingsListView toolbar.
+    static var hideBirthdayEvents: Bool {
+        get {
+            // Default to true on the very first read (no key set yet) so
+            // new installs get the cleaner view automatically.
+            if defaults.object(forKey: Keys.hideBirthdayEvents) == nil { return true }
+            return defaults.bool(forKey: Keys.hideBirthdayEvents)
+        }
+        set { defaults.set(newValue, forKey: Keys.hideBirthdayEvents) }
+    }
+
     /// Last fetched server chat history. Written after every successful
     /// `APIClient.chatHistory(token:)` so the next cold launch can render
     /// ChatView instantly — even before the new server fetch completes.
@@ -292,17 +309,51 @@ enum SharedStore {
         set { defaults.set(newValue ?? "", forKey: Keys.customTabKind) }
     }
 
-    /// Locally-persisted shopping list. Backend syncing is intentionally out
-    /// of scope for now — this is a single-device list. Items are JSON-encoded
-    /// because UserDefaults doesn't store arbitrary structs.
-    static var shoppingItems: [ShoppingItem] {
+    /// Currently-open shopping group. Lazily initialised — if no group has
+    /// been saved yet, returns a freshly-created empty one (the user just
+    /// hasn't added anything yet). On first read after the multi-group
+    /// upgrade, migrates the legacy `shoppingItems` flat array into the
+    /// new group shape.
+    static var shoppingActiveGroup: ShoppingGroup {
         get {
-            guard let data = defaults.data(forKey: Keys.shoppingItems) else { return [] }
-            return (try? JSONDecoder().decode([ShoppingItem].self, from: data)) ?? []
+            if let data = defaults.data(forKey: Keys.shoppingActiveGroup),
+               let group = try? JSONDecoder().decode(ShoppingGroup.self, from: data) {
+                return group
+            }
+            // Migration: pull any legacy flat list into a new active group.
+            if let legacyData = defaults.data(forKey: Keys.shoppingItems),
+               let legacyItems = try? JSONDecoder().decode([ShoppingItem].self, from: legacyData),
+               !legacyItems.isEmpty {
+                let migrated = ShoppingGroup(items: legacyItems)
+                if let encoded = try? JSONEncoder().encode(migrated) {
+                    defaults.set(encoded, forKey: Keys.shoppingActiveGroup)
+                }
+                defaults.removeObject(forKey: Keys.shoppingItems)
+                return migrated
+            }
+            return ShoppingGroup()
         }
         set {
             if let data = try? JSONEncoder().encode(newValue) {
-                defaults.set(data, forKey: Keys.shoppingItems)
+                defaults.set(data, forKey: Keys.shoppingActiveGroup)
+            }
+        }
+    }
+
+    /// Archived shopping groups, newest first. The list view shows them
+    /// under an expandable "רשימות קודמות" section so the user can scan
+    /// what they bought last week / month.
+    static var shoppingArchive: [ShoppingGroup] {
+        get {
+            guard let data = defaults.data(forKey: Keys.shoppingArchive) else { return [] }
+            return (try? JSONDecoder().decode([ShoppingGroup].self, from: data)) ?? []
+        }
+        set {
+            // Cap at the 20 most recent — keeps the on-disk JSON small
+            // and the archive UI scannable. Older lists are evicted.
+            let capped = Array(newValue.prefix(20))
+            if let data = try? JSONEncoder().encode(capped) {
+                defaults.set(data, forKey: Keys.shoppingArchive)
             }
         }
     }

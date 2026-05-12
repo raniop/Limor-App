@@ -393,6 +393,43 @@ struct ShoppingItem: Codable, Identifiable, Hashable {
     }
 }
 
+/// A single shopping "session" — the user adds items, checks them off,
+/// and when everything's done the group is auto-archived (archived_at
+/// gets a timestamp) and a fresh active group takes its place. The
+/// archive lets the user look back at "what we bought last Tuesday".
+struct ShoppingGroup: Codable, Identifiable, Hashable {
+    let id: UUID
+    var items: [ShoppingItem]
+    let created_at: String
+    /// nil = still active; non-nil = archived (ISO timestamp).
+    var archived_at: String?
+
+    init(items: [ShoppingItem] = []) {
+        self.id = UUID()
+        self.items = items
+        self.created_at = ISO8601DateFormatter.limor.string(from: Date())
+        self.archived_at = nil
+    }
+
+    /// True when there's at least one item and they're all completed —
+    /// the trigger condition for the auto-archive flow.
+    var isFullyCompleted: Bool {
+        !items.isEmpty && items.allSatisfy(\.completed)
+    }
+
+    /// Display name for the archive list. Falls back to the group's
+    /// creation date if no items.
+    var summaryTitle: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "he_IL")
+        f.dateFormat = "d MMM yyyy"
+        let date = ISO8601DateFormatter.limor.date(from: archived_at ?? created_at)
+            ?? ISO8601DateFormatter().date(from: archived_at ?? created_at)
+            ?? Date()
+        return f.string(from: date)
+    }
+}
+
 // MARK: - Personal feed (user-chosen topics with web_search-powered updates)
 
 struct FeedTopic: Codable, Identifiable, Hashable {

@@ -11,10 +11,16 @@ import SwiftUI
 final class ShoppingListStore: ObservableObject {
     static let shared = ShoppingListStore()
 
-    @Published private(set) var items: [ShoppingItem]
+    @Published private(set) var activeGroup: ShoppingGroup
+    @Published private(set) var archive: [ShoppingGroup]
+
+    /// Backwards-compatible accessor — the chat detector and other call
+    /// sites that just want "what's in the cart right now" read this.
+    var items: [ShoppingItem] { activeGroup.items }
 
     private init() {
-        self.items = SharedStore.shoppingItems
+        self.activeGroup = SharedStore.shoppingActiveGroup
+        self.archive = SharedStore.shoppingArchive
     }
 
     /// Returns true if the item was added (false on duplicate of an open item).
@@ -27,41 +33,76 @@ final class ShoppingListStore: ObservableObject {
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return false }
         let normalized = Self.normalize(name)
-        if items.contains(where: { !$0.completed && Self.normalize($0.name) == normalized }) {
+        if activeGroup.items.contains(where: { !$0.completed && Self.normalize($0.name) == normalized }) {
             return false
         }
-        items.insert(ShoppingItem(name: name), at: 0)
+        activeGroup.items.insert(ShoppingItem(name: name), at: 0)
         persist()
         return true
     }
 
-    /// Casefolded + diacritic-stripped form used for duplicate detection.
-    /// `localizedLowercase` handles Turkish/German edge cases; folding to
-    /// `String.CompareOptions.diacriticInsensitive` via `folding(options:locale:)`
-    /// strips Hebrew niqqud + accent marks on Latin characters.
     private static func normalize(_ s: String) -> String {
         s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "he_IL"))
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func toggle(_ id: UUID) {
-        guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
-        items[idx].completed.toggle()
+        guard let idx = activeGroup.items.firstIndex(where: { $0.id == id }) else { return }
+        activeGroup.items[idx].completed.toggle()
         persist()
+        // Auto-archive: once every item is checked off, this list is done.
+        // Stash it in the archive and start a fresh active group.
+        maybeArchiveActive()
     }
 
     func remove(_ id: UUID) {
-        items.removeAll { $0.id == id }
+        activeGroup.items.removeAll { $0.id == id }
         persist()
     }
 
     func clearCompleted() {
-        items.removeAll { $0.completed }
+        activeGroup.items.removeAll { $0.completed }
+        persist()
+    }
+
+    /// Push the active group into the archive (if it's fully completed)
+    /// and replace it with a fresh empty one. Idempotent — safe to call
+    /// after any mutation; only does work when the condition is met.
+    private func maybeArchiveActive() {
+        guard activeGroup.isFullyCompleted else { return }
+        var done = activeGroup
+        done.archived_at = ISO8601DateFormatter.limor.string(from: Date())
+        archive.insert(done, at: 0)
+        activeGroup = ShoppingGroup()
+        persist()
+    }
+
+    /// Move an archived group's items back into the active list. Useful
+    /// when the user wants to "redo" last week's shop — picks the
+    /// archived group and re-adds its items as fresh (uncompleted)
+    /// entries on the current list.
+    func restoreFromArchive(_ groupId: UUID) {
+        guard let idx = archive.firstIndex(where: { $0.id == groupId }) else { return }
+        let group = archive[idx]
+        for item in group.items.reversed() {
+            // Skip duplicates of currently-open items.
+            let normalized = Self.normalize(item.name)
+            if activeGroup.items.contains(where: { !$0.completed && Self.normalize($0.name) == normalized }) {
+                continue
+            }
+            activeGroup.items.insert(ShoppingItem(name: item.name), at: 0)
+        }
+        persist()
+    }
+
+    func deleteArchived(_ groupId: UUID) {
+        archive.removeAll { $0.id == groupId }
         persist()
     }
 
     private func persist() {
-        SharedStore.shoppingItems = items
+        SharedStore.shoppingActiveGroup = activeGroup
+        SharedStore.shoppingArchive = archive
     }
 }
 
@@ -161,6 +202,7 @@ struct ShoppingListView: View {
     @StateObject private var store = ShoppingListStore.shared
     @State private var newItemDraft: String = ""
     @FocusState private var inputFocused: Bool
+    @State private var showingArchive = false
 
     var body: some View {
         ZStack {
@@ -177,6 +219,27 @@ struct ShoppingListView: View {
         .navigationTitle("רשימת קניות")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
+            // Archive button on the leading side — only renders once the
+            // user has at least one archived group to look back at.
+            if !store.archive.isEmpty {
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink(destination: ShoppingArchiveView()) {
+                        Image(systemName: "tray.full")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.limorIndigo)
+                            .frame(width: 36, height: 36)
+                            .background(Circle().fill(Color.limorIndigo.opacity(0.12)))
+                            .overlay(alignment: .topTrailing) {
+                                Text("\(store.archive.count)")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 4).padding(.vertical, 1)
+                                    .background(Capsule().fill(Color.limorIndigo))
+                                    .offset(x: 4, y: -4)
+                            }
+                    }
+                }
+            }
             if store.items.contains(where: { $0.completed }) {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("נקה סומנו") {
@@ -275,6 +338,135 @@ struct ShoppingListView: View {
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.limorInk)
             Text("הוסף פריט למעלה, או פשוט אמור לי מילה אחת בצ'אט (לדוגמה: \"חלב\") ואני אוסיף אותה.")
+                .font(.subheadline)
+                .foregroundStyle(.limorMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+            if !store.archive.isEmpty {
+                NavigationLink(destination: ShoppingArchiveView()) {
+                    Label("הרשימות הקודמות (\(store.archive.count))", systemImage: "tray.full")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.limorIndigo)
+                        .padding(.horizontal, 16).padding(.vertical, 10)
+                        .background(Capsule().fill(Color.limorIndigo.opacity(0.10)))
+                }
+                .padding(.top, 6)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Archive view
+
+/// Browses completed shopping groups, newest first. Each group can be
+/// expanded to show its items, restored as a fresh batch onto the
+/// active list, or deleted entirely.
+struct ShoppingArchiveView: View {
+    @StateObject private var store = ShoppingListStore.shared
+    @State private var expandedGroupId: UUID?
+
+    var body: some View {
+        ZStack {
+            LiquidBackdrop()
+            if store.archive.isEmpty {
+                emptyState
+            } else {
+                ScrollView {
+                    VStack(spacing: 12) {
+                        ForEach(store.archive) { group in
+                            groupCard(group)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, 32)
+                }
+            }
+        }
+        .navigationTitle("רשימות קודמות")
+        .navigationBarTitleDisplayMode(.large)
+    }
+
+    @ViewBuilder
+    private func groupCard(_ group: ShoppingGroup) -> some View {
+        let isExpanded = expandedGroupId == group.id
+        GlassCard(padding: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        expandedGroupId = isExpanded ? nil : group.id
+                    }
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.limorSuccess)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(group.summaryTitle)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.limorInk)
+                            Text("\(group.items.count) פריטים")
+                                .font(.caption)
+                                .foregroundStyle(.limorMuted)
+                        }
+                        Spacer()
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.limorMuted)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if isExpanded {
+                    Divider().opacity(0.4)
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(group.items) { item in
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark")
+                                    .font(.caption2)
+                                    .foregroundStyle(.limorSuccess)
+                                Text(item.name)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.limorMuted)
+                                    .strikethrough()
+                            }
+                        }
+                    }
+                    HStack(spacing: 10) {
+                        Button {
+                            withAnimation { store.restoreFromArchive(group.id) }
+                        } label: {
+                            Label("הוסף שוב לרשימה", systemImage: "arrow.uturn.backward.circle.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 12).padding(.vertical, 7)
+                                .background(Capsule().fill(LimorGradient.brand))
+                        }
+                        .buttonStyle(.plain)
+                        Spacer()
+                        Button(role: .destructive) {
+                            withAnimation { store.deleteArchived(group.id) }
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.subheadline)
+                                .foregroundStyle(.limorMuted)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "tray")
+                .font(.system(size: 56, weight: .light))
+                .foregroundStyle(.limorMuted)
+            Text("אין רשימות קודמות עדיין")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.limorInk)
+            Text("ברגע שכל הפריטים ברשימה הפעילה מסומנים, הרשימה עוברת אוטומטית לכאן ונפתחת רשימה חדשה.")
                 .font(.subheadline)
                 .foregroundStyle(.limorMuted)
                 .multilineTextAlignment(.center)

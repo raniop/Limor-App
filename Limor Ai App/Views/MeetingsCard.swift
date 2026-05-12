@@ -10,6 +10,11 @@ struct MeetingsCard: View {
     @StateObject private var calendar = CalendarManager.shared
     @State private var events: [CalendarEventDTO] = []
     @State private var loadedOnce = false
+    /// Reactively observe the same toggle MeetingsListView's toolbar
+    /// changes — if the user flips birthdays on/off in the detail view,
+    /// the home card refreshes the next time it's on screen.
+    @AppStorage("limor.hideBirthdayEvents", store: SharedStore.appGroupDefaults)
+    private var hideBirthdays: Bool = true
 
     private let displayLimit = 3
 
@@ -51,6 +56,7 @@ struct MeetingsCard: View {
         .buttonStyle(.plain)
         .task { await reload() }
         .onChange(of: calendar.hasAccess) { _, _ in Task { await reload() } }
+        .onChange(of: hideBirthdays) { _, _ in Task { await reload() } }
     }
 
     private func reload() async {
@@ -186,6 +192,11 @@ struct MeetingsListView: View {
     @StateObject private var calendar = CalendarManager.shared
     @State private var events: [CalendarEventDTO] = []
     @State private var loaded = false
+    /// Mirrors `SharedStore.hideBirthdayEvents` for a reactive toolbar
+    /// toggle. Default true so users land in the cleaner view on first
+    /// visit (lots of contact birthdays = noisy meetings list).
+    @AppStorage("limor.hideBirthdayEvents", store: SharedStore.appGroupDefaults)
+    private var hideBirthdays: Bool = true
 
     var body: some View {
         ZStack {
@@ -219,7 +230,23 @@ struct MeetingsListView: View {
         }
         .navigationTitle("הפגישות הבאות שלי")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    hideBirthdays.toggle()
+                    Task { await reload() }
+                } label: {
+                    Image(systemName: hideBirthdays ? "birthday.cake" : "birthday.cake.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(hideBirthdays ? Color.limorMuted : Color.limorPink)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Color.limorPink.opacity(hideBirthdays ? 0.05 : 0.18)))
+                }
+                .accessibilityLabel(hideBirthdays ? "הצג ימי הולדת" : "הסתר ימי הולדת")
+            }
+        }
         .task { await reload() }
+        .onChange(of: hideBirthdays) { _, _ in Task { await reload() } }
     }
 
     private func reload() async {

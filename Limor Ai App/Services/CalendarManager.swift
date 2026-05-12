@@ -24,6 +24,9 @@ final class CalendarManager: ObservableObject {
 
     /// Fetch events from now through `daysAhead` calendar days, across all calendars
     /// the user has authorized. Skips fetched-but-unidentifiable events.
+    /// When `SharedStore.hideBirthdayEvents` is true (default), filters out
+    /// iOS's auto-generated birthday calendar entries so they don't bury
+    /// real meetings on the home card.
     func fetchUpcomingEvents(daysAhead: Int = 60) -> [CalendarEventDTO] {
         guard hasAccess else { return [] }
         let now = Date()
@@ -33,9 +36,11 @@ final class CalendarManager: ObservableObject {
         let predicate = store.predicateForEvents(withStart: now, end: end, calendars: nil)
         let events = store.events(matching: predicate)
         let formatter = ISO8601DateFormatter.limor
+        let hideBirthdays = SharedStore.hideBirthdayEvents
 
         return events.compactMap { event -> CalendarEventDTO? in
             guard let identifier = event.eventIdentifier, !identifier.isEmpty else { return nil }
+            if hideBirthdays, Self.isBirthdayEvent(event) { return nil }
             return CalendarEventDTO(
                 event_id: identifier,
                 title: event.title?.isEmpty == false ? event.title : "(ללא כותרת)",
@@ -47,5 +52,16 @@ final class CalendarManager: ObservableObject {
                 calendar_name: event.calendar?.title
             )
         }
+    }
+
+    /// Two ways an event can be a birthday:
+    /// - It lives in the iOS-managed Birthdays calendar
+    ///   (`EKCalendarType.birthday`).
+    /// - It's an explicit birthday entry the user / Contacts created
+    ///   (`birthdayContactIdentifier` is non-nil).
+    private static func isBirthdayEvent(_ event: EKEvent) -> Bool {
+        if event.calendar?.type == .birthday { return true }
+        if event.birthdayContactIdentifier?.isEmpty == false { return true }
+        return false
     }
 }
