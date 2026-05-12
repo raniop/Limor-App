@@ -43,13 +43,13 @@
 	<string>1043813835619-j123901uoudhqjqlip0aqm8b3idm6f0s.apps.googleusercontent.com</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>LIMOR_API_BASE_URL</key>
+	<string>$(LIMOR_API_BASE_URL)</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>msauthv2</string>
 		<string>msauthv3</string>
 	</array>
-	<key>LIMOR_API_BASE_URL</key>
-	<string>$(LIMOR_API_BASE_URL)</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>לימור צריכה גישה ליומן כדי לעזור לך לנהל פגישות, להציע תזכורות חכמות, ולענות על "מה ביומן שלי".</string>
 	<key>NSContactsUsageDescription</key>
@@ -77,12 +77,14 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
-	<key>UILaunchStoryboardName</key>
-	<string>LaunchScreen</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
+		<string>fetch</string>
+		<string>processing</string>
 	</array>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

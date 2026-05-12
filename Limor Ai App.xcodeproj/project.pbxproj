@@ -107,11 +107,11 @@
 		0126DBEFE9D0FD9C09A0F184 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		032BFD663A4822AE6207BA95 /* WeatherDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherDetailView.swift; sourceTree = "<group>"; };
 		040FFCD9DC418611AA006C63 /* NowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowView.swift; sourceTree = "<group>"; };
-		058B29D5197CF2387FD39915 /* bell.caf */ = {isa = PBXFileReference; includeInIndex = 1; path = bell.caf; sourceTree = "<group>"; };
+		058B29D5197CF2387FD39915 /* bell.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = bell.caf; sourceTree = "<group>"; };
 		0920F870874E0CF9DB671EA4 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		0A23BC6C1BD773FDD3C2D6C3 /* VoiceInputSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputSheet.swift; sourceTree = "<group>"; };
 		10F5700C27913E7F3435CEC5 /* NowWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowWidget.swift; sourceTree = "<group>"; };
-		151D8C3C8FD37BA26B30B465 /* classic.caf */ = {isa = PBXFileReference; includeInIndex = 1; path = classic.caf; sourceTree = "<group>"; };
+		151D8C3C8FD37BA26B30B465 /* classic.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = classic.caf; sourceTree = "<group>"; };
 		183836D13AC3A9864529799A /* Limor Ai App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Limor Ai App.entitlements"; sourceTree = "<group>"; };
 		1AB17F49E0B92D41CBEB78F2 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		1BC4F6E9C9C972C8BD4AE955 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
@@ -134,9 +134,9 @@
 		4DB07E2C95CA5E81B2B0467E /* HealthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthManager.swift; sourceTree = "<group>"; };
 		4E3E42644D5D54B11F655BCA /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
 		4FE0594A9356AAF49921A7AE /* RemindersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersView.swift; sourceTree = "<group>"; };
-		53E604525A9C2720B95A39A4 /* morning.caf */ = {isa = PBXFileReference; includeInIndex = 1; path = morning.caf; sourceTree = "<group>"; };
+		53E604525A9C2720B95A39A4 /* morning.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = morning.caf; sourceTree = "<group>"; };
 		5F6F221E867B5452659406E0 /* MeetingsCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MeetingsCard.swift; sourceTree = "<group>"; };
-		605673C35D91137A0F7E9887 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		605673C35D91137A0F7E9887 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		66F33C0D55910CD2EF115BD8 /* MicrosoftAPIs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MicrosoftAPIs.swift; sourceTree = "<group>"; };
 		6B43AF9EC5437EE160A94D6D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		70396FD611F130F479EC2B84 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
@@ -154,8 +154,8 @@
 		AEC3D49F681FA0119E135BE1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B202F02E4586363CB10439EC /* SharedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedStore.swift; sourceTree = "<group>"; };
 		B54FB305BDEB96228F61AB55 /* RemindersWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersWriter.swift; sourceTree = "<group>"; };
-		BA9F1428DBC55A03AB08EC14 /* digital.caf */ = {isa = PBXFileReference; includeInIndex = 1; path = digital.caf; sourceTree = "<group>"; };
-		BD0ABA3DAF29A5B701496DB2 /* chime.caf */ = {isa = PBXFileReference; includeInIndex = 1; path = chime.caf; sourceTree = "<group>"; };
+		BA9F1428DBC55A03AB08EC14 /* digital.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = digital.caf; sourceTree = "<group>"; };
+		BD0ABA3DAF29A5B701496DB2 /* chime.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = chime.caf; sourceTree = "<group>"; };
 		C274EB46CC2E7A135C0E5E43 /* BiometricGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricGate.swift; sourceTree = "<group>"; };
 		C5C3335200C302E0C98B8F26 /* LimorAiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorAiApp.swift; sourceTree = "<group>"; };
 		D158BA54A5B1C18A5ED2CD2F /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -214,7 +214,6 @@
 				151D8C3C8FD37BA26B30B465 /* classic.caf */,
 				53E604525A9C2720B95A39A4 /* morning.caf */,
 			);
-			name = Sounds;
 			path = Sounds;
 			sourceTree = "<group>";
 		};
@@ -351,7 +350,7 @@
 				227A8471540009E43CC09F5E /* Resources */,
 				E5FA14122505F2D1F66B0F76 /* Frameworks */,
 				724F9366A34CAE43054FB7FB /* Embed Foundation Extensions */,
-				ACD0380F92C4E4585DE47126 /* Inject Git SHA */,
+				EF378A632077F5EC80D209E4 /* Inject Git SHA */,
 			);
 			buildRules = (
 			);
@@ -431,7 +430,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		ACD0380F92C4E4585DE47126 /* Inject Git SHA */ = {
+		EF378A632077F5EC80D209E4 /* Inject Git SHA */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -620,7 +619,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Limor Ai App/Limor Ai App.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 10;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = "Limor Ai App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Limor AI";
@@ -664,7 +663,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Limor Ai App/Limor Ai App.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 10;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = "Limor Ai App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Limor AI";
