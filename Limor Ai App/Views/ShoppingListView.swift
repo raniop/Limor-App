@@ -108,10 +108,19 @@ final class ShoppingListStore: ObservableObject {
     func toggle(_ id: UUID) {
         guard let idx = activeGroup.items.firstIndex(where: { $0.id == id }) else { return }
         activeGroup.items[idx].completed.toggle()
+        // Combined mutation: if this toggle completed the last item, archive
+        // BEFORE we persist so we ship a single consolidated state to
+        // backend / iCloud. Two back-to-back persists raced over the
+        // network and the older "all checked, not archived yet" snapshot
+        // could land last, leaving other devices stuck in the middle
+        // state.
+        if activeGroup.isFullyCompleted {
+            var done = activeGroup
+            done.archived_at = ISO8601DateFormatter.limor.string(from: Date())
+            archive.insert(done, at: 0)
+            activeGroup = ShoppingGroup()
+        }
         persist()
-        // Auto-archive: once every item is checked off, this list is done.
-        // Stash it in the archive and start a fresh active group.
-        maybeArchiveActive()
     }
 
     func remove(_ id: UUID) {
@@ -121,18 +130,6 @@ final class ShoppingListStore: ObservableObject {
 
     func clearCompleted() {
         activeGroup.items.removeAll { $0.completed }
-        persist()
-    }
-
-    /// Push the active group into the archive (if it's fully completed)
-    /// and replace it with a fresh empty one. Idempotent — safe to call
-    /// after any mutation; only does work when the condition is met.
-    private func maybeArchiveActive() {
-        guard activeGroup.isFullyCompleted else { return }
-        var done = activeGroup
-        done.archived_at = ISO8601DateFormatter.limor.string(from: Date())
-        archive.insert(done, at: 0)
-        activeGroup = ShoppingGroup()
         persist()
     }
 
