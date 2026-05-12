@@ -36,7 +36,14 @@ enum RecurringRemindersScheduler {
                 let content = UNMutableNotificationContent()
                 content.title = "⏰ \(reminder.task)"
                 content.body = ""
-                content.sound = .default
+                if let soundName = reminder.soundName {
+                    // Bundled .caf — `UNNotificationSound(named:)` reads
+                    // from the app's main bundle by default. Falls back
+                    // silently to no-sound if the file is missing.
+                    content.sound = UNNotificationSound(named: UNNotificationSoundName(soundName))
+                } else {
+                    content.sound = .default
+                }
 
                 var components = DateComponents()
                 components.weekday = weekday

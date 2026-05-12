@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 // MARK: - Store (observable wrapper around SharedStore.recurringReminders)
@@ -360,6 +361,8 @@ struct RecurringReminderEditor: View {
     @State private var task: String
     @State private var days: Set<Int>
     @State private var time: Date
+    @State private var soundName: String?
+    @State private var previewPlayer: AVAudioPlayer?
 
     init(initial: RecurringReminder?, onSave: @escaping (RecurringReminder) -> Void) {
         self.initial = initial
@@ -370,6 +373,7 @@ struct RecurringReminderEditor: View {
         comps.hour = initial?.hour ?? 7
         comps.minute = initial?.minute ?? 45
         _time = State(initialValue: Calendar.current.date(from: comps) ?? Date())
+        _soundName = State(initialValue: initial?.soundName)
     }
 
     /// Convenience init for the ChatView intent-parser flow: open the
@@ -385,6 +389,7 @@ struct RecurringReminderEditor: View {
         comps.hour = draft.hour
         comps.minute = draft.minute
         _time = State(initialValue: Calendar.current.date(from: comps) ?? Date())
+        _soundName = State(initialValue: nil)
     }
 
     var body: some View {
@@ -396,6 +401,7 @@ struct RecurringReminderEditor: View {
                         taskField
                         timeField
                         daysField
+                        soundField
                         if !task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !days.isEmpty {
                             previewLine
                         }
@@ -508,6 +514,87 @@ struct RecurringReminderEditor: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: Sound picker
+
+    private var soundField: some View {
+        GlassCard(padding: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("צלצול")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.limorInk)
+                VStack(spacing: 6) {
+                    soundRow(value: nil, label: "ברירת מחדל של iOS")
+                    ForEach(ReminderSound.allCases) { sound in
+                        soundRow(value: sound, label: sound.displayName)
+                    }
+                }
+                Text("הקש על השם כדי לבחור. סמל הניגון לצדו משמיע תצוגה מקדימה.")
+                    .font(.caption2)
+                    .foregroundStyle(.limorMuted)
+            }
+        }
+        // Stop the preview if the sheet goes away mid-playback.
+        .onDisappear { previewPlayer?.stop(); previewPlayer = nil }
+    }
+
+    private func soundRow(value: ReminderSound?, label: String) -> some View {
+        let selected = soundName == value?.fileName
+        return HStack(spacing: 10) {
+            Button {
+                soundName = value?.fileName
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                        .foregroundStyle(.limorIndigo)
+                    Text(label)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.limorInk)
+                    Spacer()
+                }
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(selected ? Color.limorIndigo.opacity(0.10) : Color.clear)
+                )
+            }
+            .buttonStyle(.plain)
+
+            // No preview button for the iOS default (no file we can play
+            // locally) — that's the only row without one.
+            if let sound = value {
+                Button {
+                    play(sound: sound)
+                } label: {
+                    Image(systemName: "play.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.limorIndigo)
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 6)
+            }
+        }
+    }
+
+    private func play(sound: ReminderSound) {
+        previewPlayer?.stop()
+        guard let url = Bundle.main.url(forResource: sound.rawValue, withExtension: "caf") else {
+            return
+        }
+        do {
+            // `.playback` category so we audibly preview even if the user
+            // has the silent switch flipped — they're tapping a preview
+            // button on purpose.
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true, options: [])
+            let player = try AVAudioPlayer(contentsOf: url)
+            previewPlayer = player
+            player.prepareToPlay()
+            player.play()
+        } catch {
+            // Silent — preview failing isn't worth surfacing to the user.
+        }
+    }
+
     private var previewLine: some View {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
@@ -531,13 +618,15 @@ struct RecurringReminderEditor: View {
             existing.daysOfWeek = days
             existing.hour = comps.hour ?? 7
             existing.minute = comps.minute ?? 45
+            existing.soundName = soundName
             onSave(existing)
         } else {
             let reminder = RecurringReminder(
                 task: trimmedTask,
                 daysOfWeek: days,
                 hour: comps.hour ?? 7,
-                minute: comps.minute ?? 45
+                minute: comps.minute ?? 45,
+                soundName: soundName
             )
             onSave(reminder)
         }

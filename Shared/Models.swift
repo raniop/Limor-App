@@ -320,16 +320,60 @@ struct RecurringReminder: Codable, Identifiable, Hashable {
     /// are cancelled — useful for vacations. Toggling back to false
     /// re-schedules.
     var paused: Bool
+    /// Name of a `.caf` file bundled with the app, e.g. "bell.caf".
+    /// `nil` = use the default iOS notification sound. Files live in
+    /// `Limor Ai App/Sounds/` and are listed in `ReminderSound.allCases`.
+    var soundName: String?
     let created_at: String
 
-    init(task: String, daysOfWeek: Set<Int>, hour: Int, minute: Int, paused: Bool = false) {
+    init(task: String, daysOfWeek: Set<Int>, hour: Int, minute: Int, paused: Bool = false, soundName: String? = nil) {
         self.id = UUID()
         self.task = task
         self.daysOfWeek = daysOfWeek
         self.hour = hour
         self.minute = minute
         self.paused = paused
+        self.soundName = soundName
         self.created_at = ISO8601DateFormatter.limor.string(from: Date())
+    }
+
+    // Decode older payloads that don't have `soundName` yet (default to
+    // nil = system sound) so existing on-disk reminders keep working.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try c.decode(UUID.self, forKey: .id)
+        self.task = try c.decode(String.self, forKey: .task)
+        self.daysOfWeek = try c.decode(Set<Int>.self, forKey: .daysOfWeek)
+        self.hour = try c.decode(Int.self, forKey: .hour)
+        self.minute = try c.decode(Int.self, forKey: .minute)
+        self.paused = try c.decode(Bool.self, forKey: .paused)
+        self.soundName = try c.decodeIfPresent(String.self, forKey: .soundName)
+        self.created_at = try c.decode(String.self, forKey: .created_at)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, task, daysOfWeek, hour, minute, paused, soundName, created_at
+    }
+}
+
+/// Bundled alarm sounds the user can pick for a recurring reminder.
+/// Files live in `Limor Ai App/Sounds/`. Adding a new sound:
+///   1. Drop a `<name>.caf` into the Sounds folder (max ~30s for iOS).
+///   2. Add a case here with the file's raw name (no extension).
+///   3. The editor UI auto-picks it up from `allCases`.
+enum ReminderSound: String, CaseIterable, Identifiable {
+    case bell, chime, digital, classic, morning
+
+    var id: String { rawValue }
+    var fileName: String { "\(rawValue).caf" }
+    var displayName: String {
+        switch self {
+        case .bell:    return "פעמון"
+        case .chime:   return "מנגינה"
+        case .digital: return "דיגיטלי"
+        case .classic: return "קלאסי"
+        case .morning: return "בוקר"
+        }
     }
 }
 
