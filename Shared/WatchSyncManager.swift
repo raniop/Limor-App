@@ -125,15 +125,52 @@ final class WatchSyncManager: NSObject, ObservableObject {
     }
 
     #if os(iOS)
-    /// iPhone-side handler for the watch's PTT button. Forwards the
-    /// dictated text into the standard chat backend pipeline,
-    /// applies any `shopping_actions` the LLM emits, and returns
-    /// Limor's reply text inline to the watch.
+    /// iPhone-side handler for the watch's PTT button. Mirrors what
+    /// `ChatView.send(text:)` does: first runs the on-device
+    /// `ShoppingDetector` intercept (which is what actually writes
+    /// items into `ShoppingListStore` — without this, a single word
+    /// like "עגבניות" lands in the chat backend whose LLM sometimes
+    /// confirms "הוספתי" without calling the tool, leaving the list
+    /// empty). Only when the intercept doesn't fire do we hit the
+    /// chat backend.
     func relayLimorMessage(_ text: String, replyHandler: @escaping ([String: Any]) -> Void) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 1. Local grocery intercept — same logic the text-side chat
+        //    uses. Writes directly to the on-device store, no network
+        //    round-trip, never lies.
+        let items = ShoppingDetector.extractShoppingItems(trimmed)
+        if !items.isEmpty {
+            var added: [String] = []
+            var existing: [String] = []
+            for item in items {
+                if ShoppingListStore.shared.add(item) {
+                    added.append(item)
+                } else {
+                    existing.append(item)
+                }
+            }
+            var lines: [String] = []
+            if !added.isEmpty {
+                let joined = added.joined(separator: ", ")
+                let verb = added.count == 1 ? "הוספתי" : "הוספתי \(added.count) פריטים"
+                lines.append("🛒 \(verb) לרשימת הקניות: \(joined)")
+            }
+            if !existing.isEmpty {
+                let joined = existing.joined(separator: ", ")
+                lines.append("ℹ️ כבר היו ברשימה: \(joined)")
+            }
+            replyHandler(["reply": lines.joined(separator: "\n")])
+            pushSnapshot()
+            return
+        }
+
+        // 2. Otherwise — chat backend. Honor the same
+        //    `shopping_actions` echo path the iOS chat already runs.
         do {
             let reply = try await APIClient.shared.sendChat(
                 token: "",
-                message: text,
+                message: trimmed,
                 lat: nil,
                 lng: nil,
                 attachment: nil
@@ -148,7 +185,7 @@ final class WatchSyncManager: NSObject, ObservableObject {
             }
             replyHandler(["reply": reply.reply])
             // Re-push the latest state to the watch so the shopping
-            // list reflects whatever the LLM just added.
+            // list reflects whatever changed.
             pushSnapshot()
         } catch {
             replyHandler(["error": error.localizedDescription])
