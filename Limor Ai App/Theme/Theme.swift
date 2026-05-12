@@ -56,6 +56,27 @@ extension Color {
         dark:  Color(red: 0.082, green: 0.067, blue: 0.176)  // #15112D
     )
 
+    /// Surface used by the chat's assistant bubbles, typing indicator,
+    /// and suggestion rows. White in light mode (so the bubble feels
+    /// like a paper card next to the purple user bubble); a slightly
+    /// raised midnight purple in dark mode so the bubble has just
+    /// enough lift over `limorCanvas` to read as a foreground
+    /// element. Pair with `.limorInk` for the bubble text — it flips
+    /// to near-white in dark and stays legible on this background.
+    static let limorBubble = dynamicColor(
+        light: .white,
+        dark:  Color(red: 0.137, green: 0.118, blue: 0.247)   // #231E3F
+    )
+
+    /// Hairline border for `limorBubble` cards. White-tinted in light
+    /// (the iOS "glass card" hairline), white-tinted with very low
+    /// opacity in dark (you only really need a hint of edge against
+    /// the darker canvas).
+    static let limorBubbleBorder = dynamicColor(
+        light: Color.white.opacity(0.5),
+        dark:  Color.white.opacity(0.08)
+    )
+
     // Status — slightly brighter in dark so they punch on a dark
     // background without losing the same character in light mode.
     static let limorDanger  = dynamicColor(
@@ -76,19 +97,21 @@ extension Color {
 // Lets you write `.foregroundStyle(.limorInk)` instead of `.foregroundStyle(Color.limorInk)`.
 
 extension ShapeStyle where Self == Color {
-    static var limorIndigo:  Color { .limorIndigo }
-    static var limorViolet:  Color { .limorViolet }
-    static var limorPink:    Color { .limorPink }
-    static var limorCoral:   Color { .limorCoral }
-    static var limorPeach:   Color { .limorPeach }
-    static var limorMint:    Color { .limorMint }
-    static var limorCanvas:  Color { .limorCanvas }
-    static var limorInk:     Color { .limorInk }
-    static var limorMuted:   Color { .limorMuted }
-    static var splashBase:   Color { .splashBase }
-    static var limorDanger:  Color { .limorDanger }
-    static var limorWarning: Color { .limorWarning }
-    static var limorSuccess: Color { .limorSuccess }
+    static var limorIndigo:       Color { .limorIndigo }
+    static var limorViolet:       Color { .limorViolet }
+    static var limorPink:         Color { .limorPink }
+    static var limorCoral:        Color { .limorCoral }
+    static var limorPeach:        Color { .limorPeach }
+    static var limorMint:         Color { .limorMint }
+    static var limorCanvas:       Color { .limorCanvas }
+    static var limorInk:          Color { .limorInk }
+    static var limorMuted:        Color { .limorMuted }
+    static var splashBase:        Color { .splashBase }
+    static var limorDanger:       Color { .limorDanger }
+    static var limorWarning:      Color { .limorWarning }
+    static var limorSuccess:      Color { .limorSuccess }
+    static var limorBubble:       Color { .limorBubble }
+    static var limorBubbleBorder: Color { .limorBubbleBorder }
 }
 
 // MARK: - Gradients

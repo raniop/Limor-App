@@ -1082,7 +1082,7 @@ private struct ChatComposerInput: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(.white.opacity(0.5), lineWidth: 0.5)
+                        .stroke(.limorBubbleBorder, lineWidth: 0.5)
                 )
 
             Button {
@@ -1250,14 +1250,19 @@ private struct MessageBubble: View, Equatable {
                 if message.role == .user {
                     LimorGradient.brand
                 } else {
-                    LinearGradient(colors: [.white, .white.opacity(0.95)], startPoint: .top, endPoint: .bottom)
+                    // Dynamic surface — white in light, raised midnight
+                    // purple in dark. The earlier hard-coded white
+                    // gradient blew out the chat in dark mode and
+                    // washed `.limorInk` (now near-white in dark) into
+                    // invisibility.
+                    Color.limorBubble
                 }
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(message.role == .user ? .clear : .white.opacity(0.5), lineWidth: 0.5)
+                .stroke(message.role == .user ? .clear : .limorBubbleBorder, lineWidth: 0.5)
         )
         .shadow(
             color: message.role == .user ? Color.limorIndigo.opacity(0.25) : .black.opacity(0.05),
@@ -1296,11 +1301,11 @@ private struct TypingIndicator: View {
             .padding(.horizontal, 14).padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white.opacity(0.85))
+                    .fill(Color.limorBubble.opacity(0.85))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(.white.opacity(0.4), lineWidth: 0.5)
+                    .stroke(.limorBubbleBorder, lineWidth: 0.5)
             )
             Spacer(minLength: 32)
         }
