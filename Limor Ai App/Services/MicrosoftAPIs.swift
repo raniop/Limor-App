@@ -140,8 +140,14 @@ struct MicrosoftAPIs {
                 let result = try await app.acquireTokenSilent(with: params)
                 rememberGrantedScopes(result.scopes + scopes)
                 return
-            } catch let nsErr as NSError where isInteractionRequired(nsErr) {
-                // Fall through to interactive.
+            } catch {
+                // Any silent failure — log and clear the cached account so
+                // interactive starts from a clean state. A prior broker
+                // handoff that never completed leaves the account in a
+                // half-state where silent keeps failing with non-obvious
+                // errors; wiping it forces a fresh sign-in.
+                logMSALError(error, where: "silent (clearing account, retrying interactive)")
+                try? app.remove(account)
             }
         }
 
