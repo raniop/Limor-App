@@ -213,10 +213,37 @@ final class WatchSyncManager: NSObject, ObservableObject {
                 }
             }
             replyHandler(["reply": reply.reply])
+            // Limor may have created a reminder / changed the next
+            // event during this turn. Pull a fresh `NowResponse` and
+            // cache it before pushing — otherwise the watch keeps
+            // showing the old `next_reminder` and the user has to
+            // open the iPhone app for the snapshot to refresh.
+            await refreshNowSnapshot()
             pushSnapshot()
         } catch {
             print("[wc] backend error: \(error.localizedDescription)")
             replyHandler(["error": error.localizedDescription])
+        }
+    }
+
+    /// Re-fetch the home-screen snapshot from backend and cache it
+    /// into `SharedStore.lastNow`. Used by the watch-PTT relay after
+    /// every backend chat turn so a "תזכירי לי להתקשר ל…" voice
+    /// command surfaces on the watch within the same WCSession reply.
+    private func refreshNowSnapshot() async {
+        let coords = SharedStore.lastCoordinate
+        do {
+            let snap = try await APIClient.shared.now(
+                token: "",
+                lat: coords?.lat,
+                lng: coords?.lng
+            )
+            if let data = try? JSONEncoder().encode(snap) {
+                SharedStore.cacheLastNow(data)
+                print("[wc] refreshed lastNow snapshot (next=\(snap.next_reminder?.task.prefix(30) ?? "nil"))")
+            }
+        } catch {
+            print("[wc] refreshNowSnapshot failed: \(error.localizedDescription)")
         }
     }
     #endif
