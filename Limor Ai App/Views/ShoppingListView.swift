@@ -31,11 +31,14 @@ final class ShoppingListStore: ObservableObject {
             forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
             object: NSUbiquitousKeyValueStore.default,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] note in
             guard let self else { return }
+            let keys = (note.userInfo?[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String]) ?? []
+            print("[icloud] external change keys=\(keys)")
             SharedStore.mirrorShoppingFromICloud()
             self.activeGroup = SharedStore.shoppingActiveGroup
             self.archive = SharedStore.shoppingArchive
+            print("[shopping] applied iCloud change — active=\(self.activeGroup.items.count) archive=\(self.archive.count)")
         }
 
         // Backend fetch — Limor's source of truth + cross-account access.

@@ -134,7 +134,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
         let kind = (userInfo["kind"] as? String) ?? ""
-        print("[push] silent push received kind=\(kind)")
+        let keys = userInfo.keys.compactMap { $0 as? String }
+        print("[push] silent push received kind=\(kind) keys=\(keys)")
         guard !kind.isEmpty else {
             completionHandler(.noData)
             return
@@ -142,9 +143,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
         Task { @MainActor in
             switch kind {
             case "shopping":
+                print("[push] refreshing shopping from backend")
                 await ShoppingListStore.shared.refreshFromBackend()
                 completionHandler(.newData)
             default:
+                print("[push] unknown kind, ignoring")
                 completionHandler(.noData)
             }
         }
