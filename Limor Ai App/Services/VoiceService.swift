@@ -1,4 +1,5 @@
 import AVFoundation
+import CallKit
 import Foundation
 import Speech
 
@@ -58,6 +59,20 @@ final class VoiceService: NSObject, ObservableObject {
     // Audio-message playback.
     private var audioPlayer: AVAudioPlayer?
 
+    // CallKit observer — kept as a long-lived instance so its internal
+    // call list stays warm. iOS reports both VoIP and (since iOS 14)
+    // cellular calls through CXCallObserver, which is enough for us to
+    // tell whether the mic would be useless because the Phone app
+    // currently owns the audio session.
+    private let callObserver = CXCallObserver()
+
+    /// True when the system is in the middle of a phone or VoIP call —
+    /// trying to record audio in that state produces garbage or fails
+    /// outright, so we bail before even prompting the user.
+    func isPhoneCallActive() -> Bool {
+        callObserver.calls.contains { !$0.hasEnded }
+    }
+
     /// Ask the user for both speech recognition + microphone permissions.
     /// Returns true only when both were granted; surfaces an error otherwise.
     func requestPermissions() async -> Bool {
@@ -80,6 +95,10 @@ final class VoiceService: NSObject, ObservableObject {
 
     func start(locale: SpeechLocale) async {
         guard !isRecording else { return }
+        if isPhoneCallActive() {
+            errorMessage = "אי אפשר להקליט בזמן שיחת טלפון. סיימי את השיחה ונסי שוב."
+            return
+        }
         guard await requestPermissions() else { return }
 
         // (Re)build the recognizer for the requested locale. Recognizers are
@@ -209,6 +228,14 @@ final class VoiceService: NSObject, ObservableObject {
     /// for duration/level start updating. Returns false if the user denied
     /// the mic permission or the session failed to start.
     func startVoiceMessage() async -> Bool {
+        // Cellular / VoIP call in flight — refuse to start so we don't
+        // briefly take over the audio session and drop the call, and so
+        // the user sees a clear message instead of a "recording" UI
+        // that produces silence.
+        if isPhoneCallActive() {
+            errorMessage = "אי אפשר להקליט הודעה קולית בזמן שיחת טלפון. סיימי את השיחה ונסי שוב."
+            return false
+        }
         let micAuth = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             AVAudioApplication.requestRecordPermission { granted in cont.resume(returning: granted) }
         }
@@ -228,7 +255,12 @@ final class VoiceService: NSObject, ObservableObject {
             return false
         }
 
-        let url = FileManager.default.temporaryDirectory
+        // Record into the persistent voice-messages directory (not
+        // tempDirectory) so the audio file survives the chat tab being
+        // closed and re-opened — that's what lets the bubble keep its
+        // play button after a history reload instead of degrading into
+        // a transcript-only text bubble.
+        let url = ChatMessage.voiceMessagesDirectory
             .appendingPathComponent("voice-\(UUID().uuidString).m4a")
         let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
@@ -318,6 +350,13 @@ final class VoiceService: NSObject, ObservableObject {
             var resolved = false
             let request = SFSpeechURLRecognitionRequest(url: url)
             request.shouldReportPartialResults = false
+            // Insert commas / periods between dictation pauses — without
+            // this the chat-side `ShoppingDetector` sees "ביצים חלב
+            // גבינה" as a single 4-word grocery item rather than four
+            // separate items, and the dictated list gets merged.
+            if #available(iOS 16, *) {
+                request.addsPunctuation = true
+            }
 
             let task = recognizer.recognitionTask(with: request) { result, error in
                 lock.lock(); defer { lock.unlock() }

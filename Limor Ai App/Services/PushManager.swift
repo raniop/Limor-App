@@ -84,7 +84,41 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
         FirebaseApp.configure()
         Messaging.messaging().delegate = self
         UNUserNotificationCenter.current().delegate = self
+        registerNotificationCategories()
         return true
+    }
+
+    /// Identifiers shared between the iOS-side category registration and
+    /// the backend APNs payload. Backend tags reminder pushes with
+    /// `category: "LIMOR_REMINDER"` so the two action buttons attached
+    /// here ("סמן כטופל" / "נודניק 10 דקות") surface on the banner +
+    /// lock-screen long-press.
+    static let reminderCategoryId = "LIMOR_REMINDER"
+    static let reminderCompleteActionId = "LIMOR_REMINDER_COMPLETE"
+    static let reminderSnoozeActionId = "LIMOR_REMINDER_SNOOZE_10"
+
+    /// Attach a "Mark Done" / "Snooze 10 min" pair to reminder pushes.
+    /// Categories are matched at *delivery* time, so this registration
+    /// must run before any reminder notification arrives — calling from
+    /// `didFinishLaunchingWithOptions` covers cold launches.
+    private func registerNotificationCategories() {
+        let complete = UNNotificationAction(
+            identifier: Self.reminderCompleteActionId,
+            title: "סמן כטופל",
+            options: [.authenticationRequired]
+        )
+        let snooze = UNNotificationAction(
+            identifier: Self.reminderSnoozeActionId,
+            title: "נודניק 10 דק'",
+            options: []
+        )
+        let category = UNNotificationCategory(
+            identifier: Self.reminderCategoryId,
+            actions: [complete, snooze],
+            intentIdentifiers: [],
+            options: []
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([category])
     }
 
     /// Google Sign-In and MSAL both complete by opening a custom URL back into
@@ -177,6 +211,40 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        let actionId = response.actionIdentifier
+        let userInfo = response.notification.request.content.userInfo
+        let reminderId = userInfo["reminder_id"] as? String
+
+        switch actionId {
+        case AppDelegate.reminderCompleteActionId:
+            if let reminderId {
+                Task { @MainActor in
+                    do {
+                        _ = try await APIClient.shared.completeReminder(token: "", id: reminderId)
+                        print("[push] reminder \(reminderId) marked done from notification")
+                    } catch {
+                        print("[push] complete-from-notification failed: \(error.localizedDescription)")
+                    }
+                    completionHandler()
+                }
+                return
+            }
+        case AppDelegate.reminderSnoozeActionId:
+            if let reminderId {
+                Task { @MainActor in
+                    do {
+                        _ = try await APIClient.shared.snoozeReminder(token: "", id: reminderId, minutes: 10)
+                        print("[push] reminder \(reminderId) snoozed 10 min from notification")
+                    } catch {
+                        print("[push] snooze-from-notification failed: \(error.localizedDescription)")
+                    }
+                    completionHandler()
+                }
+                return
+            }
+        default:
+            break
+        }
         completionHandler()
     }
 }

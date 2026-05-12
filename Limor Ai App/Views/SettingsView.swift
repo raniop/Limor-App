@@ -460,7 +460,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 14) {
                 SectionLabel(icon: "rectangle.stack.badge.plus", title: "כפתור מהיר בתחתית")
 
-                Text("אפשר להצמיד קיצור דרך נוסף לסרגל התחתון, ליד \"עכשיו\".")
+                Text("אפשר להצמיד קיצור דרך נוסף לסרגל התחתון, ליד \"הפיד שלי\".")
                     .font(.caption)
                     .foregroundStyle(.limorMuted)
 

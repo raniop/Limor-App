@@ -146,6 +146,14 @@ struct ChatView: View {
                             scrollToBottom(proxy, animated: initialScrollDone)
                             initialScrollDone = true
                         }
+                        // Re-tapping the Chat tab while we're already on
+                        // it jumps to the latest bubble — overrides iOS's
+                        // default "scroll to top" behavior, which is the
+                        // wrong direction for a thread anchored at the
+                        // bottom.
+                        .onChange(of: router.chatScrollToBottomNonce) { _, _ in
+                            scrollToBottom(proxy, animated: true)
+                        }
 
                         composer(scrollProxy: proxy)
                     }
@@ -421,6 +429,14 @@ struct ChatView: View {
                     // the user about to tap "send"; do not kick off a new
                     // recording on top of the running one.
                     guard !voiceLocked else { return }
+                    // Phone call in progress — the Phone app owns the
+                    // mic, recording would either fail or produce silent
+                    // audio. Surface a clear message and bail before
+                    // touching the audio session.
+                    if voice.isPhoneCallActive() {
+                        errorMessage = "אי אפשר להקליט הודעה קולית בזמן שיחת טלפון. סיימי את השיחה ונסי שוב."
+                        return
+                    }
                     Task { await voice.startVoiceMessage() }
                 }
                 voiceGestureOffset = value.translation.width
@@ -895,9 +911,60 @@ struct ChatView: View {
         // — otherwise the user would stare at "typing…" while we're still
         // running the local recognizer.
         let transcript = await voice.transcribeAudioFile(url: audioURL, locale: .hebrew)
-        let messageText = (transcript?.trimmingCharacters(in: .whitespacesAndNewlines))
-            .flatMap { $0.isEmpty ? nil : $0 }
-            ?? "[הודעה קולית]"
+        let trimmedTranscript = transcript?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let messageText = trimmedTranscript.isEmpty ? "[הודעה קולית]" : trimmedTranscript
+
+        // Voice equivalent of the text-side local shopping intercept —
+        // without this branch a dictated grocery list ("ביצים, חלב,
+        // גבינה") goes straight to the chat LLM, which happily replies
+        // "הוספתי לרשימת הקניות" but nothing actually gets written to
+        // the on-device store (the iOS ShoppingListStore is the source
+        // of truth). Match the text path's behavior so dictation and
+        // typing produce the same result.
+        let voiceShoppingItems = trimmedTranscript.isEmpty
+            ? []
+            : ShoppingDetector.extractShoppingItems(trimmedTranscript)
+        if !voiceShoppingItems.isEmpty {
+            let items = voiceShoppingItems
+            var addedNames: [String] = []
+            var existingNames: [String] = []
+            for item in items {
+                if ShoppingListStore.shared.add(item) {
+                    addedNames.append(item)
+                } else {
+                    existingNames.append(item)
+                }
+            }
+            var lines: [String] = []
+            if !addedNames.isEmpty {
+                let joined = addedNames.joined(separator: ", ")
+                let verb = addedNames.count == 1 ? "הוספתי" : "הוספתי \(addedNames.count) פריטים"
+                lines.append("🛒 \(verb) לרשימת הקניות: \(joined)")
+            }
+            if !existingNames.isEmpty {
+                let joined = existingNames.joined(separator: ", ")
+                lines.append("ℹ️ כבר היו ברשימה: \(joined)")
+            }
+            let replyBubble = ChatMessage(
+                role: .assistant,
+                content: lines.joined(separator: "\n"),
+                created_at: ISO8601DateFormatter.limor.string(from: Date())
+            )
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                messages.append(replyBubble)
+            }
+            // Persist the optimistic audio bubble itself — Codable now
+            // round-trips its filename + duration, and VoiceService
+            // records into the same `voiceMessagesDirectory` we read on
+            // decode, so re-entering the chat tab brings the audio
+            // bubble back with a working play button instead of a
+            // text-only transcript bubble.
+            var overlay = SharedStore.chatLocalOverlay
+            overlay.append(optimistic)
+            overlay.append(replyBubble)
+            SharedStore.chatLocalOverlay = overlay
+            return
+        }
 
         // Load the M4A as base64. We don't fail the send if reading fails
         // — Limor can still respond to the transcript.

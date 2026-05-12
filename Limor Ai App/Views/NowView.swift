@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NowView: View {
     @EnvironmentObject private var auth: AuthManager
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var location = LocationManager.shared
     @StateObject private var health = HealthManager.shared
     @StateObject private var sync = SyncManager.shared
@@ -14,6 +15,12 @@ struct NowView: View {
     @State private var cardOrder: [HomeCardKind] = HomeCardOrder.load()
     @State private var hiddenCards: Set<HomeCardKind> = HomeCardOrder.loadHidden()
     @State private var showingCustomize = false
+    /// Throttle for the background feed auto-refresh — we never call
+    /// `refreshFeed(force:)` more than once per `feedAutoRefreshThrottle`
+    /// seconds so a foreground bounce or a coordinate jiggle can't hammer
+    /// the LLM regen endpoint.
+    @State private var lastFeedAutoRefresh: Date = .distantPast
+    private let feedAutoRefreshThrottle: TimeInterval = 180
 
     private var tod: LimorTimeOfDay { .current }
 
@@ -101,10 +108,48 @@ struct NowView: View {
                 await health.loadToday()
                 Task { await SyncManager.shared.syncHealth() }
                 await reload()
+                // Once the cached snapshot is on screen, fire a fresh
+                // feed regen in the background so the first thing the
+                // user reads isn't yesterday's lead.
+                Task { await autoRefreshFeed() }
             }
             .onChange(of: location.coordinate?.latitude) { _, _ in
                 Task { await reload() }
             }
+            // Auto-refresh the news feed whenever the user returns to the
+            // app from background — covers the case where the screen has
+            // been sitting open for a while and the headlines have gone
+            // stale. Throttled inside `autoRefreshFeed()` so a quick
+            // background bounce won't burn the LLM budget.
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active else { return }
+                Task { await autoRefreshFeed() }
+            }
+            // Periodic poll while the user stays on the screen — the
+            // backend regenerates the feed on its own schedule, so a
+            // cheap `getFeed()` is enough to pick up new items without
+            // forcing a fresh LLM pass every couple of minutes.
+            .onReceive(Timer.publish(every: 90, on: .main, in: .common).autoconnect()) { _ in
+                Task {
+                    if let fresh = try? await APIClient.shared.getFeed() {
+                        feed = fresh
+                    }
+                }
+            }
+        }
+    }
+
+    /// Force a backend regeneration of the news feed, but at most once
+    /// per `feedAutoRefreshThrottle` seconds. Called from scenePhase
+    /// .active and on first appear so the headlines visible to the user
+    /// are never older than a few minutes.
+    private func autoRefreshFeed() async {
+        guard Date().timeIntervalSince(lastFeedAutoRefresh) > feedAutoRefreshThrottle else {
+            return
+        }
+        lastFeedAutoRefresh = Date()
+        if let fresh = try? await APIClient.shared.refreshFeed(force: true) {
+            feed = fresh
         }
     }
 

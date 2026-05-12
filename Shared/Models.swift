@@ -178,18 +178,22 @@ struct ChatMessage: Codable, Identifiable, Hashable {
     var localAttachmentImageData: Data? = nil
     /// Locally attached document filename — same caveats.
     var localAttachmentFilename: String? = nil
-    /// Locally recorded voice-message URL — only on the user's own optimistic
-    /// bubble so the chat can render a play button + duration without
-    /// round-tripping to the server. Not decoded from server responses.
+    /// Locally recorded voice-message URL — set on the user's own
+    /// optimistic bubble so the chat can render a play button + duration
+    /// without round-tripping to the server. The *file itself* lives in
+    /// `voiceMessagesDirectory` (a stable Caches subfolder), so the
+    /// audio survives history reloads even though the full URL is
+    /// sandbox-relative and rebuilt on decode from the saved filename.
     var localAudioURL: URL? = nil
     var localAudioDuration: TimeInterval? = nil
 
-    /// Only role/content/created_at round-trip — the local* fields are
-    /// view-only state that doesn't make sense to persist. Encoding
-    /// is symmetric so we can stash messages in SharedStore (chat overlay
-    /// for shopping-list interceptions etc.).
+    /// Codable round-trips the audio filename (basename) + duration so
+    /// voice bubbles persisted to `SharedStore.chatLocalOverlay` come
+    /// back with a working play button after the chat tab is
+    /// re-entered, instead of degrading into an empty/text bubble.
+    /// Image attachments are still view-only — too large to stash.
     private enum CodingKeys: String, CodingKey {
-        case role, content, created_at
+        case role, content, created_at, local_audio_filename, local_audio_duration
     }
 
     func encode(to encoder: Encoder) throws {
@@ -197,6 +201,12 @@ struct ChatMessage: Codable, Identifiable, Hashable {
         try c.encode(role, forKey: .role)
         try c.encode(content, forKey: .content)
         try c.encode(created_at, forKey: .created_at)
+        if let filename = localAudioURL?.lastPathComponent {
+            try c.encode(filename, forKey: .local_audio_filename)
+        }
+        if let duration = localAudioDuration {
+            try c.encode(duration, forKey: .local_audio_duration)
+        }
     }
 
     init(role: Role, content: String, created_at: String,
@@ -220,8 +230,31 @@ struct ChatMessage: Codable, Identifiable, Hashable {
         self.created_at = try c.decode(String.self, forKey: .created_at)
         self.localAttachmentImageData = nil
         self.localAttachmentFilename = nil
-        self.localAudioURL = nil
-        self.localAudioDuration = nil
+        // Re-resolve the audio URL against the current sandbox so the
+        // play button works even though the sandbox path may have
+        // changed between launches. We only stored the filename.
+        if let filename = try c.decodeIfPresent(String.self, forKey: .local_audio_filename) {
+            self.localAudioURL = ChatMessage.voiceMessagesDirectory
+                .appendingPathComponent(filename)
+        } else {
+            self.localAudioURL = nil
+        }
+        self.localAudioDuration = try c.decodeIfPresent(TimeInterval.self, forKey: .local_audio_duration)
+    }
+
+    /// Stable on-disk location for recorded voice-message clips. Lives
+    /// in Caches so iOS can reclaim space under pressure, but is not
+    /// the temp directory that gets wiped between launches. Both
+    /// `VoiceService` (recording side) and the Codable decode path
+    /// (reload side) resolve through this single helper so the
+    /// filename round-trip lines up.
+    static var voiceMessagesDirectory: URL {
+        let base = FileManager.default
+            .urls(for: .cachesDirectory, in: .userDomainMask)
+            .first ?? FileManager.default.temporaryDirectory
+        let dir = base.appendingPathComponent("voice-messages", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
     }
 }
 

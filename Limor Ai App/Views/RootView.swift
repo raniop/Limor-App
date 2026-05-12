@@ -325,8 +325,19 @@ struct MainTabs: View {
         UITabBar.appearance().scrollEdgeAppearance = appearance
     }
 
+    /// Custom binding that routes every tab tap through `handleTabTap`
+    /// — that's how we detect a re-tap on the Chat tab and convert it
+    /// into a scroll-to-bottom nonce instead of iOS's default
+    /// scroll-to-top behavior on the inner ScrollView.
+    private var tabSelection: Binding<AppRouter.Tab> {
+        Binding(
+            get: { router.selectedTab },
+            set: { router.handleTabTap($0) }
+        )
+    }
+
     var body: some View {
-        TabView(selection: $router.selectedTab) {
+        TabView(selection: tabSelection) {
             NowView()
                 .tabItem { Label("הפיד שלי", systemImage: "sparkles") }
                 .tag(AppRouter.Tab.now)
