@@ -22,7 +22,7 @@ struct SettingsView: View {
 
     /// Selected custom tab kind, mirrored from SharedStore via @AppStorage
     /// so toggling here reactively redraws both this view AND MainTabs.
-    @AppStorage("limor.customTabKind", store: UserDefaults(suiteName: "group.com.rani.Limor-Ai-App"))
+    @AppStorage("limor.customTabKind", store: SharedStore.appGroupDefaults)
     private var customTabRaw: String = ""
 
     var body: some View {

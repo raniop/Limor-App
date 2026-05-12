@@ -5,9 +5,16 @@ import Foundation
 enum SharedStore {
     static let appGroupId = "group.com.rani.Limor-Ai-App"
 
-    private static var defaults: UserDefaults {
+    /// Single shared `UserDefaults` instance for the App Group. @AppStorage
+    /// observes KVO on the specific instance you hand it — if every view
+    /// creates its own via `UserDefaults(suiteName:)`, writes from one
+    /// don't notify observers on another, even though they all read/write
+    /// the same underlying store. Stash the shared instance here so views
+    /// can do `@AppStorage("key", store: SharedStore.appGroupDefaults)`.
+    static let appGroupDefaults: UserDefaults =
         UserDefaults(suiteName: appGroupId) ?? .standard
-    }
+
+    private static var defaults: UserDefaults { appGroupDefaults }
 
     private enum Keys {
         static let bearer = "limor.bearer"

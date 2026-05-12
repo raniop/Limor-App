@@ -294,7 +294,7 @@ enum CustomTabKind: String, CaseIterable, Identifiable {
 
 struct MainTabs: View {
     @EnvironmentObject private var router: AppRouter
-    @AppStorage("limor.customTabKind", store: UserDefaults(suiteName: "group.com.rani.Limor-Ai-App"))
+    @AppStorage("limor.customTabKind", store: SharedStore.appGroupDefaults)
     private var customTabRaw: String = ""
 
     private var customTab: CustomTabKind? {
