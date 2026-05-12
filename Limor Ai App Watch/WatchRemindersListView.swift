@@ -26,9 +26,15 @@ struct WatchRemindersListView: View {
             }
         }
         .navigationTitle("תזכורות")
-        .onAppear(perform: refresh)
+        .onAppear {
+            refresh()
+            WatchSyncManager.shared.requestSnapshotFromPhone()
+        }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active { refresh() }
+            if newPhase == .active {
+                refresh()
+                WatchSyncManager.shared.requestSnapshotFromPhone()
+            }
         }
         // Phone pushed a new snapshot — re-read the cached
         // `NowResponse` so the watch hero updates instantly.

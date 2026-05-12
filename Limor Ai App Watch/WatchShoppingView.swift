@@ -44,9 +44,15 @@ struct WatchShoppingView: View {
             }
         }
         .navigationTitle("קניות")
-        .onAppear(perform: refresh)
+        .onAppear {
+            refresh()
+            WatchSyncManager.shared.requestSnapshotFromPhone()
+        }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active { refresh() }
+            if newPhase == .active {
+                refresh()
+                WatchSyncManager.shared.requestSnapshotFromPhone()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(
             for: NSUbiquitousKeyValueStore.didChangeExternallyNotification

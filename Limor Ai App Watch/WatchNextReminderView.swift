@@ -16,9 +16,19 @@ struct WatchNextReminderView: View {
                 emptyHero
             }
         }
-        .onAppear(perform: refresh)
+        .onAppear {
+            refresh()
+            // Pull the current snapshot from iPhone — handles the
+            // first-launch case where no `updateApplicationContext`
+            // has landed yet, and the simulator-pair case where the
+            // App Group containers don't bridge between processes.
+            WatchSyncManager.shared.requestSnapshotFromPhone()
+        }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active { refresh() }
+            if newPhase == .active {
+                refresh()
+                WatchSyncManager.shared.requestSnapshotFromPhone()
+            }
         }
         // KVS notification covers real-device sync; WCSession
         // notification covers the simulator pair and gives instant
