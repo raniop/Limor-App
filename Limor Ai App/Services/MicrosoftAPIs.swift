@@ -154,6 +154,13 @@ struct MicrosoftAPIs {
             throw APIError.notSignedIn
         }
         let webParams = MSALWebviewParameters(authPresentationViewController: presenting)
+        // Force ASWebAuthenticationSession (system sign-in sheet) instead of
+        // handing off to Microsoft Authenticator. The broker round-trip needs
+        // a universal-link return path we haven't set up, so on devices where
+        // Authenticator is installed it opens but never reports back —
+        // surfacing as `application did not receive response from broker`.
+        // The system sheet completes inside MSAL with no URL handoff.
+        webParams.webviewType = .authenticationSession
         let params = MSALInteractiveTokenParameters(scopes: scopes, webviewParameters: webParams)
         do {
             let result = try await app.acquireToken(with: params)
