@@ -50,47 +50,26 @@ struct FeedCard: View {
         }
     }
 
-    // MARK: - Paged feed
+    // MARK: - Vertical topic list
 
+    /// Pair every topic with its current synthesised item (if any).
     private var slides: [(topic: FeedTopic, item: FeedItem?)] {
         bundle.topics.map { topic in
             (topic, bundle.items.first { $0.topic_id == topic.id })
         }
     }
 
+    /// New design: vertical stack — one row per topic, with its top headline
+    /// + a short lead. Replaces the paged carousel because users were
+    /// missing topics behind the swipe gesture and never realised there was
+    /// more than one.
     private var pagedFeed: some View {
-        let pairs = slides
-        return VStack(spacing: 8) {
-            TabView(selection: $currentIndex) {
-                ForEach(Array(pairs.enumerated()), id: \.offset) { index, pair in
-                    FeedSlide(topic: pair.topic, item: pair.item) {
-                        if let item = pair.item { detailItem = item }
-                    }
-                    .tag(index)
-                    .padding(.horizontal, 2)
+        VStack(spacing: 10) {
+            ForEach(Array(slides.enumerated()), id: \.offset) { _, pair in
+                FeedTopicRow(topic: pair.topic, item: pair.item) {
+                    if let item = pair.item { detailItem = item }
                 }
             }
-            // Page-indicator + side chevrons sit below — UIKit's default
-            // page-style dots don't match the brand. Auto-rotation removed
-            // so the user is always in control; swipe still works natively.
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: 190)
-
-            if pairs.count > 1 {
-                LimorPageControls(
-                    count: pairs.count,
-                    index: currentIndex,
-                    onBack: { advance(by: -1, count: pairs.count) },
-                    onForward: { advance(by: 1, count: pairs.count) }
-                )
-            }
-        }
-    }
-
-    private func advance(by step: Int, count: Int) {
-        guard count > 0 else { return }
-        withAnimation(.easeInOut(duration: 0.35)) {
-            currentIndex = (currentIndex + step + count) % count
         }
     }
 
@@ -104,7 +83,7 @@ struct FeedCard: View {
                     colors: [Color.limorIndigo, Color.limorViolet],
                     startPoint: .leading, endPoint: .trailing
                 ))
-            Text("הפיד שלי")
+            Text("חדשות אחרונות")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.limorInk)
 
@@ -200,61 +179,72 @@ struct FeedCard: View {
     }
 }
 
-// MARK: - Single feed slide (one item visible at a time)
+// MARK: - Topic row (vertical newspaper layout)
 
-private struct FeedSlide: View {
+/// One row per user topic. Renders the topic chip + headline + a short
+/// lead. Tapping the whole row opens the topic detail screen (full
+/// multi-article list). Loading / no-content states get their own
+/// minimal treatment so the row height stays predictable.
+private struct FeedTopicRow: View {
     let topic: FeedTopic
     let item: FeedItem?
     let onTap: () -> Void
 
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(topic.label)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.limorIndigo)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(Color.limorIndigo.opacity(0.12)))
+            HStack(alignment: .top, spacing: 12) {
+                accentBar
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text(topic.label)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.limorIndigo)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Capsule().fill(Color.limorIndigo.opacity(0.12)))
+                        Spacer(minLength: 0)
+                        if item != nil {
+                            Image(systemName: "chevron.left")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.limorMuted)
+                        }
+                    }
 
-                if let item, !item.headline.isEmpty {
-                    Text(item.headline)
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.limorInk)
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if !item.body.isEmpty {
-                        Text(item.body)
-                            .font(.subheadline)
-                            .foregroundStyle(.limorInk.opacity(0.7))
+                    if let item, !item.headline.isEmpty {
+                        Text(item.headline)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.limorInk)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if !item.body.isEmpty {
+                            Text(item.body)
+                                .font(.caption)
+                                .foregroundStyle(.limorInk.opacity(0.7))
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    } else {
+                        Text("עוד אין עדכון — נסה לרענן")
+                            .font(.caption)
+                            .foregroundStyle(.limorMuted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                } else {
-                    Text("עוד לא נטען מידע — לחץ רענון")
-                        .font(.subheadline)
-                        .foregroundStyle(.limorMuted)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-
-                Spacer(minLength: 4)
-
-                HStack(spacing: 4) {
-                    Spacer()
-                    Text("פתח לקריאה")
-                        .font(.caption.weight(.semibold))
-                    Image(systemName: "chevron.left")
-                        .font(.caption.weight(.bold))
-                }
-                .foregroundStyle(item == nil ? .limorMuted : .limorIndigo)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
         }
         .buttonStyle(.plain)
         .disabled(item == nil)
+    }
+
+    /// Slim indigo strip on the leading edge — visual rhythm between
+    /// rows, also doubles as a "tap target" affordance.
+    private var accentBar: some View {
+        Capsule()
+            .fill(item == nil ? Color.limorMuted.opacity(0.3) : Color.limorIndigo)
+            .frame(width: 3)
     }
 }
 

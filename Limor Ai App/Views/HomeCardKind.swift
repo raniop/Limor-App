@@ -21,7 +21,7 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
         case .nextReminder:    return "התזכורת הבאה"
         case .recommendations: return "טיפ אישי"
         case .meetings:        return "הפגישות הבאות"
-        case .feed:            return "הפיד שלי"
+        case .feed:            return "חדשות אחרונות"
         case .nextFlight:      return "טיסה קרובה"
         case .weather:         return "מזג אוויר"
         case .shopping:        return "רשימת קניות"
