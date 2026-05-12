@@ -125,6 +125,31 @@ final class WatchSyncManager: NSObject, ObservableObject {
     }
 
     #if os(iOS)
+    /// iPhone-side handler for the watch's recorded audio. Writes the
+    /// bytes to a temp m4a, transcribes via the existing iOS
+    /// `VoiceService.transcribeAudioFile` (Hebrew Speech recognizer
+    /// — only available on iOS, which is why the watch hands off
+    /// here in the first place), then routes the transcript through
+    /// the same intercept + chat path as a typed message would.
+    func relayLimorVoice(_ audio: Data, replyHandler: @escaping ([String: Any]) -> Void) async {
+        let url = ChatMessage.voiceMessagesDirectory
+            .appendingPathComponent("watch-relay-\(UUID().uuidString).m4a")
+        do {
+            try audio.write(to: url)
+        } catch {
+            replyHandler(["error": "לא הצלחתי לשמור את ההקלטה: \(error.localizedDescription)"])
+            return
+        }
+        defer { try? FileManager.default.removeItem(at: url) }
+        let transcript = await VoiceService.shared.transcribeAudioFile(url: url, locale: .hebrew)
+        let trimmed = transcript?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else {
+            replyHandler(["error": "לא הצלחתי להבין את ההקלטה"])
+            return
+        }
+        await relayLimorMessage(trimmed, replyHandler: replyHandler)
+    }
+
     /// iPhone-side handler for the watch's PTT button. Mirrors what
     /// `ChatView.send(text:)` does: first runs the on-device
     /// `ShoppingDetector` intercept (which is what actually writes
@@ -194,10 +219,44 @@ final class WatchSyncManager: NSObject, ObservableObject {
     #endif
 
     #if os(watchOS)
-    /// Watch → iPhone PTT bridge. Ships the transcribed user message
-    /// over `sendMessage`, the iPhone forwards it to Limor's chat
-    /// backend, and the reply comes back inline via the reply
-    /// handler. Completion fires on the main actor.
+    /// Watch → iPhone PTT bridge for AUDIO. Ships the recorded m4a
+    /// bytes over `sendMessage`, iPhone transcribes them locally and
+    /// routes through the same shopping intercept / chat backend
+    /// path the typed message uses, then returns Limor's reply
+    /// inline.
+    func askLimorVoice(_ audio: Data, completion: @escaping (Result<String, Error>) -> Void) {
+        guard let session = activeSession else {
+            completion(.failure(WatchSyncError.notSupported))
+            return
+        }
+        guard session.activationState == .activated else {
+            completion(.failure(WatchSyncError.notActivated))
+            return
+        }
+        guard session.isReachable else {
+            completion(.failure(WatchSyncError.phoneUnreachable))
+            return
+        }
+        session.sendMessage(
+            ["voiceAudio": audio],
+            replyHandler: { reply in
+                Task { @MainActor in
+                    if let text = reply["reply"] as? String {
+                        completion(.success(text))
+                    } else if let err = reply["error"] as? String {
+                        completion(.failure(WatchSyncError.phone(message: err)))
+                    } else {
+                        completion(.failure(WatchSyncError.malformedReply))
+                    }
+                }
+            },
+            errorHandler: { error in
+                Task { @MainActor in completion(.failure(error)) }
+            }
+        )
+    }
+
+    /// Watch → iPhone PTT bridge for TEXT (legacy / dictation path).
     func askLimor(_ message: String, completion: @escaping (Result<String, Error>) -> Void) {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -309,6 +368,12 @@ extension WatchSyncManager: WCSessionDelegate {
         if let text = message["limorMessage"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Task { @MainActor in
                 await WatchSyncManager.shared.relayLimorMessage(text, replyHandler: replyHandler)
+            }
+            return
+        }
+        if let audio = message["voiceAudio"] as? Data, !audio.isEmpty {
+            Task { @MainActor in
+                await WatchSyncManager.shared.relayLimorVoice(audio, replyHandler: replyHandler)
             }
             return
         }

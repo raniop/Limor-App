@@ -65,6 +65,7 @@
 		AEE00835135110547AAE7307 /* WatchPTTView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ABE1E35925201FBC74B654 /* WatchPTTView.swift */; };
 		AEE7EFB5AEC926AFCE0E8402 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BC4F6E9C9C972C8BD4AE955 /* APIClient.swift */; };
 		B5C758653B22AE323D9CA90E /* LimorWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040907D22505852D85491C79 /* LimorWatchApp.swift */; };
+		B8C6D01592C48AA39DD282C6 /* WatchAudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA991E0A38C31369BE6F0193 /* WatchAudioRecorder.swift */; };
 		B99A4E6659BC68042EF52B0D /* WatchRemindersListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60FBC4456DCB66433B5232E6 /* WatchRemindersListView.swift */; };
 		BA3F0CEDFE573CDFF414311E /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0126DBEFE9D0FD9C09A0F184 /* GoogleService-Info.plist */; };
 		BBB4601318DCD972FBFC11EB /* WatchShoppingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E0C6ECB8251522681972999 /* WatchShoppingView.swift */; };
@@ -203,6 +204,7 @@
 		C5C3335200C302E0C98B8F26 /* LimorAiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorAiApp.swift; sourceTree = "<group>"; };
 		CD2308FCAB6A8F06F68E1DEF /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D158BA54A5B1C18A5ED2CD2F /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		DA991E0A38C31369BE6F0193 /* WatchAudioRecorder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchAudioRecorder.swift; sourceTree = "<group>"; };
 		DD03C0C2E3CB7D86833DFAC9 /* ActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityController.swift; sourceTree = "<group>"; };
 		DE3796EDF9B6675BBE13322F /* Limor Ai App Watch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Limor Ai App Watch.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E07C0CEB4AD38CED9FBE3231 /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
@@ -392,6 +394,7 @@
 				6E0C6ECB8251522681972999 /* WatchShoppingView.swift */,
 				4CD3E0A0A70017FC8B0459C7 /* Assets.xcassets */,
 				C0ABE1E35925201FBC74B654 /* WatchPTTView.swift */,
+				DA991E0A38C31369BE6F0193 /* WatchAudioRecorder.swift */,
 			);
 			name = "Limor Ai App Watch";
 			path = "Limor Ai App Watch";
@@ -583,6 +586,7 @@
 				884A908B1B8FB382D2123F7C /* SharedStore.swift in Sources */,
 				56D0F5FE7CE277C24BF9FD65 /* WatchSyncManager.swift in Sources */,
 				AEE00835135110547AAE7307 /* WatchPTTView.swift in Sources */,
+				B8C6D01592C48AA39DD282C6 /* WatchAudioRecorder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
