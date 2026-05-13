@@ -1059,6 +1059,22 @@ private struct ChatComposerInput: View {
         HStack(alignment: .bottom, spacing: 10) {
             TextField("הודעה ללימור…", text: $draft, axis: .vertical)
                 .focused($focused)
+                // Native "close keyboard" affordance — without this the
+                // user has no way to dismiss the keyboard without sending
+                // or scrolling, since we use submitLabel(.return) to allow
+                // multi-line composition.
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button {
+                            focused = false
+                        } label: {
+                            Image(systemName: "keyboard.chevron.compact.down")
+                                .font(.body.weight(.semibold))
+                        }
+                        .accessibilityLabel("סגור מקלדת")
+                    }
+                }
                 .lineLimit(1...5)
                 .font(.body)
                 .padding(.horizontal, 14)
