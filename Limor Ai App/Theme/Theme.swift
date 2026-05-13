@@ -47,6 +47,18 @@ extension Color {
         dark:  Color(red: 0.620, green: 0.604, blue: 0.722)  // #9E9AB8
     )
 
+    /// Tab bar tint. Light mode reuses the brand indigo (#504AE5) which
+    /// pops nicely on the bright pastel canvas. In dark mode that same
+    /// indigo is too close to the deep navy surface around it — the
+    /// selected tab's icon + label silhouette barely separates from the
+    /// background ("הפיד שלי בקושי רואים"). The dark variant brightens
+    /// the indigo by ~50% in HSV space so the selected capsule + label
+    /// catch the eye without losing brand identity.
+    static let limorTabTint = dynamicColor(
+        light: Color(red: 0.314, green: 0.275, blue: 0.898), // #504AE5 = limorIndigo
+        dark:  Color(red: 0.620, green: 0.580, blue: 1.0)    // #9E94FF
+    )
+
     /// Splash + LaunchScreen base. Soft pastel lavender in light, a
     /// deep midnight indigo in dark — both keep the colourful logo +
     /// Hebrew tagline readable. Must match `UILaunchScreen` color so
@@ -106,6 +118,7 @@ extension ShapeStyle where Self == Color {
     static var limorCanvas:       Color { .limorCanvas }
     static var limorInk:          Color { .limorInk }
     static var limorMuted:        Color { .limorMuted }
+    static var limorTabTint:      Color { .limorTabTint }
     static var splashBase:        Color { .splashBase }
     static var limorDanger:       Color { .limorDanger }
     static var limorWarning:      Color { .limorWarning }

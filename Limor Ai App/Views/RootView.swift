@@ -358,7 +358,13 @@ struct MainTabs: View {
                 .tabItem { Label("הגדרות", systemImage: "gearshape.fill") }
                 .tag(AppRouter.Tab.settings)
         }
-        .tint(.limorIndigo)
+        // Dynamic tint — brand indigo on light surfaces, brighter indigo
+        // on dark. The fixed limorIndigo (#504AE5) we used before was
+        // too close to the dark-mode canvas for the iOS 18 floating
+        // tab bar's selected-pill background to separate from the
+        // chrome around it — "הפיד שלי בקושי רואים" was the user's
+        // exact phrasing.
+        .tint(.limorTabTint)
     }
 
     @ViewBuilder
