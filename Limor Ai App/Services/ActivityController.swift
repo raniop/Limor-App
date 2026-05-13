@@ -59,6 +59,27 @@ enum ActivityController {
         }
     }
 
+    /// Re-push the existing content to every live activity so the widget
+    /// re-renders. ActivityKit widgets only re-evaluate their body closure
+    /// when `update(_:)` is called — `style: .timer` keeps the countdown
+    /// ticking on its own, but the conditional UI that depends on "is it
+    /// past dueAt yet?" (background tint, "תזכורת באיחור" label, the
+    /// exclamation icon) stays frozen at the value it had when the activity
+    /// last received an update. Calling this on every foreground covers
+    /// the case where the user unlocks their phone after the due time has
+    /// passed while the app was backgrounded.
+    @MainActor
+    static func refresh() async {
+        for activity in Activity<LimorReminderAttributes>.activities {
+            let state = activity.content.state
+            let stale = state.dueAt.addingTimeInterval(60 * 60)
+            let content = ActivityContent<LimorReminderAttributes.ContentState>(
+                state: state, staleDate: stale
+            )
+            await activity.update(content)
+        }
+    }
+
     @MainActor
     static func endAll() async {
         for activity in Activity<LimorReminderAttributes>.activities {

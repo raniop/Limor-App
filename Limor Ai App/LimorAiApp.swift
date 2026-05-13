@@ -44,6 +44,15 @@ struct LimorAiApp: App {
                         // auth not ready), we'd otherwise stay un-registered
                         // forever and no reminder/daily push would arrive.
                         Task { await PushManager.shared.refreshAndUploadToken() }
+                        // Re-render any Live Activity so the "overdue" tint
+                        // and label flip the moment the user opens the app —
+                        // ActivityKit widgets don't auto-rerun their body
+                        // when time passes; only the embedded Text(.timer)
+                        // ticks on its own.
+                        Task {
+                            await ActivityController.endIfOverdue()
+                            await ActivityController.refresh()
+                        }
                         // Pull any iCloud changes other devices wrote
                         // while we were backgrounded — the KVS external-
                         // change notification doesn't always fire on its
