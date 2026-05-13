@@ -309,6 +309,15 @@ struct NowView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(minHeight: 180)
+                // Clip the decorative offset circles to the card shape.
+                // Without this they render 60–200pt beyond the card's
+                // logical bounds, and the parent ScrollView treats the
+                // out-of-bounds drawing as scrollable horizontal content
+                // — which is why the home tab pans sideways whenever a
+                // next-reminder is present. Clipping fixes the pan AND
+                // gives the decorative blurs the rounded mask they
+                // visually need anyway.
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
                 .animation(.easeInOut(duration: 0.25), value: overdue)
             } else if isLoading && snapshot == nil {
                 // Only show the loading skeleton on the very first load, when we
