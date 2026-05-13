@@ -206,26 +206,6 @@ struct NowView: View {
 
     // MARK: Hero — next reminder
 
-    /// Carousel chevron for the navigator row beneath the hero. Sits on
-    /// the page background (not the card), so it uses the brand-gradient
-    /// fill to read consistently in both light and dark themes — same
-    /// styling as the tip card chevrons for visual cohesion.
-    private func reminderChevron(systemName: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.subheadline.weight(.heavy))
-                .foregroundStyle(.white)
-                .frame(width: 32, height: 32)
-                .background(
-                    Circle()
-                        .fill(LimorGradient.brand)
-                        .shadow(color: Color.limorIndigo.opacity(0.35), radius: 6, y: 3)
-                )
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-    }
-
     /// Pending reminders ordered for the home hero: overdue first (most
     /// urgent), then upcoming by ascending due time. Capped at 8 so the
     /// dots strip stays readable.
@@ -371,29 +351,42 @@ struct NowView: View {
                 .id(r.id)
                 .transition(.opacity)
                 .animation(.easeInOut(duration: 0.2), value: r.id)
-
-                    if totalRecs > 1 {
-                        // Navigator row sits BELOW the card. Chevrons +
-                        // dots, all in one HStack. Using explicit
-                        // chevron.right / chevron.left (not the auto-
-                        // mirroring .backward / .forward) because RTL
-                        // mirroring on tinted button surfaces sometimes
-                        // rendered them flipped on iOS 26. The HStack
-                        // arranges right-to-left under RTL, so the
-                        // first slot is the rightmost on screen.
-                        HStack(spacing: 14) {
-                            reminderChevron(systemName: "chevron.right") {
-                                withAnimation(.easeInOut(duration: 0.2)) {
+                // Swipe to advance — safe now that .clipShape stops the
+                // decorative blurs from extending past the card and
+                // tricking the parent ScrollView into thinking there's
+                // horizontal content to scroll. Threshold guards keep
+                // vertical scrolls flowing through to the ScrollView.
+                .gesture(
+                    DragGesture(minimumDistance: 24)
+                        .onEnded { value in
+                            guard totalRecs > 1 else { return }
+                            let h = value.translation.width
+                            let v = value.translation.height
+                            guard abs(h) > abs(v), abs(h) > 50 else { return }
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                // RTL: swipe right = previous,
+                                // swipe left = next.
+                                if h > 0 {
                                     reminderHeroIndex = (safeIndex - 1 + totalRecs) % totalRecs
-                                }
-                            }
-                            LimorPageDots(count: totalRecs, index: safeIndex)
-                            reminderChevron(systemName: "chevron.left") {
-                                withAnimation(.easeInOut(duration: 0.2)) {
+                                } else {
                                     reminderHeroIndex = (safeIndex + 1) % totalRecs
                                 }
                             }
                         }
+                )
+
+                    if totalRecs > 1 {
+                        // Just the dots — the previous design's big
+                        // gradient chevrons crowded the page and
+                        // overpowered the card. Swipe is the primary
+                        // navigator; the dots provide position context
+                        // and a tap target for jumping directly.
+                        LimorPageDots(count: totalRecs, index: safeIndex)
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    reminderHeroIndex = (safeIndex + 1) % totalRecs
+                                }
+                            }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -1284,50 +1277,37 @@ private struct RecommendationsCard: View {
                 Spacer()
             }
 
-            // Crossfade between recs instead of a paging TabView. The
-            // TabView's swipe gesture was intercepting vertical drags
-            // that the user intended for the outer ScrollView, which
-            // made the home page "jiggle" sideways every time they
-            // tried to scroll past this card. Navigation between recs
-            // now lives entirely in the side chevrons + bottom dots.
+            // Crossfade between recs. Navigation: swipe primary, dots
+            // for position + tap-to-advance. The earlier side-chevron
+            // version overpowered the card visually; the page pan bug
+            // that originally pushed me to chevrons turned out to be
+            // unrelated (decorative blurs leaking past card bounds in
+            // the reminder hero, now clipped), so swipe is back.
             let current = recommendations.indices.contains(index)
                 ? recommendations[index] : recommendations[0]
-            ZStack {
-                RecommendationContent(rec: current)
-                    .id(current.id)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, count > 1 ? 40 : 0)
-                    .transition(.opacity)
-                    .animation(.easeInOut(duration: 0.25), value: index)
-                if count > 1 {
-                    // Side chevrons, vertically centered relative to the
-                    // RecommendationContent. Used to live in a row under
-                    // the card — the user expected them on the sides,
-                    // matching the typical iOS carousel pattern.
-                    HStack {
-                        chevronButton(
-                            systemName: "chevron.backward",
-                            action: { advance(by: -1, count: count) }
-                        )
-                        Spacer()
-                        chevronButton(
-                            systemName: "chevron.forward",
-                            action: { advance(by: 1, count: count) }
-                        )
-                    }
-                }
-            }
-            .frame(height: cardHeight)
-            // No swipe gesture on this card. We had a horizontal
-            // DragGesture here, but even with the |h| > |v| threshold
-            // it leaked into the parent ScrollView's gesture system
-            // and made the home tab pannable sideways — user kept
-            // reporting "the whole screen still moves right/left".
-            // Chevrons (above) are the only navigator.
+            RecommendationContent(rec: current)
+                .id(current.id)
+                .frame(height: cardHeight)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.25), value: index)
+                .gesture(
+                    DragGesture(minimumDistance: 24)
+                        .onEnded { value in
+                            guard count > 1 else { return }
+                            let h = value.translation.width
+                            let v = value.translation.height
+                            guard abs(h) > abs(v), abs(h) > 50 else { return }
+                            // RTL: swipe right = previous, left = next.
+                            if h > 0 { advance(by: -1, count: count) }
+                            else { advance(by: 1, count: count) }
+                        }
+                )
 
             if count > 1 {
                 LimorPageDots(count: count, index: index)
                     .frame(maxWidth: .infinity, alignment: .center)
+                    .onTapGesture { advance(by: 1, count: count) }
             }
         }
         .padding(18)
@@ -1349,14 +1329,9 @@ private struct RecommendationsCard: View {
         }
     }
 
-    /// Side-of-card chevron with a generous tap target. SF Symbols'
-    /// `chevron.backward` / `chevron.forward` auto-mirror in RTL, so
-    /// `backward` is the right-side arrow visually (Hebrew "previous")
-    /// and `forward` is the left-side arrow ("next"). Visual refresh:
-    /// circular button (was capsule), bigger glyph, gradient fill so
-    /// the chevrons read as a clear control on both light and dark
-    /// surface — the earlier 10%-opacity capsule disappeared into the
-    /// liquid-glass background in dark mode.
+    /// Kept only because the project still references the symbol from
+    /// other entry points; the tip card itself no longer uses it. Safe
+    /// to remove once no other caller depends on it.
     private func chevronButton(systemName: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
