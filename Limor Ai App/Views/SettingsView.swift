@@ -22,8 +22,12 @@ struct SettingsView: View {
     @State private var pushDiagnosticRunning = false
     @State private var pushDiagnosticStatus: String?
     /// Source image loaded from PhotosPicker, awaiting the user's crop
-    /// confirmation. Drives the `.sheet` modifier presenting PhotoCropSheet.
-    @State private var photoPendingCrop: UIImage?
+    /// confirmation. Stored as IdentifiedImage rather than UIImage so the
+    /// `.sheet(item:)` modifier sees a *stable* identifier across renders
+    /// — wrapping the UIImage in a fresh IdentifiedImage(UUID()) on every
+    /// body evaluation made SwiftUI think each render was a *new* sheet
+    /// to present, and the cropper opened-and-closed in a tight loop.
+    @State private var photoPendingCrop: IdentifiedImage?
 
     /// Selected custom tab kind, mirrored from SharedStore via @AppStorage
     /// so toggling here reactively redraws both this view AND MainTabs.
@@ -84,10 +88,7 @@ struct SettingsView: View {
                 guard let newItem else { return }
                 Task { await loadPhotoForCropping(item: newItem) }
             }
-            .sheet(item: Binding<IdentifiedImage?>(
-                get: { photoPendingCrop.map(IdentifiedImage.init) },
-                set: { newValue in photoPendingCrop = newValue?.image }
-            )) { wrapper in
+            .sheet(item: $photoPendingCrop) { wrapper in
                 PhotoCropSheet(
                     source: wrapper.image,
                     onCancel: {
@@ -884,7 +885,7 @@ struct SettingsView: View {
                 photoItem = nil
                 return
             }
-            photoPendingCrop = uiImage.normalizedOrientation()
+            photoPendingCrop = IdentifiedImage(image: uiImage.normalizedOrientation())
         } catch {
             errorMessage = error.localizedDescription
             photoItem = nil

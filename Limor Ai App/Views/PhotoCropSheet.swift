@@ -27,7 +27,14 @@ struct PhotoCropSheet: View {
     var body: some View {
         NavigationStack {
             GeometryReader { geo in
-                let containerSide = min(geo.size.width, geo.size.height) - 24
+                // GeometryReader briefly reports (0, 0) on first layout
+                // pass, which used to make `containerSide = -24` flow
+                // through every dependent calculation and emit
+                // "Invalid frame dimension (negative or non-finite)"
+                // for every .frame() in the body. Clamp at 1pt — the
+                // view re-renders the moment the real size arrives.
+                let rawSide = min(geo.size.width, geo.size.height) - 24
+                let containerSide = max(rawSide, 1)
                 let cropSide = containerSide * 0.86
                 // Base scale that makes the image fully cover the container
                 // (aspectFill). Larger of width-fit and height-fit so the
