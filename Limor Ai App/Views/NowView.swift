@@ -206,19 +206,21 @@ struct NowView: View {
 
     // MARK: Hero — next reminder
 
-    /// Compact carousel chevron for the next-reminder hero. Solid white
-    /// circle with a tinted glyph so it pops on top of the brand /
-    /// danger gradient backgrounds the card uses, regardless of theme.
+    /// Compact carousel chevron for the next-reminder hero. Sits in the
+    /// navigation row beneath the card now (was on top, broke layout
+    /// before), so the styling switches from "pop against red card" to
+    /// "pop against page background": brand-gradient fill + white glyph
+    /// matching the tip card's chevrons for consistency.
     private func reminderChevron(systemName: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.subheadline.weight(.heavy))
-                .foregroundStyle(.limorIndigo)
+                .foregroundStyle(.white)
                 .frame(width: 32, height: 32)
                 .background(
                     Circle()
-                        .fill(.white.opacity(0.92))
-                        .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+                        .fill(LimorGradient.brand)
+                        .shadow(color: Color.limorIndigo.opacity(0.35), radius: 6, y: 3)
                 )
                 .contentShape(Circle())
         }
@@ -362,38 +364,36 @@ struct NowView: View {
                 .transition(.opacity)
                 .animation(.easeInOut(duration: 0.25), value: r.id)
                 .animation(.easeInOut(duration: 0.25), value: overdue)
-                // Side-aligned chevrons for navigation. The previous
-                // DragGesture(.onEnded) approach made the whole home
-                // page jiggle horizontally — SwiftUI's gesture system
-                // had the child drag competing with the parent
-                // ScrollView's pan in a way that consumed neither
-                // cleanly. Explicit buttons sidestep the conflict and
-                // are also more discoverable than a hidden swipe.
-                .overlay(alignment: .trailing) {
-                    if totalRecs > 1 {
-                        reminderChevron(systemName: "chevron.backward") {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                reminderHeroIndex = (safeIndex - 1 + totalRecs) % totalRecs
-                            }
-                        }
-                        .padding(.trailing, 6)
-                    }
-                }
-                .overlay(alignment: .leading) {
-                    if totalRecs > 1 {
-                        reminderChevron(systemName: "chevron.forward") {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                reminderHeroIndex = (safeIndex + 1) % totalRecs
-                            }
-                        }
-                        .padding(.leading, 6)
-                    }
-                }
 
                     if totalRecs > 1 {
-                        LimorPageDots(count: totalRecs, index: safeIndex)
+                        // Navigation row sits BELOW the card so no
+                        // overlay sits on top of the action buttons
+                        // and no DragGesture competes with the parent
+                        // ScrollView's pan. RTL convention: chevron.
+                        // right (always points →) on the right edge
+                        // is "previous" (back in reading order);
+                        // chevron.left (always points ←) on the left
+                        // edge is "next". Using the explicit .left /
+                        // .right symbols, not .backward / .forward,
+                        // because auto-mirroring on tinted button
+                        // backgrounds was rendering them swapped on
+                        // some iOS 18 builds.
+                        HStack(spacing: 14) {
+                            reminderChevron(systemName: "chevron.right") {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    reminderHeroIndex = (safeIndex - 1 + totalRecs) % totalRecs
+                                }
+                            }
+                            LimorPageDots(count: totalRecs, index: safeIndex)
+                            reminderChevron(systemName: "chevron.left") {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    reminderHeroIndex = (safeIndex + 1) % totalRecs
+                                }
+                            }
+                        }
                     }
                 }
+                .frame(maxWidth: .infinity)
             } else if isLoading && snapshot == nil {
                 // Only show the loading skeleton on the very first load, when we
                 // have nothing to show yet. Once we have a snapshot, refreshes
