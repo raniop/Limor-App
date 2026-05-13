@@ -64,6 +64,11 @@ final class RemindersWriter {
             var ids = SharedStore.syncedReminderIds
             ids.insert(reminderId)
             SharedStore.syncedReminderIds = ids
+            // Remember the EK identifier so we can flip `isCompleted` or
+            // delete it later when the user marks the Limor reminder done.
+            var map = SharedStore.syncedReminderEkIds
+            map[reminderId] = r.calendarItemIdentifier
+            SharedStore.syncedReminderEkIds = map
         } catch {
             print("[reminders-write] failed: \(error.localizedDescription)")
         }
@@ -73,6 +78,60 @@ final class RemindersWriter {
     func mirrorAll(_ reminders: [Reminder]) async {
         for r in reminders where r.status == .pending {
             await writeIfNeeded(reminderId: r.id, task: r.task, dueAt: r.dueDate)
+        }
+    }
+
+    /// Mark the mirrored EKReminder as completed. Best-effort: silently
+    /// no-ops if the reminder wasn't mirrored (e.g. created on a different
+    /// device, or before this map was introduced), or if the EK item has
+    /// since been deleted from the device.
+    func markCompleted(reminderId: String) async {
+        guard let ekId = SharedStore.syncedReminderEkIds[reminderId] else { return }
+        if !hasAccess {
+            let granted = await requestAccess()
+            if !granted { return }
+        }
+        guard let item = store.calendarItem(withIdentifier: ekId) as? EKReminder else {
+            // EK item gone (user deleted it from Reminders.app). Drop the
+            // stale mapping so we don't keep retrying.
+            var map = SharedStore.syncedReminderEkIds
+            map.removeValue(forKey: reminderId)
+            SharedStore.syncedReminderEkIds = map
+            return
+        }
+        if item.isCompleted { return }
+        item.isCompleted = true
+        do {
+            try store.save(item, commit: true)
+        } catch {
+            print("[reminders-write] markCompleted failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Delete the mirrored EKReminder. Called when the user removes the
+    /// Limor reminder so the Reminders.app row goes with it instead of
+    /// drifting out of sync.
+    func delete(reminderId: String) async {
+        guard let ekId = SharedStore.syncedReminderEkIds[reminderId] else { return }
+        if !hasAccess {
+            let granted = await requestAccess()
+            if !granted { return }
+        }
+        defer {
+            // Whether or not the save succeeds, drop the mapping —
+            // re-trying later won't help.
+            var map = SharedStore.syncedReminderEkIds
+            map.removeValue(forKey: reminderId)
+            SharedStore.syncedReminderEkIds = map
+            var ids = SharedStore.syncedReminderIds
+            ids.remove(reminderId)
+            SharedStore.syncedReminderIds = ids
+        }
+        guard let item = store.calendarItem(withIdentifier: ekId) as? EKReminder else { return }
+        do {
+            try store.remove(item, commit: true)
+        } catch {
+            print("[reminders-write] delete failed: \(error.localizedDescription)")
         }
     }
 }

@@ -35,6 +35,9 @@ enum SharedStore {
         static let calendarSources = "limor.calendarSources"
         static let emailSources = "limor.emailSources"
         static let syncedReminderIds = "limor.syncedReminderIds"
+        /// Map Limor reminder id → EKReminder calendarItemIdentifier, so
+        /// completing or deleting in Limor can flip the EK side too.
+        static let syncedReminderEkIds = "limor.syncedReminderEkIds"
         static let onboardingCompleted = "limor.onboardingCompleted"
         static let introCompleted = "limor.introCompleted"
         static let notificationPrefsAsked = "limor.notificationPrefsAsked"
@@ -195,6 +198,15 @@ enum SharedStore {
     static var syncedReminderIds: Set<String> {
         get { Set(defaults.stringArray(forKey: Keys.syncedReminderIds) ?? []) }
         set { defaults.set(Array(newValue), forKey: Keys.syncedReminderIds) }
+    }
+
+    /// Map of Limor reminder id → EKReminder calendarItemIdentifier on this
+    /// device. Populated when `RemindersWriter` mirrors a reminder so a
+    /// later "complete" / "delete" in Limor can find and update the
+    /// matching `EKReminder`. Stored as `[String: String]` in defaults.
+    static var syncedReminderEkIds: [String: String] {
+        get { (defaults.dictionary(forKey: Keys.syncedReminderEkIds) as? [String: String]) ?? [:] }
+        set { defaults.set(newValue, forKey: Keys.syncedReminderEkIds) }
     }
 
     /// True once the user has been walked through the per-permission flow.
@@ -572,5 +584,6 @@ enum SharedStore {
         defaults.removeObject(forKey: Keys.lastNow)
         defaults.removeObject(forKey: Keys.photoB64)
         defaults.removeObject(forKey: Keys.syncedReminderIds)
+        defaults.removeObject(forKey: Keys.syncedReminderEkIds)
     }
 }

@@ -269,6 +269,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
                     do {
                         _ = try await APIClient.shared.completeReminder(token: "", id: reminderId)
                         print("[push] reminder \(reminderId) marked done from notification")
+                        // Mirror the completion into iOS Reminders.app too,
+                        // so a row the user mirrored over there gets checked
+                        // off whether they tapped "Done" inside the app or
+                        // straight from the lock-screen notification.
+                        await RemindersWriter.shared.markCompleted(reminderId: reminderId)
                     } catch {
                         print("[push] complete-from-notification failed: \(error.localizedDescription)")
                     }

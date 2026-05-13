@@ -244,6 +244,11 @@ struct RemindersView: View {
         }
         do {
             _ = try await APIClient.shared.completeReminder(token: auth.token ?? "", id: r.id)
+            // Flip the same reminder to completed inside iOS Reminders.app
+            // so the row the user sees there also gets a check. Best-effort —
+            // silently no-ops if this reminder wasn't mirrored (e.g. created
+            // on a different device).
+            await RemindersWriter.shared.markCompleted(reminderId: r.id)
         } catch {
             errorMessage = error.localizedDescription
             await reload()
@@ -316,6 +321,9 @@ struct RemindersView: View {
         }
         do {
             try await APIClient.shared.deleteReminder(token: auth.token ?? "", id: r.id)
+            // Drop the matching EKReminder so it doesn't linger in iOS
+            // Reminders.app after the Limor reminder is gone.
+            await RemindersWriter.shared.delete(reminderId: r.id)
         } catch {
             errorMessage = error.localizedDescription
             await reload()
