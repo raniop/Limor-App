@@ -412,12 +412,15 @@ struct NowView: View {
                             let v = value.translation.height
                             guard abs(h) > abs(v), abs(h) > 50 else { return }
                             withAnimation(.easeInOut(duration: 0.25)) {
-                                // RTL: swipe right = previous,
-                                // swipe left = next.
+                                // RTL convention (mirrored from LTR's
+                                // "swipe left = next"): swipe RIGHT
+                                // reveals the next reminder (which lives
+                                // to the left in RTL reading order),
+                                // swipe LEFT goes back to the previous.
                                 if h > 0 {
-                                    reminderHeroIndex = (safeIndex - 1 + totalRecs) % totalRecs
-                                } else {
                                     reminderHeroIndex = (safeIndex + 1) % totalRecs
+                                } else {
+                                    reminderHeroIndex = (safeIndex - 1 + totalRecs) % totalRecs
                                 }
                             }
                         }
@@ -1351,9 +1354,10 @@ private struct RecommendationsCard: View {
                             let h = value.translation.width
                             let v = value.translation.height
                             guard abs(h) > abs(v), abs(h) > 50 else { return }
-                            // RTL: swipe right = previous, left = next.
-                            if h > 0 { advance(by: -1, count: count) }
-                            else { advance(by: 1, count: count) }
+                            // RTL: swipe right = next (mirrored from
+                            // LTR's "left = next"), swipe left = previous.
+                            if h > 0 { advance(by: 1, count: count) }
+                            else { advance(by: -1, count: count) }
                             // Manual interaction resets the rotation
                             // clock so the new card gets the full 8s.
                             startAutoAdvance(count: count)
