@@ -3,6 +3,17 @@ import Foundation
 
 /// Manages the Live Activity for the next reminder. Best-effort: silently
 /// no-ops if Live Activities are disabled by the user.
+///
+/// Push update flow (Activity push tokens):
+///
+/// When an activity is started with `pushType: .token`, iOS hands us an
+/// APNs-style device token via `activity.pushTokenUpdates`. We send that
+/// token to the backend tagged with the reminder id, and at due time the
+/// backend hits APNs directly with an `apns-push-type: liveactivity` push
+/// — that's the one Apple-blessed way to flip the activity to its overdue
+/// look while the app is backgrounded or even force-quit. Hybrid FCM
+/// pushes (alert + content-available) don't cut it: iOS doesn't reliably
+/// wake the app for visible pushes, even with the entitlement.
 enum ActivityController {
     /// If `next` is within the next 4 hours, ensure a Live Activity exists for it.
     /// If a different reminder is currently active, end it first. If `next` is nil
@@ -41,7 +52,18 @@ enum ActivityController {
 
         let attrs = LimorReminderAttributes(reminderId: reminder.id, task: reminder.task)
         do {
-            _ = try Activity.request(attributes: attrs, content: content, pushType: nil)
+            let activity = try Activity.request(
+                attributes: attrs,
+                content: content,
+                // .token tells ActivityKit to mint an APNs push token we
+                // can register with the backend. The alternative `nil`
+                // means "no remote updates" and is what we had before —
+                // worked while the app was foregrounded but left the
+                // lock-screen widget frozen on its initial state.
+                pushType: .token
+            )
+            watchPushToken(of: activity, reminderId: reminder.id)
+            watchLifecycle(of: activity, reminderId: reminder.id)
         } catch {
             print("[live-activity] start failed: \(error.localizedDescription)")
         }
@@ -55,6 +77,9 @@ enum ActivityController {
         for activity in Activity<LimorReminderAttributes>.activities {
             if activity.content.state.dueAt < cutoff {
                 await activity.end(nil, dismissalPolicy: .immediate)
+                try? await APIClient.shared.deregisterLiveActivityToken(
+                    reminderId: activity.attributes.reminderId
+                )
             }
         }
     }
@@ -83,7 +108,66 @@ enum ActivityController {
     @MainActor
     static func endAll() async {
         for activity in Activity<LimorReminderAttributes>.activities {
+            try? await APIClient.shared.deregisterLiveActivityToken(
+                reminderId: activity.attributes.reminderId
+            )
             await activity.end(nil, dismissalPolicy: .immediate)
+        }
+    }
+
+    /// Re-attach the push-token / lifecycle subscriptions to every
+    /// in-flight activity on app launch. Without this the AsyncSequence
+    /// subscriptions die with the previous process and a token rotation
+    /// that happens after relaunch never reaches the backend, breaking
+    /// liveactivity push delivery silently. Call once from app startup.
+    @MainActor
+    static func reattachExistingActivities() {
+        for activity in Activity<LimorReminderAttributes>.activities {
+            watchPushToken(of: activity, reminderId: activity.attributes.reminderId)
+            watchLifecycle(of: activity, reminderId: activity.attributes.reminderId)
+        }
+    }
+
+    /// Subscribe to push-token updates for one activity. iOS emits the
+    /// initial token shortly after `Activity.request` returns, and may
+    /// rotate it periodically — both deliveries push to the backend so
+    /// the latest token is the one APNs hits at due time.
+    private static func watchPushToken<A: ActivityAttributes>(
+        of activity: Activity<A>,
+        reminderId: String
+    ) {
+        Task.detached {
+            for await tokenData in activity.pushTokenUpdates {
+                let hex = tokenData.map { String(format: "%02x", $0) }.joined()
+                print("[live-activity] push token for \(reminderId): \(hex.prefix(16))…")
+                do {
+                    try await APIClient.shared.registerLiveActivityToken(
+                        reminderId: reminderId, pushToken: hex
+                    )
+                } catch {
+                    print("[live-activity] register token failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// Subscribe to activity state changes so we can drop the backend's
+    /// stored push token the moment iOS ends or dismisses an activity.
+    /// Without this we'd accumulate dead tokens and the backend would
+    /// keep trying to push to APNs endpoints that always return 410.
+    private static func watchLifecycle<A: ActivityAttributes>(
+        of activity: Activity<A>,
+        reminderId: String
+    ) {
+        Task.detached {
+            for await state in activity.activityStateUpdates {
+                if state == .ended || state == .dismissed || state == .stale {
+                    print("[live-activity] state=\(state) for \(reminderId) → deregistering")
+                    try? await APIClient.shared.deregisterLiveActivityToken(
+                        reminderId: reminderId
+                    )
+                }
+            }
         }
     }
 }

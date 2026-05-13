@@ -157,6 +157,39 @@ struct APIClient {
         let _: EmptyResponse = try await send(req)
     }
 
+    // MARK: - Live Activity push tokens
+
+    /// Register the APNs push token iOS minted for a Live Activity. The
+    /// backend stores it per-reminder so the scheduler can send a direct
+    /// `apns-push-type: liveactivity` push at due time, flipping the
+    /// widget to its overdue look without needing to wake the app via
+    /// the unreliable hybrid-FCM path.
+    func registerLiveActivityToken(reminderId: String, pushToken: String) async throws {
+        struct Body: Encodable {
+            let reminder_id: String
+            let push_token: String
+        }
+        let _: EmptyResponse = try await post(
+            "/api/live-activities/register",
+            body: Body(reminder_id: reminderId, push_token: pushToken)
+        )
+    }
+
+    /// Drop the stored push token when iOS ends/dismisses the activity
+    /// (or we end it ourselves after the reminder is overdue). Without
+    /// this the backend would keep retrying APNs against dead tokens.
+    func deregisterLiveActivityToken(reminderId: String) async throws {
+        struct Body: Encodable { let reminder_id: String }
+        var req = URLRequest(url: resolveURL("/api/live-activities/register"))
+        req.httpMethod = "DELETE"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let bearer = await freshIdToken() {
+            req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = try encoder.encode(Body(reminder_id: reminderId))
+        let _: EmptyResponse = try await send(req)
+    }
+
     // MARK: - Calendar / Contacts sync
 
     func syncCalendar(events: [CalendarEventDTO]) async throws {

@@ -17,6 +17,15 @@ struct LimorAiApp: App {
         // ride a delivered context to the watch instead of waiting for
         // the next mutation.
         WatchSyncManager.shared.activate()
+        // Re-attach push-token / lifecycle subscribers to any Live
+        // Activities that survived the previous launch. iOS persists
+        // activities across relaunches; the AsyncSequence subscriptions
+        // do not, so without this a token rotation after relaunch would
+        // never reach the backend and the activity push at due time
+        // would silently miss.
+        Task { @MainActor in
+            ActivityController.reattachExistingActivities()
+        }
     }
 
     var body: some Scene {
