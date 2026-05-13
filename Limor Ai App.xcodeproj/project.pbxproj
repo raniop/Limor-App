@@ -66,6 +66,7 @@
 		AEE00835135110547AAE7307 /* WatchPTTView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ABE1E35925201FBC74B654 /* WatchPTTView.swift */; };
 		AEE7EFB5AEC926AFCE0E8402 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BC4F6E9C9C972C8BD4AE955 /* APIClient.swift */; };
 		B5C758653B22AE323D9CA90E /* LimorWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040907D22505852D85491C79 /* LimorWatchApp.swift */; };
+		B6487B80BABA4CAAE27FAAC4 /* BuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F2EF829AC71493350A25A38 /* BuildInfo.swift */; };
 		B8C6D01592C48AA39DD282C6 /* WatchAudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA991E0A38C31369BE6F0193 /* WatchAudioRecorder.swift */; };
 		B99A4E6659BC68042EF52B0D /* WatchRemindersListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60FBC4456DCB66433B5232E6 /* WatchRemindersListView.swift */; };
 		BA3F0CEDFE573CDFF414311E /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0126DBEFE9D0FD9C09A0F184 /* GoogleService-Info.plist */; };
@@ -185,6 +186,7 @@
 		6B43AF9EC5437EE160A94D6D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6D5726DADBB4830BFA6BA44F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS11.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		6E0C6ECB8251522681972999 /* WatchShoppingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchShoppingView.swift; sourceTree = "<group>"; };
+		6F2EF829AC71493350A25A38 /* BuildInfo.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BuildInfo.swift; sourceTree = "<group>"; };
 		70396FD611F130F479EC2B84 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		797212B58CC04F38D7A27921 /* RecurringRemindersView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecurringRemindersView.swift; sourceTree = "<group>"; };
 		81E476CAA1353471D85E0F79 /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
@@ -260,6 +262,7 @@
 				E990BA0CF84A9569C992E77C /* Theme */,
 				5D5DD6FD909BB266EA7B62FC /* Views */,
 				24CC41FAD1F1FDE33B3C46C8 /* Sounds */,
+				6F2EF829AC71493350A25A38 /* BuildInfo.swift */,
 			);
 			path = "Limor Ai App";
 			sourceTree = "<group>";
@@ -463,11 +466,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3BAA7FA6BF8CA901D858A3A5 /* Build configuration list for PBXNativeTarget "Limor Ai App" */;
 			buildPhases = (
+				EF378A632077F5EC80D209E4 /* Inject Git SHA */,
 				630B89083B64C66F9C596C9F /* Sources */,
 				227A8471540009E43CC09F5E /* Resources */,
 				E5FA14122505F2D1F66B0F76 /* Frameworks */,
 				724F9366A34CAE43054FB7FB /* Embed Foundation Extensions */,
-				EF378A632077F5EC80D209E4 /* Inject Git SHA */,
 				BD0A360649E2A58E7191FC47 /* Embed Watch Content */,
 			);
 			buildRules = (
@@ -574,7 +577,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Stamp the current git SHA onto the bundled Info.plist so the\n# in-app version footer shows the actual commit instead of \"dev\".\n# All failures are downgraded to a `warning:` line so Xcode\n# surfaces them in the build log without failing the build — the\n# footer is a debugging aid, not load-bearing.\n#\n# The previous version swallowed stderr unconditionally, so when\n# `git` wasn't on the build script's PATH (or `.git` wasn't\n# readable from inside a sandboxed phase) we silently wrote\n# \"dev\" and the user had no way to tell *why*. Now every failure\n# path echoes a `warning:` and the build log explains it.\n\nGIT_BIN=$(command -v git || true)\nif [ -z \"$GIT_BIN\" ] && [ -x /usr/bin/git ]; then\n  GIT_BIN=/usr/bin/git\nfi\n\nif [ -z \"$GIT_BIN\" ]; then\n  echo \"warning: [inject-git-sha] git not found on PATH; falling back to 'dev'\"\n  GIT_SHA=\"dev\"\nelse\n  GIT_OUT=$(\"$GIT_BIN\" -C \"${SRCROOT}\" rev-parse --short HEAD 2>&1)\n  GIT_RC=$?\n  if [ $GIT_RC -ne 0 ]; then\n    echo \"warning: [inject-git-sha] git rev-parse failed (rc=$GIT_RC) at ${SRCROOT}: $GIT_OUT\"\n    GIT_SHA=\"dev\"\n  else\n    GIT_SHA=\"$GIT_OUT\"\n  fi\nfi\n\nPLIST=\"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}\"\nif [ ! -f \"$PLIST\" ]; then\n  echo \"warning: [inject-git-sha] plist not found at $PLIST — phase may be running before resource copy\"\n  exit 0\nfi\n\nif /usr/libexec/PlistBuddy -c \"Print :LIMOR_GIT_SHA\" \"$PLIST\" >/dev/null 2>&1; then\n  PB_OUT=$(/usr/libexec/PlistBuddy -c \"Set :LIMOR_GIT_SHA $GIT_SHA\" \"$PLIST\" 2>&1) \\\n    || echo \"warning: [inject-git-sha] Set failed: $PB_OUT\"\nelse\n  PB_OUT=$(/usr/libexec/PlistBuddy -c \"Add :LIMOR_GIT_SHA string $GIT_SHA\" \"$PLIST\" 2>&1) \\\n    || echo \"warning: [inject-git-sha] Add failed: $PB_OUT\"\nfi\n\necho \"[inject-git-sha] LIMOR_GIT_SHA=$GIT_SHA → $PLIST\"\nexit 0\n";
+			shellScript = "# Regenerate BuildInfo.swift with the current git short SHA so the\n# Settings footer reflects what the user is actually running. We\n# write a plain Swift enum that the Sources phase (scheduled after\n# this one) compiles in. Failures fall back to \"dev\" and emit a\n# `warning:` line so the build log explains why if anything trips.\n\nGIT_BIN=$(command -v git || true)\nif [ -z \"$GIT_BIN\" ] && [ -x /usr/bin/git ]; then\n  GIT_BIN=/usr/bin/git\nfi\n\nif [ -z \"$GIT_BIN\" ]; then\n  echo \"warning: [inject-git-sha] git not found on PATH; falling back to 'dev'\"\n  GIT_SHA=\"dev\"\nelse\n  GIT_OUT=$(\"$GIT_BIN\" -C \"${SRCROOT}\" rev-parse --short HEAD 2>&1)\n  GIT_RC=$?\n  if [ $GIT_RC -ne 0 ]; then\n    echo \"warning: [inject-git-sha] git rev-parse failed (rc=$GIT_RC) at ${SRCROOT}: $GIT_OUT\"\n    GIT_SHA=\"dev\"\n  else\n    GIT_SHA=\"$GIT_OUT\"\n  fi\nfi\n\nOUT=\"${SRCROOT}/Limor Ai App/BuildInfo.swift\"\nmkdir -p \"$(dirname \"$OUT\")\"\ncat > \"$OUT\" <<EOF\n// Auto-generated by tools/inject-git-sha.rb on every build.\n// Do not edit by hand; do not commit changes — see .gitignore.\nenum BuildInfo {\n    static let gitSha: String = \"$GIT_SHA\"\n}\nEOF\n\necho \"[inject-git-sha] BuildInfo.gitSha=\\\"$GIT_SHA\\\" → $OUT\"\nexit 0\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -653,6 +656,7 @@
 				7CC2F244ED72316EE65CC6E4 /* LimorAppIntents.swift in Sources */,
 				34FDD193905F9C0FD3456ECA /* WatchSyncManager.swift in Sources */,
 				501B9562871C7876C60435CB /* PhotoCropSheet.swift in Sources */,
+				B6487B80BABA4CAAE27FAAC4 /* BuildInfo.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

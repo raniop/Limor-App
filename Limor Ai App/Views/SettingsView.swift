@@ -818,9 +818,14 @@ struct SettingsView: View {
         let info = Bundle.main.infoDictionary
         let short = (info?["CFBundleShortVersionString"] as? String) ?? "?"
         let build = (info?["CFBundleVersion"] as? String) ?? "?"
-        let gitSha = (info?["LIMOR_GIT_SHA"] as? String) ?? "dev"
+        // BuildInfo.gitSha is generated at build time by
+        // tools/inject-git-sha.rb (Run Script phase before Sources).
+        // Reading from a Swift constant rather than Info.plist avoids
+        // the race with ProcessInfoPlistFile, which used to silently
+        // regenerate the bundled plist *after* our script and wipe
+        // the LIMOR_GIT_SHA key that lived there.
         return VStack(spacing: 4) {
-            Text("גרסה \(short) (\(build)) · \(gitSha)")
+            Text("גרסה \(short) (\(build)) · \(BuildInfo.gitSha)")
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.limorMuted)
         }

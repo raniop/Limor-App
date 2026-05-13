@@ -19,3 +19,8 @@ Package.resolved
 
 # Claude Code local overrides
 .claude/settings.local.json
+
+# Regenerated on every build by tools/inject-git-sha.rb.
+# Committed once with a "dev" placeholder so a fresh clone compiles
+# before the first build runs the script.
+Limor Ai App/BuildInfo.swift
