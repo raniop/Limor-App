@@ -206,18 +206,21 @@ struct NowView: View {
 
     // MARK: Hero — next reminder
 
-    /// Compact navigation chevron for the reminder hero's navigator row.
-    /// Tinted indigo on a soft indigo background so it reads on both
-    /// light and dark surfaces without overpowering the card above —
-    /// the previous gradient-filled 36×36 buttons dominated the layout.
+    /// Compact navigation chevron for the reminder hero. Sits INSIDE
+    /// the card on top of either an indigo or red gradient — the
+    /// previous indigo-on-indigo styling melted into the background.
+    /// White circle + tinted glyph gives full contrast against both
+    /// card colours.
     private func heroNavChevron(systemName: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.caption.weight(.bold))
+                .font(.subheadline.weight(.heavy))
                 .foregroundStyle(.limorIndigo)
-                .frame(width: 28, height: 28)
+                .frame(width: 32, height: 32)
                 .background(
-                    Circle().fill(Color.limorIndigo.opacity(0.14))
+                    Circle()
+                        .fill(.white.opacity(0.95))
+                        .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
                 )
                 .contentShape(Circle())
         }
