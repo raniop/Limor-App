@@ -21,6 +21,9 @@ struct SettingsView: View {
     @State private var crmPushPending = false
     @State private var pushDiagnosticRunning = false
     @State private var pushDiagnosticStatus: String?
+    /// Source image loaded from PhotosPicker, awaiting the user's crop
+    /// confirmation. Drives the `.sheet` modifier presenting PhotoCropSheet.
+    @State private var photoPendingCrop: UIImage?
 
     /// Selected custom tab kind, mirrored from SharedStore via @AppStorage
     /// so toggling here reactively redraws both this view AND MainTabs.
@@ -79,7 +82,25 @@ struct SettingsView: View {
             }
             .onChange(of: photoItem) { _, newItem in
                 guard let newItem else { return }
-                Task { await loadAndSavePhoto(item: newItem) }
+                Task { await loadPhotoForCropping(item: newItem) }
+            }
+            .sheet(item: Binding<IdentifiedImage?>(
+                get: { photoPendingCrop.map(IdentifiedImage.init) },
+                set: { newValue in photoPendingCrop = newValue?.image }
+            )) { wrapper in
+                PhotoCropSheet(
+                    source: wrapper.image,
+                    onCancel: {
+                        photoPendingCrop = nil
+                        photoItem = nil
+                    },
+                    onConfirm: { cropped in
+                        photoPendingCrop = nil
+                        photoItem = nil
+                        Task { await uploadCroppedPhoto(cropped) }
+                    }
+                )
+                .interactiveDismissDisabled(true)
             }
             .onChange(of: scenePhase) { _, newPhase in
                 // After the user returns from Authenticator / Google sign-in,
@@ -846,26 +867,34 @@ struct SettingsView: View {
         }
     }
 
-    private func loadAndSavePhoto(item: PhotosPickerItem) async {
-        savingPhoto = true
-        defer { savingPhoto = false; photoItem = nil }
+    /// Load the picked PhotosPicker item into `photoPendingCrop`, which
+    /// triggers the PhotoCropSheet via the `.sheet` modifier on body.
+    /// We deliberately *don't* upload here — the upload happens in
+    /// `uploadCroppedPhoto` once the user confirms their face position.
+    private func loadPhotoForCropping(item: PhotosPickerItem) async {
         do {
             guard let data = try await item.loadTransferable(type: Data.self),
                   let uiImage = UIImage(data: data) else {
                 errorMessage = "לא הצלחתי לטעון את התמונה."
+                photoItem = nil
                 return
             }
-            // Center-crop to a square so the avatar always fills the circle,
-            // then downscale for upload. Honors EXIF orientation.
-            let normalized = uiImage.normalizedOrientation()
-            let cropped = normalized.centerCroppedToSquare()
-            let resized = cropped.resized(toMaxDimension: 256)
-            guard let jpeg = resized.jpegData(compressionQuality: 0.7) else {
-                errorMessage = "לא הצלחתי לדחוס את התמונה."
-                return
-            }
-            let b64 = jpeg.base64EncodedString()
-            try await auth.setProfilePhoto(jpegB64: b64)
+            photoPendingCrop = uiImage.normalizedOrientation()
+        } catch {
+            errorMessage = error.localizedDescription
+            photoItem = nil
+        }
+    }
+
+    private func uploadCroppedPhoto(_ image: UIImage) async {
+        savingPhoto = true
+        defer { savingPhoto = false }
+        guard let jpeg = image.jpegData(compressionQuality: 0.7) else {
+            errorMessage = "לא הצלחתי לדחוס את התמונה."
+            return
+        }
+        do {
+            try await auth.setProfilePhoto(jpegB64: jpeg.base64EncodedString())
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -956,6 +985,13 @@ private struct PermissionSnapshot {
     var googleGmail: Bool = false
     var microsoftCalendar: Bool = false
     var microsoftMail: Bool = false
+}
+
+/// Thin Identifiable wrapper so `UIImage` can drive a `.sheet(item:)` —
+/// SwiftUI requires `Identifiable` and `UIImage` doesn't ship with one.
+private struct IdentifiedImage: Identifiable {
+    let id = UUID()
+    let image: UIImage
 }
 
 private struct PermissionRow: View {

@@ -25,6 +25,7 @@
 		43B8E694B62BBD4BFE0F43B1 /* FeedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1DD35067CE05EE90665BFF /* FeedCard.swift */; };
 		4BA335B000F3D25A3A7D2F30 /* ContactsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E37DE61A7E69CFA5FD06DAB8 /* ContactsManager.swift */; };
 		4EB6736FC9C410C85125EA57 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC2371869E57B0A6FA86FE0 /* Models.swift */; };
+		501B9562871C7876C60435CB /* PhotoCropSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 037FA4DA69AD407E013CF829 /* PhotoCropSheet.swift */; };
 		50EC3821E22600E126CE6F79 /* PushManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41866BA79E18FA404BFCFD96 /* PushManager.swift */; };
 		537AF0173950747BA7BEF962 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 478AFCC4F530569FD222FA03 /* ChatView.swift */; };
 		537E6F9E1F921C524BEA6A49 /* GoogleAPIs.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28D6A515676755BA91AC4E7 /* GoogleAPIs.swift */; };
@@ -140,6 +141,7 @@
 /* Begin PBXFileReference section */
 		0126DBEFE9D0FD9C09A0F184 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		032BFD663A4822AE6207BA95 /* WeatherDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherDetailView.swift; sourceTree = "<group>"; };
+		037FA4DA69AD407E013CF829 /* PhotoCropSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhotoCropSheet.swift; sourceTree = "<group>"; };
 		040907D22505852D85491C79 /* LimorWatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LimorWatchApp.swift; sourceTree = "<group>"; };
 		040FFCD9DC418611AA006C63 /* NowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowView.swift; sourceTree = "<group>"; };
 		058B29D5197CF2387FD39915 /* bell.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = bell.caf; sourceTree = "<group>"; };
@@ -350,6 +352,7 @@
 				5F6F221E867B5452659406E0 /* MeetingsCard.swift */,
 				9391AB93715C0B98325D375B /* ShoppingListView.swift */,
 				797212B58CC04F38D7A27921 /* RecurringRemindersView.swift */,
+				037FA4DA69AD407E013CF829 /* PhotoCropSheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -649,6 +652,7 @@
 				34DFDA76FE33363AE21BC1B6 /* RecurringRemindersView.swift in Sources */,
 				7CC2F244ED72316EE65CC6E4 /* LimorAppIntents.swift in Sources */,
 				34FDD193905F9C0FD3456ECA /* WatchSyncManager.swift in Sources */,
+				501B9562871C7876C60435CB /* PhotoCropSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
