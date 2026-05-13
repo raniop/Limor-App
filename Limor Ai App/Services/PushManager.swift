@@ -227,6 +227,21 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
                     print("[push] shopping_complete: missing 'item'")
                 }
                 completionHandler(.newData)
+            case "reminder":
+                // Backend stamps `kind: "reminder"` + `wakeApp: true` on
+                // each reminder push, so this path also fires while the
+                // user is on the lock screen — the iOS-native banner is
+                // shown by the system, and the ~30s background window
+                // this hands us is enough to re-render the matching
+                // Live Activity (flips "עד הזמן" → "עבר הזמן" and the
+                // tint from indigo to red without waiting for the user
+                // to open the app). `endIfOverdue` then sweeps any
+                // activity that's drifted far past due so the lock
+                // screen doesn't keep an ancient one pinned.
+                print("[push] reminder push received — refreshing Live Activity")
+                await ActivityController.endIfOverdue()
+                await ActivityController.refresh()
+                completionHandler(.newData)
             default:
                 print("[push] unknown kind, ignoring")
                 completionHandler(.noData)
@@ -251,6 +266,17 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .sound, .list])
+        // Foreground delivery path. `didReceiveRemoteNotification` handles
+        // the lock-screen / background case; this covers "app is open
+        // when the reminder fires", which `content-available` won't fire
+        // for. Same effect: flip the Live Activity to its overdue look.
+        let userInfo = notification.request.content.userInfo
+        if (userInfo["kind"] as? String) == "reminder" {
+            Task { @MainActor in
+                await ActivityController.endIfOverdue()
+                await ActivityController.refresh()
+            }
+        }
     }
 
     nonisolated func userNotificationCenter(
