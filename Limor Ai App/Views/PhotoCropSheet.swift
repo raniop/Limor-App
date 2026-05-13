@@ -164,23 +164,37 @@ struct PhotoCropSheet: View {
         // the math here matches what the user saw on screen.
         let containerSide = liveContainerSide > 0 ? liveContainerSide : 320
         let cropSide = containerSide * 0.86
+
+        // CGImage.cropping(to:) takes a rect in *pixels*, not points.
+        // UIImage.size is in points (pixels / scale), so a retina photo
+        // (scale=2/3) loaded via PhotosPicker has cgImage.width == 2× or
+        // 3× source.size.width. Doing all the crop math against
+        // source.size and then handing it to cgImage.cropping(to:) made
+        // us crop the top-left quarter (or ninth) of the actual bitmap
+        // — not the area the user positioned under the circle. Work in
+        // pixel space throughout instead.
+        let pixelW = CGFloat(normalized.cgImage?.width ?? Int(normalized.size.width))
+        let pixelH = CGFloat(normalized.cgImage?.height ?? Int(normalized.size.height))
+
+        // baseScale maps source pixels → screen points so the display
+        // fills the container (aspectFill). Display uses `source.size`
+        // (points) in the body, but pixels/points differ only by the
+        // image scale factor, which cancels out when computing the
+        // sourceCropSide and offset shifts below.
         let baseScale = max(
-            containerSide / normalized.size.width,
-            containerSide / normalized.size.height
+            containerSide / pixelW,
+            containerSide / pixelH
         )
-        // Total scale from source pixels → screen points.
         let totalScale = baseScale * userScale
-        // Crop side in source pixels.
         let sourceCropSide = cropSide / totalScale
-        // The image is centered at the container center *before* offset.
         // A positive screen offset shifts the image down/right, which
         // means the crop window sees the *top/left* of the image. So we
         // subtract offset (in source pixels) from the source center.
         let dx = offset.width / totalScale
         let dy = offset.height / totalScale
         let cropRect = CGRect(
-            x: normalized.size.width / 2 - sourceCropSide / 2 - dx,
-            y: normalized.size.height / 2 - sourceCropSide / 2 - dy,
+            x: pixelW / 2 - sourceCropSide / 2 - dx,
+            y: pixelH / 2 - sourceCropSide / 2 - dy,
             width: sourceCropSide,
             height: sourceCropSide
         ).integral
