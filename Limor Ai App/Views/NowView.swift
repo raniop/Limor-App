@@ -269,6 +269,10 @@ struct NowView: View {
                         .offset(x: 200, y: 100)
                         .blur(radius: 30)
 
+                    // Inner padding: 22pt baseline, +36pt on both sides
+                    // when the carousel is active so the side chevrons
+                    // (overlay below) don't sit on top of the task text
+                    // or the complete/snooze buttons.
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 8) {
                             Image(systemName: overdue ? "exclamationmark.triangle.fill" : "bell.fill")
@@ -352,10 +356,36 @@ struct NowView: View {
                         }
                         .padding(.top, 4)
                     }
-                    .padding(22)
+                    .padding(.vertical, 22)
+                    .padding(.horizontal, totalRecs > 1 ? 58 : 22)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(minHeight: 180)
+                // Side chevrons — inside the card, vertically centered,
+                // 12pt from the edges. Sits behind the .gesture/.id
+                // modifiers below but on top of the card content (the
+                // 58pt horizontal padding on the inner VStack ensures
+                // task text + action buttons don't bleed under them).
+                .overlay(alignment: .trailing) {
+                    if totalRecs > 1 {
+                        heroNavChevron(systemName: "chevron.left") {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                reminderHeroIndex = (safeIndex + 1) % totalRecs
+                            }
+                        }
+                        .padding(.trailing, 12)
+                    }
+                }
+                .overlay(alignment: .leading) {
+                    if totalRecs > 1 {
+                        heroNavChevron(systemName: "chevron.right") {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                reminderHeroIndex = (safeIndex - 1 + totalRecs) % totalRecs
+                            }
+                        }
+                        .padding(.leading, 12)
+                    }
+                }
                 // Clip the decorative offset circles to the card shape.
                 // Without this they render 60–200pt beyond the card's
                 // logical bounds, and the parent ScrollView treats the
@@ -394,30 +424,16 @@ struct NowView: View {
                 )
 
                     if totalRecs > 1 {
-                        // Compact navigator row: subtle 28pt chevrons +
-                        // dots inline. Three ways to navigate: swipe,
-                        // tap a chevron, or tap a dot. Chevrons are
-                        // soft (low-opacity indigo capsule) so they
-                        // don't overpower the card the way the big
-                        // gradient-filled ones did before.
-                        HStack(spacing: 12) {
-                            heroNavChevron(systemName: "chevron.right") {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    reminderHeroIndex = (safeIndex - 1 + totalRecs) % totalRecs
-                                }
-                            }
-                            LimorPageDots(count: totalRecs, index: safeIndex)
-                                .onTapGesture {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        reminderHeroIndex = (safeIndex + 1) % totalRecs
-                                    }
-                                }
-                            heroNavChevron(systemName: "chevron.left") {
+                        // Dots only under the card. Chevrons live inside
+                        // the card on the sides (overlay above), so the
+                        // bottom row stays minimal — just position
+                        // indicator + tap-to-advance shortcut.
+                        LimorPageDots(count: totalRecs, index: safeIndex)
+                            .onTapGesture {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     reminderHeroIndex = (safeIndex + 1) % totalRecs
                                 }
                             }
-                        }
                     }
                 }
                 .frame(maxWidth: .infinity)
