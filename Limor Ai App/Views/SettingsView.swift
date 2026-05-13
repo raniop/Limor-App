@@ -19,6 +19,8 @@ struct SettingsView: View {
     @State private var selectedReminderListId: String? = SharedStore.remindersListId
     @State private var crmStatus: CrmStatus?
     @State private var crmPushPending = false
+    @State private var pushDiagnosticRunning = false
+    @State private var pushDiagnosticStatus: String?
 
     /// Selected custom tab kind, mirrored from SharedStore via @AppStorage
     /// so toggling here reactively redraws both this view AND MainTabs.
@@ -688,9 +690,103 @@ struct SettingsView: View {
                     icon: "bell.fill",
                     title: "התראות",
                     granted: permissionSnapshot.notifications,
-                    action: { await PushManager.shared.requestPermissionIfNeeded() }
+                    action: { await requestOrOpenNotificationSettings() }
                 )
+                pushDiagnosticRow
             }
+        }
+    }
+
+    /// Re-upload the FCM token to the backend and fire a local notification
+    /// 3 seconds later. Lets the user verify end-to-end without having to
+    /// wait for a reminder to come due. The re-upload is a side benefit:
+    /// it covers the case where the original token registration on first
+    /// launch silently failed (network race / auth not ready) and pushes
+    /// from the backend never reached this device because Firestore had
+    /// no token for the user.
+    private var pushDiagnosticRow: some View {
+        Button {
+            Task { await runPushDiagnostic() }
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle().fill(Color.limorIndigo.opacity(0.12)).frame(width: 34, height: 34)
+                    Image(systemName: "paperplane.fill")
+                        .font(.subheadline).foregroundStyle(.limorIndigo)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("בדוק התראות")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.limorInk)
+                    Text(pushDiagnosticStatus ?? "שולח התראת בדיקה ומחדש רישום לשרת")
+                        .font(.caption2)
+                        .foregroundStyle(pushDiagnosticStatus == nil ? .limorMuted : .limorInk)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 0)
+                if pushDiagnosticRunning {
+                    ProgressView().tint(.limorIndigo)
+                } else {
+                    Image(systemName: "chevron.left").font(.caption2).foregroundStyle(.limorMuted)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(pushDiagnosticRunning)
+    }
+
+    private func requestOrOpenNotificationSettings() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        switch settings.authorizationStatus {
+        case .notDetermined:
+            await PushManager.shared.requestPermissionIfNeeded()
+        case .denied:
+            // System dialog has been declined; only iOS Settings can flip it.
+            await MainActor.run {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+        case .authorized, .provisional, .ephemeral:
+            await PushManager.shared.requestPermissionIfNeeded()
+        @unknown default:
+            await PushManager.shared.requestPermissionIfNeeded()
+        }
+    }
+
+    private func runPushDiagnostic() async {
+        pushDiagnosticRunning = true
+        defer { pushDiagnosticRunning = false }
+
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        guard settings.authorizationStatus == .authorized
+                || settings.authorizationStatus == .provisional
+        else {
+            pushDiagnosticStatus = "התראות חסומות במערכת. פתח הגדרות → לימור → התראות"
+            return
+        }
+
+        await PushManager.shared.refreshAndUploadToken()
+
+        let content = UNMutableNotificationContent()
+        content.title = "בדיקת התראות"
+        content.body = "אם אתה רואה את זה, מערכת ההתראות עובדת ✅"
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "limor.diagnostic.\(UUID().uuidString)",
+            content: content,
+            trigger: trigger
+        )
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+            let hasToken = PushManager.shared.fcmToken != nil
+            pushDiagnosticStatus = hasToken
+                ? "נשלחה התראה מקומית. הרישום לשרת חודש ✅"
+                : "התראה מקומית נשלחה, אבל אין עדיין FCM token. נסה שוב בעוד רגע."
+        } catch {
+            pushDiagnosticStatus = "שגיאה: \(error.localizedDescription)"
         }
     }
 

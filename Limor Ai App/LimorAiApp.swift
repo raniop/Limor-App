@@ -36,6 +36,14 @@ struct LimorAiApp: App {
                             await MeetingsNotifier.reschedule()
                             await RecurringRemindersScheduler.reschedule()
                         }
+                        // Belt-and-suspenders for backend push: re-fetch the
+                        // current FCM token from Firebase Messaging and re-
+                        // upload to the backend. The delegate callback only
+                        // fires when the token *changes*, so if the original
+                        // upload after install/sign-in failed (network race,
+                        // auth not ready), we'd otherwise stay un-registered
+                        // forever and no reminder/daily push would arrive.
+                        Task { await PushManager.shared.refreshAndUploadToken() }
                         // Pull any iCloud changes other devices wrote
                         // while we were backgrounded — the KVS external-
                         // change notification doesn't always fire on its

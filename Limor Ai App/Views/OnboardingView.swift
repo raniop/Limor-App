@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 /// First-run onboarding shown after sign-in, before MainTabs. Walks the user
 /// through each permission (notifications, location, calendar, contacts,
@@ -429,8 +430,20 @@ struct OnboardingView: View {
     private func requestNotifications() async {
         permissionStatus[.notifications] = .working
         await PushManager.shared.requestPermissionIfNeeded()
-        // Push doesn't expose a granted bool synchronously — assume requested.
-        permissionStatus[.notifications] = .granted
+        // Read the real authorization status — a user who tapped "Don't
+        // Allow" must see `.denied`, otherwise the onboarding lies and
+        // they never realize push is off until something is missed.
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            permissionStatus[.notifications] = .granted
+        case .denied:
+            permissionStatus[.notifications] = .denied
+        case .notDetermined:
+            permissionStatus[.notifications] = .unknown
+        @unknown default:
+            permissionStatus[.notifications] = .unknown
+        }
         try? await Task.sleep(for: .milliseconds(450))
         advance()
     }

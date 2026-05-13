@@ -67,6 +67,32 @@ final class PushManager: NSObject, ObservableObject {
         }
     }
 
+    /// Actively pull the current FCM registration token from Firebase Messaging
+    /// and re-upload it to the backend. The `MessagingDelegate` callback only
+    /// fires when Firebase decides to refresh the token — across re-installs
+    /// and transient network/auth races at launch, it's possible to end up
+    /// with the backend missing our token and the delegate never firing again.
+    /// This is the belt-and-suspenders path: call on every foreground.
+    func refreshAndUploadToken() async {
+        let token: String? = await withCheckedContinuation { cont in
+            Messaging.messaging().token { token, error in
+                if let error {
+                    print("[push] Messaging.token error: \(error.localizedDescription)")
+                }
+                cont.resume(returning: token)
+            }
+        }
+        guard let token, !token.isEmpty else {
+            print("[push] refreshAndUploadToken: no token from Firebase Messaging")
+            return
+        }
+        if fcmToken != token {
+            print("[push] refreshAndUploadToken: token changed since last cache")
+        }
+        fcmToken = token
+        await uploadIfPossible()
+    }
+
     func unregisterCurrentToken() async throws {
         guard let token = fcmToken else { return }
         try await APIClient.shared.unregisterFcmToken(token: token)
