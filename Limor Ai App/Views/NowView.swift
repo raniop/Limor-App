@@ -1101,24 +1101,39 @@ private struct RecommendationsCard: View {
             // that the user intended for the outer ScrollView, which
             // made the home page "jiggle" sideways every time they
             // tried to scroll past this card. Navigation between recs
-            // now lives entirely in LimorPageControls below.
+            // now lives entirely in the side chevrons + bottom dots.
             let current = recommendations.indices.contains(index)
                 ? recommendations[index] : recommendations[0]
-            RecommendationContent(rec: current)
-                .id(current.id)
-                .frame(height: cardHeight)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .transition(.opacity)
-                .animation(.easeInOut(duration: 0.25), value: index)
+            ZStack {
+                RecommendationContent(rec: current)
+                    .id(current.id)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, count > 1 ? 40 : 0)
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.25), value: index)
+                if count > 1 {
+                    // Side chevrons, vertically centered relative to the
+                    // RecommendationContent. Used to live in a row under
+                    // the card — the user expected them on the sides,
+                    // matching the typical iOS carousel pattern.
+                    HStack {
+                        chevronButton(
+                            systemName: "chevron.backward",
+                            action: { advance(by: -1, count: count) }
+                        )
+                        Spacer()
+                        chevronButton(
+                            systemName: "chevron.forward",
+                            action: { advance(by: 1, count: count) }
+                        )
+                    }
+                }
+            }
+            .frame(height: cardHeight)
 
             if count > 1 {
-                LimorPageControls(
-                    count: count,
-                    index: index,
-                    onBack: { advance(by: -1, count: count) },
-                    onForward: { advance(by: 1, count: count) }
-                )
-                .frame(maxWidth: .infinity, alignment: .center)
+                LimorPageDots(count: count, index: index)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
         }
         .padding(18)
@@ -1138,6 +1153,26 @@ private struct RecommendationsCard: View {
         withAnimation(.easeInOut(duration: 0.35)) {
             index = (index + step + count) % count
         }
+    }
+
+    /// Side-of-card chevron with a generous tap target. SF Symbols'
+    /// `chevron.backward` / `chevron.forward` auto-mirror in RTL, so
+    /// `backward` is the right-side arrow visually (Hebrew "previous")
+    /// and `forward` is the left-side arrow ("next"). The button frame
+    /// is 36×56 — wide enough to hit reliably with a thumb without
+    /// covering the recommendation text behind it.
+    private func chevronButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.limorIndigo)
+                .frame(width: 36, height: 56)
+                .background(
+                    Capsule().fill(Color.limorIndigo.opacity(0.10))
+                )
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     private var cardHeight: CGFloat {
