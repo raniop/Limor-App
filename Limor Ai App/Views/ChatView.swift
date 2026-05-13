@@ -11,6 +11,13 @@ struct ChatView: View {
     @State private var messages: [ChatMessage] = []
     @State private var usage: ChatUsage?
     @State private var isSending = false
+    /// Tracks whether the on-screen keyboard is currently presented, driven
+    /// by UIKit's `keyboardWillShow/Hide` notifications. Used to surface
+    /// the "סגור מקלדת" nav-bar button only while it's actually useful —
+    /// SwiftUI's `.toolbar(placement: .keyboard)` accessory bar was the
+    /// obvious place for this but the Hebrew QuickType row sits on top
+    /// of it and the button never became visible in practice.
+    @State private var isKeyboardVisible = false
     @State private var errorMessage: String?
     /// First scroll-to-bottom on view appear is instant (no animation) so
     /// the chat opens already pinned to the latest message instead of
@@ -183,6 +190,36 @@ struct ChatView: View {
                         UsageBadge(usage: usage)
                     }
                 }
+                // Right-edge keyboard-dismiss button (RTL → leading == right
+                // visually). Shown only while the keyboard is up so it
+                // doesn't clutter the nav bar otherwise. Tapping it calls
+                // `resignFirstResponder` on the first responder chain —
+                // works regardless of which TextField inside the composer
+                // happens to be focused, no @FocusState plumbing needed.
+                ToolbarItemGroup(placement: .topBarLeading) {
+                    if isKeyboardVisible {
+                        Button {
+                            UIApplication.shared.sendAction(
+                                #selector(UIResponder.resignFirstResponder),
+                                to: nil, from: nil, for: nil
+                            )
+                        } label: {
+                            Image(systemName: "keyboard.chevron.compact.down")
+                                .font(.body.weight(.semibold))
+                        }
+                        .accessibilityLabel("סגור מקלדת")
+                    }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(
+                for: UIResponder.keyboardWillShowNotification
+            )) { _ in
+                isKeyboardVisible = true
+            }
+            .onReceive(NotificationCenter.default.publisher(
+                for: UIResponder.keyboardWillHideNotification
+            )) { _ in
+                isKeyboardVisible = false
             }
             .task {
                 location.requestWhenInUseAndStart()
@@ -754,6 +791,17 @@ struct ChatView: View {
     private func send(text rawText: String) async {
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || attachmentData != nil else { return }
+        // Flip `isSending` *before* any of the local-intercept branches
+        // below (recurring-reminder parser, shopping detector). Those
+        // branches return early — bypassing the eventual `isSending =
+        // true` deeper in this function — and during their work the
+        // button needs to be disabled too. Without this, repeatedly
+        // shipping shopping items or recurring-reminder drafts in fast
+        // succession would let a stale tap re-enter `send` before the
+        // local intercept finished, occasionally creating the same
+        // bubble pair twice.
+        isSending = true
+        defer { isSending = false }
 
         // Recurring-reminder intent — "תזכורת קבועה כל יום ג' בשעה 8:15…"
         // Open the editor pre-filled with whatever we parsed; the user
@@ -856,8 +904,9 @@ struct ChatView: View {
         // reply below gets the spring entrance.
         messages.append(optimistic)
 
-        isSending = true
-        defer { isSending = false }
+        // isSending is already true from the top of this function — the
+        // earlier check at line ~803 covered both this network-bound
+        // path and the local-intercept early returns above.
 
         do {
             let reply = try await APIClient.shared.sendChat(
@@ -1049,9 +1098,19 @@ private struct ChatComposerInput: View {
 
     @State private var draft: String = ""
     @FocusState private var focused: Bool
+    /// Local lock that flips synchronously on tap to block double-fires
+    /// from rapid taps before SwiftUI has propagated the parent's
+    /// `isSending` flag back down through `isBusy`. The parent's
+    /// `send(text:)` is `async` and the `isSending = true` line sits
+    /// past several local-intercept branches (recurring-reminder
+    /// parser, shopping-detector) — for the window between tap and
+    /// `isSending = true`, the button would otherwise stay enabled
+    /// and a quick second tap reached the server with the same text,
+    /// which Limor noticed and replied "ראיתי שכתבת פעמיים".
+    @State private var localSending: Bool = false
 
     private var canSend: Bool {
-        guard !isBusy else { return false }
+        guard !isBusy && !localSending else { return false }
         return !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || hasAttachment
     }
 
@@ -1059,22 +1118,12 @@ private struct ChatComposerInput: View {
         HStack(alignment: .bottom, spacing: 10) {
             TextField("הודעה ללימור…", text: $draft, axis: .vertical)
                 .focused($focused)
-                // Native "close keyboard" affordance — without this the
-                // user has no way to dismiss the keyboard without sending
-                // or scrolling, since we use submitLabel(.return) to allow
-                // multi-line composition.
-                .toolbar {
-                    ToolbarItemGroup(placement: .keyboard) {
-                        Spacer()
-                        Button {
-                            focused = false
-                        } label: {
-                            Image(systemName: "keyboard.chevron.compact.down")
-                                .font(.body.weight(.semibold))
-                        }
-                        .accessibilityLabel("סגור מקלדת")
-                    }
-                }
+                // The "close keyboard" affordance lives in the chat nav
+                // bar (top-leading → right side in RTL), surfaced by
+                // ChatView whenever a UIResponder keyboardWillShow fires.
+                // The previous `.toolbar(placement: .keyboard)` approach
+                // never displayed on iPhones with a Hebrew keyboard
+                // because the QuickType suggestion row sat on top of it.
                 .lineLimit(1...5)
                 .font(.body)
                 .padding(.horizontal, 14)
@@ -1103,11 +1152,27 @@ private struct ChatComposerInput: View {
 
             Button {
                 let toSend = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Hard-guard against rapid double-taps. Without this the
+                // button's `.disabled(!canSend)` wasn't enough on its own —
+                // a fast second tap could fire the closure before the
+                // first tap's draft="" + parent's isSending=true had
+                // re-rendered the disabled state, sending the same text
+                // to the backend twice.
+                guard !localSending else { return }
+                guard !toSend.isEmpty || hasAttachment else { return }
+                localSending = true
                 // Clear immediately for instant visual feedback; parent
                 // may decide to substitute defaultPromptForAttachment if
                 // we passed empty text + an attachment.
                 draft = ""
                 onSend(toSend)
+                // Release the lock after a short cooldown so the button
+                // becomes tappable again for the *next* message even if
+                // the parent's isSending bookkeeping is somehow off.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(700))
+                    localSending = false
+                }
             } label: {
                 ZStack {
                     if canSend {
@@ -1120,10 +1185,17 @@ private struct ChatComposerInput: View {
                         .foregroundStyle(.white)
                 }
                 .frame(width: 44, height: 44)
+                .contentShape(Circle())
                 .shadow(color: canSend ? Color.limorIndigo.opacity(0.4) : .clear, radius: 10, y: 4)
             }
+            .buttonStyle(.plain)
             .disabled(!canSend)
-            .animation(.easeInOut, value: canSend)
+            // Animation removed on the tappable button — the cross-fade
+            // between enabled/disabled was occasionally swallowing the
+            // first tap because SwiftUI's hit-test on a button mid-
+            // animation sometimes registers as no-op. Color swap is
+            // instant now; visual change is subtle enough that it
+            // doesn't read as jarring.
         }
         .onChange(of: seed) { _, newValue in
             // Parent pushed text in (e.g. a suggestion). Apply it, focus,
