@@ -162,7 +162,7 @@ struct WeatherDetailView: View {
     }
 
     private func formatHour(_ iso: String) -> String {
-        guard let date = ISO8601DateFormatter.limorPermissive.date(from: iso) else { return iso }
+        guard let date = parseLocalIso(iso) else { return iso }
         let f = DateFormatter()
         f.locale = Locale(identifier: "he_IL")
         f.dateFormat = "HH:mm"
@@ -291,11 +291,32 @@ struct WeatherDetailView: View {
     }
 
     private func formatTimeOfDay(_ iso: String) -> String {
-        guard let date = ISO8601DateFormatter.limorPermissive.date(from: iso) else { return iso }
+        guard let date = parseLocalIso(iso) else { return iso }
         let f = DateFormatter()
         f.locale = Locale(identifier: "he_IL")
         f.dateFormat = "HH:mm"
         return f.string(from: date)
+    }
+
+    /// Open-Meteo (with `timezone=auto`) returns timestamps in the location's
+    /// local time *without* a timezone designator — strings like
+    /// "2026-05-13T12:00" or "2026-05-13T12:00:00". `ISO8601DateFormatter`
+    /// with `.withInternetDateTime` rejects both because the spec requires
+    /// a Z / ±HH:MM suffix, which is why the previous code was returning
+    /// the raw string for every hourly row and sunrise/sunset entry.
+    /// We parse with explicit DateFormatter patterns, in the device's
+    /// current time zone, falling back through both shapes the API uses.
+    private func parseLocalIso(_ iso: String) -> Date? {
+        let patterns = ["yyyy-MM-dd'T'HH:mm", "yyyy-MM-dd'T'HH:mm:ss"]
+        for pattern in patterns {
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.timeZone = TimeZone.current
+            f.dateFormat = pattern
+            if let date = f.date(from: iso) { return date }
+        }
+        // Last resort: maybe the server *did* send an RFC-3339 string.
+        return ISO8601DateFormatter.limorPermissive.date(from: iso)
     }
 
     // MARK: - Glass card wrapper
