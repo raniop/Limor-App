@@ -23,19 +23,50 @@ PHASE_NAME = "Inject Git SHA"
 SHELL_SCRIPT = <<~SHELL
   # Stamp the current git SHA onto the bundled Info.plist so the
   # in-app version footer shows the actual commit instead of "dev".
-  # Reads `git rev-parse` from SRCROOT (worktree-aware) and falls
-  # back to "dev" if git isn't available. Errors are non-fatal —
-  # version footer is a debugging aid, not something worth blocking
-  # the whole build for. `|| true` keeps `set -e` from killing us
-  # when both Add and Set fail (e.g. plist isn't writable in this
-  # build phase ordering).
-  GIT_SHA=$(git -C "${SRCROOT}" rev-parse --short HEAD 2>/dev/null || echo "dev")
-  PLIST="${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}"
-  if [ -f "$PLIST" ]; then
-    (/usr/libexec/PlistBuddy -c "Add :LIMOR_GIT_SHA string $GIT_SHA" "$PLIST" 2>/dev/null \\
-      || /usr/libexec/PlistBuddy -c "Set :LIMOR_GIT_SHA $GIT_SHA" "$PLIST" 2>/dev/null) || true
-    echo "[inject-git-sha] LIMOR_GIT_SHA=$GIT_SHA → $PLIST"
+  # All failures are downgraded to a `warning:` line so Xcode
+  # surfaces them in the build log without failing the build — the
+  # footer is a debugging aid, not load-bearing.
+  #
+  # The previous version swallowed stderr unconditionally, so when
+  # `git` wasn't on the build script's PATH (or `.git` wasn't
+  # readable from inside a sandboxed phase) we silently wrote
+  # "dev" and the user had no way to tell *why*. Now every failure
+  # path echoes a `warning:` and the build log explains it.
+
+  GIT_BIN=$(command -v git || true)
+  if [ -z "$GIT_BIN" ] && [ -x /usr/bin/git ]; then
+    GIT_BIN=/usr/bin/git
   fi
+
+  if [ -z "$GIT_BIN" ]; then
+    echo "warning: [inject-git-sha] git not found on PATH; falling back to 'dev'"
+    GIT_SHA="dev"
+  else
+    GIT_OUT=$("$GIT_BIN" -C "${SRCROOT}" rev-parse --short HEAD 2>&1)
+    GIT_RC=$?
+    if [ $GIT_RC -ne 0 ]; then
+      echo "warning: [inject-git-sha] git rev-parse failed (rc=$GIT_RC) at ${SRCROOT}: $GIT_OUT"
+      GIT_SHA="dev"
+    else
+      GIT_SHA="$GIT_OUT"
+    fi
+  fi
+
+  PLIST="${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}"
+  if [ ! -f "$PLIST" ]; then
+    echo "warning: [inject-git-sha] plist not found at $PLIST — phase may be running before resource copy"
+    exit 0
+  fi
+
+  if /usr/libexec/PlistBuddy -c "Print :LIMOR_GIT_SHA" "$PLIST" >/dev/null 2>&1; then
+    PB_OUT=$(/usr/libexec/PlistBuddy -c "Set :LIMOR_GIT_SHA $GIT_SHA" "$PLIST" 2>&1) \\
+      || echo "warning: [inject-git-sha] Set failed: $PB_OUT"
+  else
+    PB_OUT=$(/usr/libexec/PlistBuddy -c "Add :LIMOR_GIT_SHA string $GIT_SHA" "$PLIST" 2>&1) \\
+      || echo "warning: [inject-git-sha] Add failed: $PB_OUT"
+  fi
+
+  echo "[inject-git-sha] LIMOR_GIT_SHA=$GIT_SHA → $PLIST"
   exit 0
 SHELL
 
