@@ -206,6 +206,25 @@ struct NowView: View {
 
     // MARK: Hero — next reminder
 
+    /// Compact carousel chevron for the next-reminder hero. Solid white
+    /// circle with a tinted glyph so it pops on top of the brand /
+    /// danger gradient backgrounds the card uses, regardless of theme.
+    private func reminderChevron(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.subheadline.weight(.heavy))
+                .foregroundStyle(.limorIndigo)
+                .frame(width: 32, height: 32)
+                .background(
+                    Circle()
+                        .fill(.white.opacity(0.92))
+                        .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+                )
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+    }
+
     /// Pending reminders ordered the way the carousel should show them:
     /// overdue first (most urgent), then upcoming by ascending due time.
     /// Capped at 8 — enough breadth without making the dots strip
@@ -340,28 +359,36 @@ struct NowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(minHeight: 180)
                 .id(r.id)
-                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                .transition(.opacity)
                 .animation(.easeInOut(duration: 0.25), value: r.id)
                 .animation(.easeInOut(duration: 0.25), value: overdue)
-                .gesture(
-                    DragGesture(minimumDistance: 24)
-                        .onEnded { value in
-                            guard totalRecs > 1 else { return }
-                            let h = value.translation.width
-                            let v = value.translation.height
-                            guard abs(h) > abs(v), abs(h) > 50 else { return }
-                            // RTL convention: swipe right = previous,
-                            // swipe left = next. Wraps at both ends so
-                            // the user can keep flicking.
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                if h > 0 {
-                                    reminderHeroIndex = (safeIndex - 1 + totalRecs) % totalRecs
-                                } else {
-                                    reminderHeroIndex = (safeIndex + 1) % totalRecs
-                                }
+                // Side-aligned chevrons for navigation. The previous
+                // DragGesture(.onEnded) approach made the whole home
+                // page jiggle horizontally — SwiftUI's gesture system
+                // had the child drag competing with the parent
+                // ScrollView's pan in a way that consumed neither
+                // cleanly. Explicit buttons sidestep the conflict and
+                // are also more discoverable than a hidden swipe.
+                .overlay(alignment: .trailing) {
+                    if totalRecs > 1 {
+                        reminderChevron(systemName: "chevron.backward") {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                reminderHeroIndex = (safeIndex - 1 + totalRecs) % totalRecs
                             }
                         }
-                )
+                        .padding(.trailing, 6)
+                    }
+                }
+                .overlay(alignment: .leading) {
+                    if totalRecs > 1 {
+                        reminderChevron(systemName: "chevron.forward") {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                reminderHeroIndex = (safeIndex + 1) % totalRecs
+                            }
+                        }
+                        .padding(.leading, 6)
+                    }
+                }
 
                     if totalRecs > 1 {
                         LimorPageDots(count: totalRecs, index: safeIndex)
