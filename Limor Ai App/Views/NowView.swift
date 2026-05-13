@@ -206,6 +206,24 @@ struct NowView: View {
 
     // MARK: Hero — next reminder
 
+    /// Compact navigation chevron for the reminder hero's navigator row.
+    /// Tinted indigo on a soft indigo background so it reads on both
+    /// light and dark surfaces without overpowering the card above —
+    /// the previous gradient-filled 36×36 buttons dominated the layout.
+    private func heroNavChevron(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.limorIndigo)
+                .frame(width: 28, height: 28)
+                .background(
+                    Circle().fill(Color.limorIndigo.opacity(0.14))
+                )
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+    }
+
     /// Pending reminders ordered for the home hero: overdue first (most
     /// urgent), then upcoming by ascending due time. Capped at 8 so the
     /// dots strip stays readable.
@@ -376,17 +394,30 @@ struct NowView: View {
                 )
 
                     if totalRecs > 1 {
-                        // Just the dots — the previous design's big
-                        // gradient chevrons crowded the page and
-                        // overpowered the card. Swipe is the primary
-                        // navigator; the dots provide position context
-                        // and a tap target for jumping directly.
-                        LimorPageDots(count: totalRecs, index: safeIndex)
-                            .onTapGesture {
+                        // Compact navigator row: subtle 28pt chevrons +
+                        // dots inline. Three ways to navigate: swipe,
+                        // tap a chevron, or tap a dot. Chevrons are
+                        // soft (low-opacity indigo capsule) so they
+                        // don't overpower the card the way the big
+                        // gradient-filled ones did before.
+                        HStack(spacing: 12) {
+                            heroNavChevron(systemName: "chevron.right") {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    reminderHeroIndex = (safeIndex - 1 + totalRecs) % totalRecs
+                                }
+                            }
+                            LimorPageDots(count: totalRecs, index: safeIndex)
+                                .onTapGesture {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        reminderHeroIndex = (safeIndex + 1) % totalRecs
+                                    }
+                                }
+                            heroNavChevron(systemName: "chevron.left") {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     reminderHeroIndex = (safeIndex + 1) % totalRecs
                                 }
                             }
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -1260,6 +1291,12 @@ private struct RecKindStyle {
 private struct RecommendationsCard: View {
     let recommendations: [Recommendation]
     @State private var index: Int = 0
+    @State private var autoAdvanceTask: Task<Void, Never>?
+    /// How long each tip stays on screen before auto-rotating. 8 seconds
+    /// is long enough to read a 2-3 sentence rec but short enough that
+    /// a user passively glancing at the home tab sees a few different
+    /// nudges instead of the same one stuck there.
+    private let autoAdvanceSeconds: Double = 8
 
     var body: some View {
         let count = recommendations.count
@@ -1301,13 +1338,19 @@ private struct RecommendationsCard: View {
                             // RTL: swipe right = previous, left = next.
                             if h > 0 { advance(by: -1, count: count) }
                             else { advance(by: 1, count: count) }
+                            // Manual interaction resets the rotation
+                            // clock so the new card gets the full 8s.
+                            startAutoAdvance(count: count)
                         }
                 )
 
             if count > 1 {
                 LimorPageDots(count: count, index: index)
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .onTapGesture { advance(by: 1, count: count) }
+                    .onTapGesture {
+                        advance(by: 1, count: count)
+                        startAutoAdvance(count: count)
+                    }
             }
         }
         .padding(18)
@@ -1320,12 +1363,33 @@ private struct RecommendationsCard: View {
                 .foregroundStyle(Color.limorViolet.opacity(0.35))
                 .padding(.top, 12).padding(.trailing, 12)
         }
+        .onAppear { startAutoAdvance(count: recommendations.count) }
+        .onDisappear { autoAdvanceTask?.cancel() }
+        .onChange(of: recommendations.count) { _, newCount in
+            startAutoAdvance(count: newCount)
+        }
     }
 
     private func advance(by step: Int, count: Int) {
         guard count > 0 else { return }
         withAnimation(.easeInOut(duration: 0.35)) {
             index = (index + step + count) % count
+        }
+    }
+
+    /// Restart the auto-advance loop. Cancels any in-flight task so a
+    /// manual swipe/tap doesn't end up racing the timer for control of
+    /// `index`. Called from .onAppear, after every manual navigation,
+    /// and when the rec count changes.
+    private func startAutoAdvance(count: Int) {
+        autoAdvanceTask?.cancel()
+        guard count > 1 else { return }
+        autoAdvanceTask = Task { @MainActor [autoAdvanceSeconds] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(autoAdvanceSeconds))
+                if Task.isCancelled { return }
+                advance(by: 1, count: count)
+            }
         }
     }
 
