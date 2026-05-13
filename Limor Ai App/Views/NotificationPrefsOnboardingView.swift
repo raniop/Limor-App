@@ -221,7 +221,7 @@ struct NotificationPrefsOnboardingView: View {
             )
         case .feed_digest:
             return DisplayStyle(
-                title: "הפיד של הבוקר",
+                title: "חדשות הבוקר",
                 subtitle: "הכותרות העיקריות מהפיד שלך",
                 icon: "newspaper.fill",
                 tint: .limorIndigo
