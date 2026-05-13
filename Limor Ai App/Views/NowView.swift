@@ -21,6 +21,10 @@ struct NowView: View {
     /// the LLM regen endpoint.
     @State private var lastFeedAutoRefresh: Date = .distantPast
     private let feedAutoRefreshThrottle: TimeInterval = 180
+    /// Which pending reminder is showing on the home hero. Re-clamped on
+    /// every render so a complete/snooze can't leave it past the new
+    /// last card.
+    @State private var reminderHeroIndex: Int = 0
 
     private var tod: LimorTimeOfDay { .current }
 
@@ -202,14 +206,49 @@ struct NowView: View {
 
     // MARK: Hero — next reminder
 
+    /// Carousel chevron for the navigator row beneath the hero. Sits on
+    /// the page background (not the card), so it uses the brand-gradient
+    /// fill to read consistently in both light and dark themes — same
+    /// styling as the tip card chevrons for visual cohesion.
+    private func reminderChevron(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.subheadline.weight(.heavy))
+                .foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(
+                    Circle()
+                        .fill(LimorGradient.brand)
+                        .shadow(color: Color.limorIndigo.opacity(0.35), radius: 6, y: 3)
+                )
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Pending reminders ordered for the home hero: overdue first (most
+    /// urgent), then upcoming by ascending due time. Capped at 8 so the
+    /// dots strip stays readable.
+    private var heroReminders: [Reminder] {
+        let pending = allReminders.filter { $0.status == .pending }
+        let overdue = pending.filter { $0.isOverdue }.sorted { $0.dueDate < $1.dueDate }
+        let upcoming = pending.filter { !$0.isOverdue }.sorted { $0.dueDate < $1.dueDate }
+        return Array((overdue + upcoming).prefix(8))
+    }
+
     private var nextReminderHero: some View {
         Group {
-            if let r = snapshot?.next_reminder {
+            let recs = heroReminders
+            if !recs.isEmpty {
+                let safeIndex = max(0, min(reminderHeroIndex, recs.count - 1))
+                let r = recs[safeIndex]
+                let totalRecs = recs.count
                 // Once a reminder is past its due time, swap the whole
                 // hero's color scheme to the danger gradient so it
                 // reads as "needs attention" at a glance — purple with
                 // a small red pill wasn't loud enough.
                 let overdue = r.isOverdue
+                VStack(spacing: 12) {
                 ZStack(alignment: .topLeading) {
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .fill(overdue ? LimorGradient.danger : LimorGradient.brand)
@@ -239,6 +278,16 @@ struct NowView: View {
                             Text(overdue ? "תזכורת באיחור" : "התזכורת הבאה")
                                 .font(.subheadline.weight(.semibold))
                             Spacer()
+                            if totalRecs > 1 {
+                                // Tiny "2/4" pill so the user can see at a
+                                // glance there are more pending reminders
+                                // queued behind this one.
+                                Text("\(safeIndex + 1)/\(totalRecs)")
+                                    .font(.caption2.weight(.bold).monospacedDigit())
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 8).padding(.vertical, 4)
+                                    .background(Capsule().fill(.white.opacity(0.22)))
+                            }
                             if overdue {
                                 // High-contrast white pill on the red card —
                                 // a red-on-red pill would disappear into
@@ -313,12 +362,41 @@ struct NowView: View {
                 // Without this they render 60–200pt beyond the card's
                 // logical bounds, and the parent ScrollView treats the
                 // out-of-bounds drawing as scrollable horizontal content
-                // — which is why the home tab pans sideways whenever a
-                // next-reminder is present. Clipping fixes the pan AND
-                // gives the decorative blurs the rounded mask they
-                // visually need anyway.
+                // — that's the root cause of the "home tab pans sideways
+                // when a reminder is on screen" bug. Clipping fixes the
+                // pan AND gives the decorative blurs the rounded mask
+                // they visually needed anyway.
                 .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
                 .animation(.easeInOut(duration: 0.25), value: overdue)
+                .id(r.id)
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.2), value: r.id)
+
+                    if totalRecs > 1 {
+                        // Navigator row sits BELOW the card. Chevrons +
+                        // dots, all in one HStack. Using explicit
+                        // chevron.right / chevron.left (not the auto-
+                        // mirroring .backward / .forward) because RTL
+                        // mirroring on tinted button surfaces sometimes
+                        // rendered them flipped on iOS 26. The HStack
+                        // arranges right-to-left under RTL, so the
+                        // first slot is the rightmost on screen.
+                        HStack(spacing: 14) {
+                            reminderChevron(systemName: "chevron.right") {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    reminderHeroIndex = (safeIndex - 1 + totalRecs) % totalRecs
+                                }
+                            }
+                            LimorPageDots(count: totalRecs, index: safeIndex)
+                            reminderChevron(systemName: "chevron.left") {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    reminderHeroIndex = (safeIndex + 1) % totalRecs
+                                }
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
             } else if isLoading && snapshot == nil {
                 // Only show the loading skeleton on the very first load, when we
                 // have nothing to show yet. Once we have a snapshot, refreshes
@@ -752,14 +830,25 @@ struct NowView: View {
 
     // MARK: Reminder actions on the hero card
 
-    /// Mark the surfaced next-reminder complete from the home tab.
+    /// Mark the surfaced reminder complete. Optimistically yanks it from
+    /// `allReminders` so the carousel slides to the next pending card
+    /// (or collapses to "all clear") without waiting for the network.
     @MainActor
     private func completeNextReminder(_ r: Reminder) async {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         withAnimation(.easeInOut(duration: 0.25)) {
-            snapshot = snapshot.map { snap in
-                NowResponse(next_reminder: nil, weather: snap.weather, user: snap.user, updated_at: snap.updated_at)
+            allReminders = allReminders.map { item in
+                guard item.id == r.id else { return item }
+                return Reminder(
+                    id: item.id, task: item.task, due_at: item.due_at,
+                    status: .completed, created_at: item.created_at,
+                    completed_at: ISO8601DateFormatter.limor.string(from: Date()),
+                    msUntilDue: item.msUntilDue, isOverdue: false
+                )
             }
+            // Don't let the index drift past the new last card.
+            let pendingCount = allReminders.filter { $0.status == .pending }.count
+            if reminderHeroIndex >= pendingCount { reminderHeroIndex = 0 }
         }
         do {
             _ = try await APIClient.shared.completeReminder(token: auth.token ?? "", id: r.id)
@@ -772,22 +861,23 @@ struct NowView: View {
         }
     }
 
-    /// Snooze the next reminder by `minutes`.
+    /// Snooze the surfaced reminder by `minutes`. Stays in the carousel
+    /// but re-sorts so it's no longer at the front.
     @MainActor
     private func snoozeNextReminder(_ r: Reminder, minutes: Int) async {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         let newDue = Date().addingTimeInterval(TimeInterval(minutes) * 60)
-        let snoozed = Reminder(
-            id: r.id, task: r.task,
-            due_at: ISO8601DateFormatter.limor.string(from: newDue),
-            status: r.status, created_at: r.created_at,
-            completed_at: r.completed_at,
-            msUntilDue: newDue.timeIntervalSinceNow * 1000,
-            isOverdue: false
-        )
         withAnimation(.easeInOut(duration: 0.25)) {
-            snapshot = snapshot.map { snap in
-                NowResponse(next_reminder: snoozed, weather: snap.weather, user: snap.user, updated_at: snap.updated_at)
+            allReminders = allReminders.map { item in
+                guard item.id == r.id else { return item }
+                return Reminder(
+                    id: item.id, task: item.task,
+                    due_at: ISO8601DateFormatter.limor.string(from: newDue),
+                    status: item.status, created_at: item.created_at,
+                    completed_at: item.completed_at,
+                    msUntilDue: newDue.timeIntervalSinceNow * 1000,
+                    isOverdue: false
+                )
             }
         }
         do {
