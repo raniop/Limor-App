@@ -266,6 +266,44 @@ struct NowView: View {
                                 .font(.subheadline.weight(.semibold))
                         }
                         .foregroundStyle(.white)
+
+                        // Inline complete + snooze actions. Without these,
+                        // the only way to clear an overdue reminder from
+                        // the home screen was to switch tabs to תזכורות
+                        // and swipe — annoying when the whole point of
+                        // the hero is "do something about this NOW".
+                        HStack(spacing: 10) {
+                            Button {
+                                Task { await completeNextReminder(r) }
+                            } label: {
+                                Label("בוצע", systemImage: "checkmark.circle.fill")
+                                    .font(.subheadline.weight(.bold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .fill(.white.opacity(0.95))
+                                    )
+                                    .foregroundStyle(overdue ? .limorDanger : .limorIndigo)
+                            }
+                            .buttonStyle(.plain)
+
+                            Button {
+                                Task { await snoozeNextReminder(r, minutes: 10) }
+                            } label: {
+                                Label("נודניק 10'", systemImage: "alarm")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .stroke(.white.opacity(0.6), lineWidth: 1.2)
+                                    )
+                                    .foregroundStyle(.white)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.top, 4)
                     }
                     .padding(22)
                 }
@@ -700,6 +738,67 @@ struct NowView: View {
             withAnimation(.spring) { errorMessage = nil }
         } catch {
             withAnimation { errorMessage = error.localizedDescription }
+        }
+    }
+
+    // MARK: Reminder actions on the hero card
+
+    /// Mark the surfaced next-reminder complete from the home tab. Optimistic
+    /// — collapses the hero to "all clear" without waiting for the network
+    /// round-trip, then fires the API call. On failure we reload to restore
+    /// truth.
+    @MainActor
+    private func completeNextReminder(_ r: Reminder) async {
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        withAnimation(.easeInOut(duration: 0.25)) {
+            snapshot = snapshot.map { snap in
+                NowResponse(next_reminder: nil, weather: snap.weather, user: snap.user, updated_at: snap.updated_at)
+            }
+        }
+        do {
+            _ = try await APIClient.shared.completeReminder(token: auth.token ?? "", id: r.id)
+            // Mirror the completion to iOS Reminders.app + end the Live
+            // Activity so the lock-screen banner doesn't outlive the
+            // backend-side state.
+            await RemindersWriter.shared.markCompleted(reminderId: r.id)
+            await ActivityController.endAll()
+            await reload()
+        } catch {
+            errorMessage = error.localizedDescription
+            await reload()
+        }
+    }
+
+    /// Snooze the next reminder by `minutes`. Optimistic update bumps the
+    /// due time locally; the backend snooze keeps the same reminder id so
+    /// the live activity / iOS Reminders mirror don't lose their thread.
+    @MainActor
+    private func snoozeNextReminder(_ r: Reminder, minutes: Int) async {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        let newDue = Date().addingTimeInterval(TimeInterval(minutes) * 60)
+        let snoozed = Reminder(
+            id: r.id,
+            task: r.task,
+            due_at: ISO8601DateFormatter.limor.string(from: newDue),
+            status: r.status,
+            created_at: r.created_at,
+            completed_at: r.completed_at,
+            msUntilDue: newDue.timeIntervalSinceNow * 1000,
+            isOverdue: false
+        )
+        withAnimation(.easeInOut(duration: 0.25)) {
+            snapshot = snapshot.map { snap in
+                NowResponse(next_reminder: snoozed, weather: snap.weather, user: snap.user, updated_at: snap.updated_at)
+            }
+        }
+        do {
+            _ = try await APIClient.shared.snoozeReminder(
+                token: auth.token ?? "", id: r.id, minutes: minutes
+            )
+            await reload()
+        } catch {
+            errorMessage = error.localizedDescription
+            await reload()
         }
     }
 }
@@ -1158,19 +1257,23 @@ private struct RecommendationsCard: View {
     /// Side-of-card chevron with a generous tap target. SF Symbols'
     /// `chevron.backward` / `chevron.forward` auto-mirror in RTL, so
     /// `backward` is the right-side arrow visually (Hebrew "previous")
-    /// and `forward` is the left-side arrow ("next"). The button frame
-    /// is 36×56 — wide enough to hit reliably with a thumb without
-    /// covering the recommendation text behind it.
+    /// and `forward` is the left-side arrow ("next"). Visual refresh:
+    /// circular button (was capsule), bigger glyph, gradient fill so
+    /// the chevrons read as a clear control on both light and dark
+    /// surface — the earlier 10%-opacity capsule disappeared into the
+    /// liquid-glass background in dark mode.
     private func chevronButton(systemName: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(.limorIndigo)
-                .frame(width: 36, height: 56)
+                .font(.subheadline.weight(.heavy))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
                 .background(
-                    Capsule().fill(Color.limorIndigo.opacity(0.10))
+                    Circle()
+                        .fill(LimorGradient.brand)
+                        .shadow(color: Color.limorIndigo.opacity(0.35), radius: 6, y: 3)
                 )
-                .contentShape(Capsule())
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
     }
