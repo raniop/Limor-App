@@ -1,6 +1,7 @@
 import GoogleSignIn
 import MSAL
 import SwiftUI
+import UserNotifications
 
 @main
 struct LimorAiApp: App {
@@ -64,6 +65,16 @@ struct LimorAiApp: App {
                         // simulator pairs where App Group + iCloud don't
                         // bridge between the iPhone and Watch processes.
                         WatchSyncManager.shared.pushSnapshot()
+                        // Clear the app-icon red dot now that the user is
+                        // looking at the app. The backend sends `aps.badge=1`
+                        // on every visible push so the icon picks up a dot
+                        // for any waiting notification; resetting on .active
+                        // means the dot disappears the moment the user
+                        // actually opens us, which is what they asked for.
+                        Task {
+                            try? await UNUserNotificationCenter.current()
+                                .setBadgeCount(0)
+                        }
                     }
                 }
                 .onOpenURL { url in

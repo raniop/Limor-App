@@ -1096,18 +1096,20 @@ private struct RecommendationsCard: View {
                 Spacer()
             }
 
-            // Swipeable carousel when there are multiple recs.
-            // No layoutDirection override here — let SwiftUI keep RTL so the
-            // icon sits on the right, matching the rest of the Hebrew UI.
-            TabView(selection: $index) {
-                ForEach(Array(recommendations.enumerated()), id: \.element.id) { i, rec in
-                    RecommendationContent(rec: rec)
-                        .tag(i)
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: cardHeight)
-            .animation(.easeInOut(duration: 0.35), value: index)
+            // Crossfade between recs instead of a paging TabView. The
+            // TabView's swipe gesture was intercepting vertical drags
+            // that the user intended for the outer ScrollView, which
+            // made the home page "jiggle" sideways every time they
+            // tried to scroll past this card. Navigation between recs
+            // now lives entirely in LimorPageControls below.
+            let current = recommendations.indices.contains(index)
+                ? recommendations[index] : recommendations[0]
+            RecommendationContent(rec: current)
+                .id(current.id)
+                .frame(height: cardHeight)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.25), value: index)
 
             if count > 1 {
                 LimorPageControls(
