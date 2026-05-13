@@ -1322,26 +1322,12 @@ private struct RecommendationsCard: View {
                 }
             }
             .frame(height: cardHeight)
-            // Horizontal swipe to advance, in addition to the chevrons.
-            // Threshold-gated so a vertical scroll over the card still
-            // belongs to the parent ScrollView — that was the whole
-            // reason we ditched the original TabView(.page) carousel.
-            // The 50pt horizontal minimum combined with `abs(h) > abs(v)`
-            // makes the gesture commit only on a deliberate sideways
-            // swipe; everything else falls through to vertical scroll.
-            .gesture(
-                DragGesture(minimumDistance: 24)
-                    .onEnded { value in
-                        guard count > 1 else { return }
-                        let h = value.translation.width
-                        let v = value.translation.height
-                        guard abs(h) > abs(v), abs(h) > 50 else { return }
-                        // RTL convention: swipe right = previous (matches
-                        // reading direction), swipe left = next.
-                        if h > 0 { advance(by: -1, count: count) }
-                        else { advance(by: 1, count: count) }
-                    }
-            )
+            // No swipe gesture on this card. We had a horizontal
+            // DragGesture here, but even with the |h| > |v| threshold
+            // it leaked into the parent ScrollView's gesture system
+            // and made the home tab pannable sideways — user kept
+            // reporting "the whole screen still moves right/left".
+            // Chevrons (above) are the only navigator.
 
             if count > 1 {
                 LimorPageDots(count: count, index: index)
