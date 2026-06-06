@@ -64,6 +64,7 @@ struct NowView: View {
                         VStack(alignment: .leading, spacing: 18) {
                             greetingHeader
                             limorStatusChip
+                                .animation(.easeInOut(duration: 0.25), value: sync.chipState)
                             ForEach(cardOrder.filter { !hiddenCards.contains($0) }) { card in
                                 cardView(for: card)
                             }
@@ -236,15 +237,14 @@ struct NowView: View {
     /// the user sees she finished) until the next activity starts.
     @ViewBuilder
     private var limorStatusChip: some View {
-        Group {
-            if let working = sync.activityHeadline {
-                statusChip(icon: "sparkles", text: "לימור \(working)…", tint: .limorViolet, working: true)
-            } else if let done = sync.lastActivitySummary {
-                statusChip(icon: "checkmark.circle.fill", text: done, tint: .limorSuccess, working: false)
-            }
+        switch sync.chipState {
+        case .idle:
+            EmptyView()
+        case .working(let label):
+            statusChip(icon: "sparkles", text: "לימור \(label)…", tint: .limorViolet, working: true)
+        case .done(let label):
+            statusChip(icon: "checkmark.circle.fill", text: label, tint: .limorSuccess, working: false)
         }
-        .animation(.easeInOut(duration: 0.3), value: sync.activityHeadline)
-        .animation(.easeInOut(duration: 0.3), value: sync.lastActivitySummary)
     }
 
     private func statusChip(icon: String, text: String, tint: Color, working: Bool) -> some View {
@@ -253,9 +253,12 @@ struct NowView: View {
                 .font(.caption.weight(.bold))
                 .foregroundStyle(tint)
                 .symbolEffect(.pulse, isActive: working)
+            // Text crossfades in place so the label swap doesn't reflow the row.
             Text(text)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.limorInk)
+                .lineLimit(1)
+                .contentTransition(.opacity)
             Spacer(minLength: 0)
             if working {
                 ProgressView()
@@ -265,10 +268,13 @@ struct NowView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .frame(height: 34)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Capsule().fill(tint.opacity(0.10)))
         .overlay(Capsule().stroke(tint.opacity(0.18), lineWidth: 0.5))
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .transition(.opacity.combined(with: .move(edge: .top)))
+        // Fade in/out without shifting the cards below — no vertical move.
+        // The driving .animation lives at the call site (keyed to chipState).
+        .transition(.opacity)
     }
 
     // MARK: Greeting

@@ -50,27 +50,31 @@ final class SyncManager: ObservableObject {
         }
     }
 
-    /// Currently-running background activities.
-    @Published private(set) var activities: Set<LimorActivity> = []
+    /// What the home-screen chip shows. A SINGLE source of truth so the chip
+    /// never collapses to nothing between two activities (which made the line
+    /// flicker — disappear and jump back). It stays `.working` continuously
+    /// while anything runs, and the `.done` line persists until the next batch.
+    enum ChipState: Equatable {
+        case idle
+        case working(String)
+        case done(String)
+    }
+    @Published private(set) var chipState: ChipState = .idle
 
-    /// A friendly "all done" line shown after a batch of activity finishes.
-    /// Deliberately *persists* (doesn't vanish) until the next activity
-    /// starts — closes the loop so the user sees Limor actually finished,
-    /// rather than the indicator just disappearing.
-    @Published private(set) var lastActivitySummary: String?
-
-    /// Activities seen since the indicator was last idle — used to compose
-    /// the done message describing what just happened.
+    /// Currently-running background activities (drives the working headline).
+    private var activities: Set<LimorActivity> = []
+    /// Activities seen since the chip was last idle — composes the done line.
     private var ranThisBatch: Set<LimorActivity> = []
+    /// Debounced finalize: only flip to `.done` once nothing has run for a
+    /// short window, so the gaps between sequential syncAll steps (calendar →
+    /// contacts/health → email) keep the chip on its last `.working` label
+    /// instead of blanking and jumping.
+    private var finalizeTask: Task<Void, Never>?
 
-    /// The single most relevant in-progress label, or nil when idle.
-    var activityHeadline: String? {
+    /// The most relevant in-progress label, or nil when nothing runs.
+    private var activityHeadline: String? {
         activities.sorted { $0.order < $1.order }.first?.working
     }
-
-    /// Debounces the "done" message so the brief gaps between sequential
-    /// syncAll steps (calendar → … → email) don't flash a premature summary.
-    private var doneDebounce: Task<Void, Never>?
 
     /// Begin tracking a background activity. Public so view-side work that
     /// isn't routed through SyncManager (e.g. the home feed regen) can light
@@ -80,23 +84,32 @@ final class SyncManager: ObservableObject {
     func finishActivity(_ a: LimorActivity) { endActivity(a) }
 
     private func beginActivity(_ a: LimorActivity) {
-        doneDebounce?.cancel()      // a fresh activity cancels a pending "done"
-        lastActivitySummary = nil   // and supersedes the old one
+        finalizeTask?.cancel()
+        finalizeTask = nil
         ranThisBatch.insert(a)
         activities.insert(a)
+        if let h = activityHeadline { chipState = .working(h) }
     }
 
     private func endActivity(_ a: LimorActivity) {
         activities.remove(a)
-        guard activities.isEmpty else { return }
-        // Wait a beat before declaring "done" — if the next sync step begins
-        // within the window it cancels this, keeping the chip continuous.
+        if let h = activityHeadline {
+            // Something else is still running — swap the label in place.
+            chipState = .working(h)
+        } else {
+            // Nothing running. DON'T blank the chip — keep showing the last
+            // `.working` label and only settle into `.done` if the lull holds.
+            scheduleFinalize()
+        }
+    }
+
+    private func scheduleFinalize() {
+        finalizeTask?.cancel()
         let batch = ranThisBatch
-        doneDebounce?.cancel()
-        doneDebounce = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(500))
+        finalizeTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(900))
             guard let self, !Task.isCancelled, self.activities.isEmpty else { return }
-            self.lastActivitySummary = self.doneMessage(for: batch)
+            self.chipState = .done(self.doneMessage(for: batch))
             self.ranThisBatch.removeAll()
         }
     }
