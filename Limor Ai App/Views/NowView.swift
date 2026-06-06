@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NowView: View {
     @EnvironmentObject private var auth: AuthManager
+    @EnvironmentObject private var router: AppRouter
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var location = LocationManager.shared
     @StateObject private var health = HealthManager.shared
@@ -174,6 +175,15 @@ struct NowView: View {
                 Task { await autoRefreshFeed() }
             }
             .onChange(of: location.coordinate?.latitude) { _, _ in
+                Task { await reload() }
+            }
+            // Returning to the home tab — re-pull so a reminder Limor just
+            // created in chat (or any other backend change) shows on the
+            // hero immediately, instead of staying stale until the next
+            // app foreground. In a TabView the root view stays alive, so
+            // `.task` doesn't re-run on tab switches — this fills that gap.
+            .onChange(of: router.selectedTab) { _, newTab in
+                guard newTab == .now else { return }
                 Task { await reload() }
             }
             // Auto-refresh the news feed whenever the user returns to the
