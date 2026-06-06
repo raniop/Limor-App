@@ -169,46 +169,15 @@ final class WatchSyncManager: NSObject, ObservableObject {
         await relayLimorMessage(trimmed, replyHandler: replyHandler)
     }
 
-    /// iPhone-side handler for the watch's PTT button. Mirrors what
-    /// `ChatView.send(text:)` does: first runs the on-device
-    /// `ShoppingDetector` intercept; only when it returns empty do
-    /// we hit the chat backend. Verbose logs on every path so the
-    /// "Limor said added but the list is empty" reports we keep
-    /// getting are diagnosable from the Xcode console.
+    /// iPhone-side handler for the watch's PTT button. Forwards the
+    /// transcript straight to the chat backend; Limor's tool calls
+    /// (`add_shopping_item` / `complete_shopping_item`) come back as
+    /// `shopping_actions` on the reply and get applied to the local
+    /// store below.
     func relayLimorMessage(_ text: String, replyHandler: @escaping ([String: Any]) -> Void) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         print("[wc] relayLimorMessage trimmed=\(trimmed.prefix(120))")
 
-        // 1. Local grocery intercept.
-        let items = ShoppingDetector.extractShoppingItems(trimmed)
-        print("[wc] ShoppingDetector → \(items)")
-        if !items.isEmpty {
-            var added: [String] = []
-            var existing: [String] = []
-            for item in items {
-                if ShoppingListStore.shared.add(item) {
-                    added.append(item)
-                } else {
-                    existing.append(item)
-                }
-            }
-            print("[wc] local intercept added=\(added) existing=\(existing)")
-            var lines: [String] = []
-            if !added.isEmpty {
-                let joined = added.joined(separator: ", ")
-                let verb = added.count == 1 ? "הוספתי" : "הוספתי \(added.count) פריטים"
-                lines.append("🛒 \(verb) לרשימת הקניות: \(joined)")
-            }
-            if !existing.isEmpty {
-                let joined = existing.joined(separator: ", ")
-                lines.append("ℹ️ כבר היו ברשימה: \(joined)")
-            }
-            replyHandler(["reply": lines.joined(separator: "\n")])
-            pushSnapshot()
-            return
-        }
-
-        // 2. Otherwise — chat backend.
         print("[wc] forwarding to chat backend")
         do {
             let reply = try await APIClient.shared.sendChat(

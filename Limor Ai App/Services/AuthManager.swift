@@ -181,12 +181,15 @@ final class AuthManager: ObservableObject {
             displayName = user.displayName
             email = user.email
             photoB64 = SharedStore.photoB64    // optimistic from cache, refreshed below
-            SharedStore.bearer = nil
             if let raw = Bundle.main.object(forInfoDictionaryKey: "LIMOR_API_BASE_URL") as? String,
                let url = URL(string: raw) {
                 SharedStore.baseURL = url
             }
             state = .signedIn
+            // Eagerly mint a Firebase ID token so the App Group bearer is
+            // populated for the Widget + Share Extension right after sign-in,
+            // rather than waiting for the next outgoing API call to do it.
+            Task { _ = await APIClient.shared.refreshSharedBearer() }
             // Notifications prompt is part of OnboardingView on first run.
             // Once onboarding has run, refresh the request silently — if the
             // user already granted, this is a no-op; if they denied, no UI.
@@ -213,6 +216,19 @@ final class AuthManager: ObservableObject {
             SharedStore.photoB64 = profile.photo_b64
         } catch {
             // Silent — view-level errors handle individual requests.
+        }
+        await refreshGenderFromBackend()
+    }
+
+    /// Pull the user's "מגדר" profile fact and mirror it into the App Group
+    /// so Hebrew strings (in the main app *and* the Share Extension) can
+    /// match the user's grammatical gender. Backfills existing users who
+    /// finished the intro before we started writing the App-Group key.
+    private func refreshGenderFromBackend() async {
+        guard let resp = try? await APIClient.shared.profileFacts() else { return }
+        let genderFact = resp.facts.first { $0.label == "מגדר" }
+        if let raw = genderFact?.value, let gender = UserGender.fromHebrewLabel(raw) {
+            UserGender.store(gender)
         }
     }
 

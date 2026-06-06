@@ -89,11 +89,16 @@ struct CreateReminderIntent: AppIntent {
                 task: trimmedTask,
                 dueAt: dueAt
             )
-            // Best-effort mirror to iOS Reminders.app — the user wanted
-            // these to live in Apple's Reminders too, and the
-            // RemindersWriter is idempotent (skips already-mirrored
-            // IDs), so calling it from here is safe.
+            // Best-effort mirror to iOS Reminders.app + Apple Calendar —
+            // the user wanted these to live in both Apple surfaces, and
+            // the writers are idempotent (skip already-mirrored IDs), so
+            // calling them from here is safe.
             await RemindersWriter.shared.writeIfNeeded(
+                reminderId: created.id,
+                task: created.task,
+                dueAt: created.dueDate
+            )
+            await CalendarManager.shared.writeReminderAsEventIfNeeded(
                 reminderId: created.id,
                 task: created.task,
                 dueAt: created.dueDate

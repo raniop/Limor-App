@@ -25,6 +25,21 @@ struct NowView: View {
     /// every render so a complete/snooze can't leave it past the new
     /// last card.
     @State private var reminderHeroIndex: Int = 0
+    /// Which flight is currently shown on the hero flight card. Bumped by
+    /// horizontal swipe / page-dot tap on the card; reset to 0 whenever
+    /// the underlying list changes so a deletion doesn't leave the
+    /// pointer past the end.
+    @State private var flightHeroIndex: Int = 0
+    /// Set when the user taps the upcoming-flight card to inspect the
+    /// original booking email. Drives the `.sheet(item:)` that shows
+    /// `FlightDetailView`.
+    @State private var flightDetail: FlightInsight?
+    /// Set when the user taps "בוצע" on the home-screen reminder hero —
+    /// drives a confirmation dialog before actually completing. The hero
+    /// is a fat button at the top of the scroll view and was getting
+    /// stray-tapped during scrolls; the dialog cuts that out without
+    /// forcing the user into the Reminders tab to undo.
+    @State private var pendingCompleteFromHero: Reminder?
 
     private var tod: LimorTimeOfDay { .current }
 
@@ -33,25 +48,39 @@ struct NowView: View {
             ZStack {
                 LiquidBackdrop()
 
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 18) {
-                        greetingHeader
-                        ForEach(cardOrder.filter { !hiddenCards.contains($0) }) { card in
-                            cardView(for: card)
-                        }
+                // Pin the scroll column to the exact viewport width and clip
+                // anything that draws past it. This is a *global* guarantee
+                // that the home screen can only ever scroll vertically — no
+                // decorative blur, offset circle, over-wide row, or future
+                // card can leak past the edge and trick the ScrollView into
+                // panning sideways. (We used to chase each offending element
+                // with its own .clipShape; this caps the whole column once so
+                // the bug can't return from a new source.) Clipping at the
+                // viewport edge only removes off-screen overflow, so nothing
+                // visible — card shadows included — is affected.
+                GeometryReader { geo in
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 18) {
+                            greetingHeader
+                            ForEach(cardOrder.filter { !hiddenCards.contains($0) }) { card in
+                                cardView(for: card)
+                            }
 
-                        if let errorMessage {
-                            Text(errorMessage)
-                                .font(.footnote)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 12).padding(.vertical, 8)
-                                .frame(maxWidth: .infinity)
-                                .background(Capsule().fill(Color.limorDanger.opacity(0.9)))
+                            if let errorMessage {
+                                Text(errorMessage)
+                                    .font(.footnote)
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 12).padding(.vertical, 8)
+                                    .frame(maxWidth: .infinity)
+                                    .background(Capsule().fill(Color.limorDanger.opacity(0.9)))
+                            }
                         }
+                        .padding(.horizontal, 18)
+                        .padding(.top, 4)
+                        .padding(.bottom, 24)
+                        .frame(width: geo.size.width)
+                        .clipped()
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.top, 4)
-                    .padding(.bottom, 24)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -89,6 +118,33 @@ struct NowView: View {
                     HomeCardOrder.saveHidden(newHidden)
                 }
                 .presentationDetents([.medium, .large])
+            }
+            .sheet(item: $flightDetail) { flight in
+                FlightDetailView(flight: flight)
+                    .environment(\.layoutDirection, .rightToLeft)
+                    .environment(\.locale, Locale(identifier: "he_IL"))
+            }
+            .confirmationDialog(
+                "לסמן כבוצע?",
+                isPresented: Binding(
+                    get: { pendingCompleteFromHero != nil },
+                    set: { if !$0 { pendingCompleteFromHero = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: pendingCompleteFromHero
+            ) { r in
+                // No `message:` closure — long reminder text was stretching
+                // the dialog half-way up the screen. The card sits right
+                // behind the dialog so the user can already see which
+                // reminder is being acted on.
+                Button("סמן כבוצע", role: .none) {
+                    let target = r
+                    pendingCompleteFromHero = nil
+                    Task { await completeNextReminder(target) }
+                }
+                Button("ביטול", role: .cancel) {
+                    pendingCompleteFromHero = nil
+                }
             }
             .refreshable {
                 // Pull-to-refresh forces a fresh sync (Gmail + insights too) so
@@ -143,16 +199,18 @@ struct NowView: View {
         }
     }
 
-    /// Force a backend regeneration of the news feed, but at most once
-    /// per `feedAutoRefreshThrottle` seconds. Called from scenePhase
-    /// .active and on first appear so the headlines visible to the user
-    /// are never older than a few minutes.
+    /// Ask the backend for the freshest feed it's willing to serve. Honors
+    /// the server-side 24h cooldown by passing `force: false` — auto-refresh
+    /// is allowed to *check*, but a fresh Sonnet+web_search regen only fires
+    /// once per day. Explicit pull-to-refresh (elsewhere in this view) still
+    /// passes `force: true` for users who want new headlines right now;
+    /// auto-refresh was burning the Anthropic budget on every foreground.
     private func autoRefreshFeed() async {
         guard Date().timeIntervalSince(lastFeedAutoRefresh) > feedAutoRefreshThrottle else {
             return
         }
         lastFeedAutoRefresh = Date()
-        if let fresh = try? await APIClient.shared.refreshFeed(force: true) {
+        if let fresh = try? await APIClient.shared.refreshFeed(force: false) {
             feed = fresh
         }
     }
@@ -195,6 +253,7 @@ struct NowView: View {
         case .nextReminder:    nextReminderHero
         case .recommendations: recommendationsCard
         case .meetings:        MeetingsCard()
+        case .emailActions:    EmailActionsCard()
         case .feed:            feedCard
         case .nextFlight:      nextFlightCard
         case .weather:         weatherCard
@@ -205,6 +264,215 @@ struct NowView: View {
     }
 
     // MARK: Hero — next reminder
+
+    /// Lightweight parser for a reminder's task text. Pulls out a time
+    /// (which already appears in the meta strip and would otherwise
+    /// double up: "תור לרופא, שעה 15:00" + a 15:00 chip) and an
+    /// address-shaped trailing fragment (street + number, or a known
+    /// city name) so the title reads cleaner. Heuristic only — no
+    /// natural-language parser. When in doubt we leave the original
+    /// text alone rather than mangle it.
+    private static func parseReminder(_ task: String) -> (task: String, address: String?) {
+        var s = task
+
+        // 1. Strip time mentions. Covers the common Hebrew patterns
+        //    we've seen Claude emit when it creates reminders:
+        //      "בשעה 15:00" / "שעה 15:00" / "ב-15:00" / "ב 15:00"
+        //    The optional leading comma + spaces gets eaten with it so
+        //    we don't leave a dangling "," at the end.
+        let timePatterns = [
+            #"\s*[,،]?\s*(?:ב\s*שעה|בשעה|שעה|ב[-־]?)\s*\d{1,2}:\d{2}"#,
+        ]
+        for pattern in timePatterns {
+            s = s.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+        }
+
+        // 2. Try to peel off a trailing address. We split on commas /
+        //    em-dashes and check the last piece — if it looks like a
+        //    street+number or contains a recognised city name we lift
+        //    it out and leave the rest as the task title.
+        var address: String? = nil
+        let separators: [Character] = [",", "،", "—"]
+        if let lastSepIdx = s.lastIndex(where: { separators.contains($0) }) {
+            let candidate = s[s.index(after: lastSepIdx)...]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if looksLikeAddress(candidate) {
+                address = candidate
+                s = String(s[..<lastSepIdx])
+            }
+        }
+
+        // Final cleanup — trim trailing punctuation/whitespace we left
+        // behind ("X, " → "X").
+        let trim = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ",.—"))
+        s = s.trimmingCharacters(in: trim)
+        if let a = address { address = abbreviateCityNames(in: a) }
+        return (s, address)
+    }
+
+    /// Swap long Hebrew city names for their standard abbreviations so a
+    /// long street + city like "פינסקר 70 פתח תקווה" reads as
+    /// "פינסקר 70 פ״ת" and fits cleanly in the meta chip.
+    private static let cityAbbreviations: [(String, String)] = [
+        ("תל אביב יפו", "ת״א"),
+        ("תל אביב",     "ת״א"),
+        ("פתח תקווה",   "פ״ת"),
+        ("ראשון לציון", "ראשל״צ"),
+        ("בני ברק",     "ב״ב"),
+        ("רמת גן",      "ר״ג"),
+        ("כפר סבא",     "כ״ס"),
+        ("באר שבע",     "ב״ש"),
+        ("ראש העין",    "ר״ע"),
+        ("הוד השרון",   "ה״ש"),
+        ("קריית גת",    "ק״ג"),
+        ("בית שמש",     "ב״ש"),
+    ]
+
+    private static func abbreviateCityNames(in s: String) -> String {
+        var out = s
+        for (full, short) in cityAbbreviations {
+            out = out.replacingOccurrences(of: full, with: short)
+        }
+        return out
+    }
+
+    private static let knownCities: Set<String> = [
+        "תל אביב", "ירושלים", "חיפה", "באר שבע", "ראשון לציון",
+        "פתח תקווה", "אשדוד", "אשקלון", "נתניה", "חולון", "בני ברק",
+        "רמת גן", "גבעתיים", "הרצליה", "כפר סבא", "רעננה", "הוד השרון",
+        "רחובות", "מודיעין", "רמלה", "לוד", "אילת", "קריית גת",
+        "נצרת", "טבריה", "צפת", "עפולה", "כרמיאל", "עכו", "נהריה",
+        "בית שמש", "גוש דן", "ראש העין",
+    ]
+
+    private static func looksLikeAddress(_ s: String) -> Bool {
+        guard s.count >= 3, s.count <= 60 else { return false }
+        // Reject if it looks like a name (no digits, no city)
+        if knownCities.contains(where: { s.contains($0) }) { return true }
+        // Otherwise require both a Hebrew letter AND a digit — that's
+        // the signature of a street name with a house number.
+        let hasDigit = s.contains(where: { $0.isNumber })
+        let hasHebrew = s.unicodeScalars.contains { $0.value >= 0x0590 && $0.value <= 0x05FF }
+        return hasDigit && hasHebrew
+    }
+
+    /// Decorative backdrop for the reminder hero: the brand/danger
+    /// gradient, drop shadow, and the two offset glow circles. Rendered
+    /// via `.background()` so the 180pt-wide circle can't dictate the
+    /// outer card's height — that was the source of the asymmetric
+    /// padding the user saw (extra space top and bottom).
+    @ViewBuilder
+    private func reminderHeroBackdrop(overdue: Bool) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(overdue ? LimorGradient.danger : LimorGradient.brand)
+                .shadow(
+                    color: (overdue ? Color.limorDanger : Color.limorIndigo).opacity(0.35),
+                    radius: 24, y: 14
+                )
+
+            Circle()
+                .fill(.white.opacity(0.18))
+                .frame(width: 180, height: 180)
+                .offset(x: -60, y: -80)
+                .blur(radius: 30)
+            Circle()
+                .fill((overdue ? Color.limorCoral : Color.limorPink).opacity(0.35))
+                .frame(width: 140, height: 140)
+                .offset(x: 200, y: 100)
+                .blur(radius: 30)
+        }
+    }
+
+    /// Centered date · time bar inside the reminder hero. Mirrors the
+    /// flight card's compact meta strip so both heroes share the same
+    /// visual rhythm (icon + value · separator · icon + value).
+    private func metaLine(for r: Reminder, address: String? = nil) -> some View {
+        // Year is implied for upcoming reminders — only show it when
+        // the due date crosses into a different calendar year. Saves
+        // ~45pt of width and lets the address chip share the row.
+        let cal = Calendar.current
+        let sameYear = cal.component(.year, from: r.dueDate) == cal.component(.year, from: Date())
+        let dateFormat: Date.FormatStyle = sameYear
+            ? .dateTime.day().month(.abbreviated)
+            : .dateTime.day().month(.abbreviated).year(.twoDigits)
+        return HStack(spacing: 8) {
+            HStack(spacing: 3) {
+                Image(systemName: "clock.fill")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.72))
+                Text(r.dueDate, style: .time)
+                    .font(.caption.weight(.bold).monospacedDigit())
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            Circle().fill(.white.opacity(0.35)).frame(width: 3, height: 3)
+            HStack(spacing: 3) {
+                Image(systemName: "calendar")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.72))
+                Text(r.dueDate, format: dateFormat)
+                    .font(.caption.weight(.bold).monospacedDigit())
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            if let address, !address.isEmpty {
+                Circle().fill(.white.opacity(0.35)).frame(width: 3, height: 3)
+                HStack(spacing: 3) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.72))
+                    Text(address)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .minimumScaleFactor(0.75)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.white.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(.white.opacity(0.18), lineWidth: 0.8)
+        )
+    }
+
+    /// Slim primary/secondary action button used by the reminder hero.
+    /// `primary` flips between a filled white background (calls-to-action
+    /// like "בוצע") and an outlined white stroke (secondary like
+    /// "נודניק"). Both are full-width and 36pt tall — less screen
+    /// real-estate than the previous 12pt-vertical-padded buttons.
+    private func actionLabel(systemImage: String, title: String, primary: Bool, tint: Color) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.caption.weight(.bold))
+            Text(title)
+                .font(.subheadline.weight(primary ? .bold : .semibold))
+        }
+        .foregroundStyle(primary ? tint : .white)
+        .frame(maxWidth: .infinity)
+        .frame(height: 36)
+        .background(
+            Group {
+                if primary {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(.white.opacity(0.95))
+                } else {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(.white.opacity(0.55), lineWidth: 1.1)
+                }
+            }
+        )
+    }
 
     /// Compact navigation chevron for the reminder hero. Sits INSIDE
     /// the card on top of either an indigo or red gradient — the
@@ -228,12 +496,18 @@ struct NowView: View {
     }
 
     /// Pending reminders ordered for the home hero: overdue first (most
-    /// urgent), then upcoming by ascending due time. Capped at 8 so the
+    /// urgent), then upcoming by ascending due time. Upcoming items are
+    /// only surfaced once they're within a 48h window — anything farther
+    /// out lives in the dedicated Reminders tab so the home feed stays
+    /// focused on what's actually about to happen. Capped at 8 so the
     /// dots strip stays readable.
     private var heroReminders: [Reminder] {
         let pending = allReminders.filter { $0.status == .pending }
+        let horizon = Date().addingTimeInterval(48 * 3600)
         let overdue = pending.filter { $0.isOverdue }.sorted { $0.dueDate < $1.dueDate }
-        let upcoming = pending.filter { !$0.isOverdue }.sorted { $0.dueDate < $1.dueDate }
+        let upcoming = pending
+            .filter { !$0.isOverdue && $0.dueDate <= horizon }
+            .sorted { $0.dueDate < $1.dueDate }
         return Array((overdue + upcoming).prefix(8))
     }
 
@@ -249,121 +523,99 @@ struct NowView: View {
                 // reads as "needs attention" at a glance — purple with
                 // a small red pill wasn't loud enough.
                 let overdue = r.isOverdue
-                VStack(spacing: 12) {
-                ZStack(alignment: .topLeading) {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .fill(overdue ? LimorGradient.danger : LimorGradient.brand)
-                        .shadow(
-                            color: (overdue ? Color.limorDanger : Color.limorIndigo).opacity(0.35),
-                            radius: 24, y: 14
-                        )
-
-                    // Decorative blurred shapes — mirror the dominant
-                    // tint so the highlights don't fight the base
-                    // gradient when we swap palettes.
-                    Circle()
-                        .fill(.white.opacity(0.18))
-                        .frame(width: 180, height: 180)
-                        .offset(x: -60, y: -80)
-                        .blur(radius: 30)
-                    Circle()
-                        .fill((overdue ? Color.limorCoral : Color.limorPink).opacity(0.35))
-                        .frame(width: 140, height: 140)
-                        .offset(x: 200, y: 100)
-                        .blur(radius: 30)
-
-                    // Inner padding: 22pt baseline, +36pt on both sides
-                    // when the carousel is active so the side chevrons
-                    // (overlay below) don't sit on top of the task text
-                    // or the complete/snooze buttons.
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack(spacing: 8) {
-                            Image(systemName: overdue ? "exclamationmark.triangle.fill" : "bell.fill")
-                                .font(.subheadline.weight(.bold))
-                            Text(overdue ? "תזכורת באיחור" : "התזכורת הבאה")
-                                .font(.subheadline.weight(.semibold))
-                            Spacer()
-                            if totalRecs > 1 {
-                                // Tiny "2/4" pill so the user can see at a
-                                // glance there are more pending reminders
-                                // queued behind this one.
-                                Text("\(safeIndex + 1)/\(totalRecs)")
-                                    .font(.caption2.weight(.bold).monospacedDigit())
+                // Pull a trailing address + any inline "שעה HH:MM" out
+                // of the task so the headline stays focused on the
+                // action and the meta strip below carries date/time and
+                // (optionally) the location.
+                let parsed = Self.parseReminder(r.task)
+                // Boarding-pass styled layout — same shape as the flight
+                // card so the hero row reads as a consistent family.
+                // Decorative gradient + glow circles ride in `.background`
+                // rather than as ZStack siblings so a `Circle().frame(180)`
+                // can't push the card to a 180pt minimum height (which
+                // was leaving a dead band above and below the content
+                // and making the padding look asymmetric).
+                VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 10) {
+                            ZStack {
+                                Circle().fill(.white.opacity(0.18)).frame(width: 32, height: 32)
+                                Image(systemName: overdue ? "exclamationmark.triangle.fill" : "bell.fill")
+                                    .font(.subheadline.weight(.bold))
                                     .foregroundStyle(.white)
-                                    .padding(.horizontal, 8).padding(.vertical, 4)
-                                    .background(Capsule().fill(.white.opacity(0.22)))
                             }
-                            if overdue {
-                                // High-contrast white pill on the red card —
-                                // a red-on-red pill would disappear into
-                                // the background.
-                                Text("באיחור")
-                                    .font(.caption2.weight(.bold))
-                                    .foregroundStyle(.limorDanger)
-                                    .padding(.horizontal, 8).padding(.vertical, 4)
-                                    .background(Capsule().fill(.white))
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(overdue ? "תזכורת באיחור" : "התזכורת הבאה")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                if overdue {
+                                    Text("דורש טיפול עכשיו")
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(.white.opacity(0.75))
+                                }
                             }
+                            Spacer()
+                            // Relative-time pill on the trailing edge —
+                            // mirrors the "בעוד N ימים" pill on the
+                            // flight card so the two heroes scan alike.
+                            Text(r.dueDate, style: .relative)
+                                .font(.caption.weight(.bold).monospacedDigit())
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10).padding(.vertical, 5)
+                                .background(Capsule().fill(.white.opacity(0.25)))
                         }
-                        .foregroundStyle(.white.opacity(0.95))
 
-                        Text(r.task)
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                        Text(parsed.task)
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                             .lineLimit(3)
+                            .minimumScaleFactor(0.85)
+                            .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                        HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            Image(systemName: "clock.fill").font(.title3)
-                            Text(r.dueDate, style: .relative)
-                                .font(.title3.weight(.bold).monospacedDigit())
-                            Text("•").foregroundStyle(.white.opacity(0.4))
-                            Text(r.dueDate, style: .time)
-                                .font(.subheadline.weight(.semibold))
-                        }
-                        .foregroundStyle(.white)
+                        // Compact meta line — time, date and (optionally)
+                        // the parsed-out location, all in a single chip
+                        // strip so the hero stays short.
+                        metaLine(for: r, address: parsed.address)
 
-                        // Inline complete + snooze actions. Without these,
-                        // the only way to clear an overdue reminder from
-                        // the home screen was to switch tabs to תזכורות
-                        // and swipe — annoying when the whole point of
-                        // the hero is "do something about this NOW".
-                        HStack(spacing: 10) {
+                        // Inline complete + snooze actions, slimmer than
+                        // the previous full-bleed buttons.
+                        HStack(spacing: 8) {
                             Button {
-                                Task { await completeNextReminder(r) }
+                                pendingCompleteFromHero = r
                             } label: {
-                                Label("בוצע", systemImage: "checkmark.circle.fill")
-                                    .font(.subheadline.weight(.bold))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .fill(.white.opacity(0.95))
-                                    )
-                                    .foregroundStyle(overdue ? .limorDanger : .limorIndigo)
+                                actionLabel(systemImage: "checkmark.circle.fill", title: "בוצע", primary: true, tint: overdue ? .limorDanger : .limorIndigo)
                             }
                             .buttonStyle(.plain)
 
                             Button {
                                 Task { await snoozeNextReminder(r, minutes: 10) }
                             } label: {
-                                Label("נודניק 10'", systemImage: "alarm")
-                                    .font(.subheadline.weight(.semibold))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .stroke(.white.opacity(0.6), lineWidth: 1.2)
-                                    )
-                                    .foregroundStyle(.white)
+                                actionLabel(systemImage: "alarm", title: "נודניק 10'", primary: false, tint: .white)
                             }
                             .buttonStyle(.plain)
                         }
-                        .padding(.top, 4)
+
+                        if totalRecs > 1 {
+                            LimorPageDots(
+                                count: totalRecs,
+                                index: safeIndex,
+                                activeColor: .white,
+                                inactiveColor: .white
+                            )
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.top, -2)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    reminderHeroIndex = (safeIndex + 1) % totalRecs
+                                }
+                            }
+                        }
                     }
-                    .padding(.vertical, 22)
-                    .padding(.horizontal, totalRecs > 1 ? 58 : 22)
-                }
+                .padding(.horizontal, totalRecs > 1 ? 52 : 16)
+                .padding(.vertical, 14)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(minHeight: 180)
+                .background { reminderHeroBackdrop(overdue: overdue) }
                 // Side chevrons — inside the card, vertically centered,
                 // 12pt from the edges. Sits behind the .gesture/.id
                 // modifiers below but on top of the card content (the
@@ -407,13 +659,13 @@ struct NowView: View {
                 // tricking the parent ScrollView into thinking there's
                 // horizontal content to scroll. Threshold guards keep
                 // vertical scrolls flowing through to the ScrollView.
-                .gesture(
-                    DragGesture(minimumDistance: 24)
+                .highPriorityGesture(
+                    DragGesture(minimumDistance: 16)
                         .onEnded { value in
                             guard totalRecs > 1 else { return }
                             let h = value.translation.width
                             let v = value.translation.height
-                            guard abs(h) > abs(v), abs(h) > 50 else { return }
+                            guard abs(h) > abs(v), abs(h) > 40 else { return }
                             withAnimation(.easeInOut(duration: 0.25)) {
                                 // RTL convention (mirrored from LTR's
                                 // "swipe left = next"): swipe RIGHT
@@ -429,20 +681,6 @@ struct NowView: View {
                         }
                 )
 
-                    if totalRecs > 1 {
-                        // Dots only under the card. Chevrons live inside
-                        // the card on the sides (overlay above), so the
-                        // bottom row stays minimal — just position
-                        // indicator + tap-to-advance shortcut.
-                        LimorPageDots(count: totalRecs, index: safeIndex)
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    reminderHeroIndex = (safeIndex + 1) % totalRecs
-                                }
-                            }
-                    }
-                }
-                .frame(maxWidth: .infinity)
             } else if isLoading && snapshot == nil {
                 // Only show the loading skeleton on the very first load, when we
                 // have nothing to show yet. Once we have a snapshot, refreshes
@@ -452,6 +690,14 @@ struct NowView: View {
                     HStack { ProgressView().tint(.limorIndigo); Text("טוען…").foregroundStyle(.secondary) }
                 }
             } else {
+                // The hero is filtered to a 48h window — but a user may
+                // still have pending reminders farther out. Surface that
+                // explicitly instead of saying "אין תזכורות פעילות"
+                // (which is misleading when there are 5 pending next
+                // week).
+                let laterCount = allReminders
+                    .filter { $0.status == .pending && !$0.isOverdue }
+                    .count
                 ZStack {
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .fill(LimorGradient.mint.opacity(0.85))
@@ -460,8 +706,12 @@ struct NowView: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 38))
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("הכל רגוע 🌿").font(.title3.weight(.bold))
-                            Text("אין תזכורות פעילות").font(.subheadline)
+                            Text(laterCount > 0 ? "פנוי ליומיים הקרובים 🌿" : "הכל רגוע 🌿")
+                                .font(.title3.weight(.bold))
+                            Text(laterCount > 0
+                                 ? "\(laterCount) תזכורות בהמשך"
+                                 : "אין תזכורות פעילות")
+                                .font(.subheadline)
                         }
                         Spacer()
                     }
@@ -599,29 +849,78 @@ struct NowView: View {
 
     @ViewBuilder
     private var nextFlightCard: some View {
-        if let flight = upcomingFlight {
-            FlightCard(flight: flight) {
-                // User-triggered dismissal — the AI extractor sometimes
-                // hallucinates flights from old/ambiguous emails. Remember
-                // the ID so we don't re-show it after the next insights
-                // refresh.
-                var ids = SharedStore.dismissedFlightIds
-                ids.insert(flight.id)
-                SharedStore.dismissedFlightIds = ids
-                Task { await reload() }
+        let flights = upcomingFlights
+        if !flights.isEmpty {
+            // Clamp the index so a refresh that drops a flight (Gmail
+            // re-extraction, manual dismissal) can't leave us pointing
+            // past the end.
+            let safeIndex = max(0, min(flightHeroIndex, flights.count - 1))
+            let flight = flights[safeIndex]
+            let total = flights.count
+
+            // No wrapping VStack — page dots live INSIDE FlightCard's
+            // padded VStack, under the clipShape, so they neither look
+            // detached nor leak layout past the card's edge.
+            FlightCard(
+                flight: flight,
+                onDismiss: {
+                    var ids = SharedStore.dismissedFlightIds
+                    ids.insert(flight.id)
+                    SharedStore.dismissedFlightIds = ids
+                    if flightHeroIndex >= total - 1 {
+                        flightHeroIndex = max(0, total - 2)
+                    }
+                    Task { await reload() }
+                },
+                position: total > 1 ? (safeIndex, total) : nil,
+                onAdvance: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        flightHeroIndex = (safeIndex + 1) % total
+                    }
+                }
+            )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                flightDetail = flight
             }
+            // `highPriorityGesture` instead of `.gesture` — without it
+            // the parent ScrollView's vertical pan recognizer wins
+            // ties and the user's horizontal swipe sometimes nudges the
+            // whole screen sideways before our handler ever fires. High
+            // priority + a lower `minimumDistance` (16 not 24) lets the
+            // card claim the swipe early. The threshold guard inside
+            // still rejects motion that's mostly vertical.
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 16)
+                    .onEnded { value in
+                        guard total > 1 else { return }
+                        let h = value.translation.width
+                        let v = value.translation.height
+                        guard abs(h) > abs(v), abs(h) > 40 else { return }
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            // RTL: swipe right reveals the next flight.
+                            if h > 0 {
+                                flightHeroIndex = (safeIndex + 1) % total
+                            } else {
+                                flightHeroIndex = (safeIndex - 1 + total) % total
+                            }
+                        }
+                    }
+            )
         }
     }
 
-    private var upcomingFlight: FlightInsight? {
-        guard let flights = insights?.flights else { return nil }
+    /// All future flights (not dismissed, not departed >1h ago), sorted
+    /// by departure time. The hero card cycles through them via swipe /
+    /// page-dot tap; previously we showed only the first.
+    private var upcomingFlights: [FlightInsight] {
+        guard let flights = insights?.flights else { return [] }
         let now = Date()
         let dismissed = SharedStore.dismissedFlightIds
         return flights
             .filter { !dismissed.contains($0.id) }
             .filter { ($0.departureDate ?? .distantPast) > now.addingTimeInterval(-3600) }
             .sorted { ($0.departureDate ?? .distantPast) < ($1.departureDate ?? .distantPast) }
-            .first
     }
 
     // MARK: Health
@@ -1079,6 +1378,14 @@ struct LastWorkoutCard: View {
             }
             .padding(20)
         }
+        // Clip the decorative blurred circle (160pt wide, offset +110x/-50y)
+        // to the card's rounded rect. Same issue we already fixed on the
+        // reminder hero and FlightCard — without clipping, the circle
+        // draws past the right edge and NowView's parent ScrollView
+        // mistakes it for horizontal content, letting the home screen
+        // pan sideways. The card only shows when there's a recent
+        // workout in HealthKit, which is why the bug felt intermittent.
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var relativeTime: String {
@@ -1131,118 +1438,257 @@ private struct FlightCard: View {
     /// records the flight id so it doesn't come back after the next
     /// insights refresh.
     var onDismiss: (() -> Void)? = nil
+    /// When the user has multiple upcoming flights queued, the parent
+    /// passes (current, total) so we render a page-dot strip *inside* the
+    /// card. Placing the dots outside (in a wrapping VStack) caused two
+    /// problems: the dots looked detached, and the extra outer layout
+    /// re-introduced the home-tab horizontal-pan bug. Inside the
+    /// clipShape they can't leak past the card bounds.
+    var position: (index: Int, total: Int)? = nil
+    var onAdvance: (() -> Void)? = nil
     @State private var showingDismissConfirm = false
 
-    // Aviation palette — deep ocean → teal. Visually distinct from the
-    // brand-purple reminder card so the two don't blend on the home screen.
-    private static let topColor    = Color(red: 0.07, green: 0.36, blue: 0.55)  // deep ocean
-    private static let bottomColor = Color(red: 0.20, green: 0.66, blue: 0.62)  // teal
+    // Aviation palette — deep ocean → bright teal. Pushed darker on the
+    // top-leading and lighter on the bottom-trailing to give the gradient
+    // more depth than the previous one had.
+    private static let topColor    = Color(red: 0.04, green: 0.20, blue: 0.45)  // deep ocean / night
+    private static let bottomColor = Color(red: 0.16, green: 0.62, blue: 0.72)  // teal / surf
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
+        VStack(alignment: .leading, spacing: 12) {
+            topRow
+            routeStrip
+            metaLine
+            if let position, position.total > 1 {
+                LimorPageDots(
+                    count: position.total,
+                    index: position.index,
+                    activeColor: .white,
+                    inactiveColor: .white
+                )
+                .frame(maxWidth: .infinity, alignment: .center)
+                .contentShape(Rectangle())
+                .onTapGesture { onAdvance?() }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // `.background` instead of a sibling ZStack so the decorative
+        // 230×230 / 160×160 glow circles don't dictate card height —
+        // they used to push the card to ~230pt minimum, leaving a dead
+        // band of gradient below the page dots. With `.background` the
+        // backdrop paints into whatever size the content asks for and
+        // the inner circles' overflow gets clipped by the outer
+        // clipShape on the way out.
+        .background { backdrop }
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+    }
+
+    // MARK: - Background
+
+    private var backdrop: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(LinearGradient(
                     colors: [Self.topColor, Self.bottomColor],
                     startPoint: .topLeading, endPoint: .bottomTrailing
                 ))
-                .shadow(color: Self.topColor.opacity(0.30), radius: 20, y: 10)
+                .shadow(color: Self.topColor.opacity(0.32), radius: 22, y: 12)
 
-            // Decorative blurred circles
+            // Big soft glow in the trailing corner.
             Circle()
-                .fill(.white.opacity(0.20))
-                .frame(width: 200, height: 200)
-                .offset(x: 130, y: -90)
+                .fill(.white.opacity(0.22))
+                .frame(width: 230, height: 230)
+                .offset(x: 150, y: -110)
+                .blur(radius: 50)
+            // A cooler accent glow on the opposite side — gives the card
+            // a sense of depth instead of a single light source.
+            Circle()
+                .fill(Color(red: 0.45, green: 0.90, blue: 1.0).opacity(0.20))
+                .frame(width: 160, height: 160)
+                .offset(x: -90, y: 140)
                 .blur(radius: 40)
+        }
+    }
 
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 8) {
-                    Image(systemName: "airplane.departure").font(.subheadline.weight(.bold))
-                    Text("הטיסה הקרובה שלך").font(.subheadline.weight(.semibold))
-                    Spacer()
-                    if let days = daysAway {
-                        Text(days == 0 ? "היום" : "בעוד \(days) ימים")
-                            .font(.caption.weight(.bold))
-                            .padding(.horizontal, 10).padding(.vertical, 4)
-                            .background(Capsule().fill(.white.opacity(0.22)))
-                    }
-                    if onDismiss != nil {
-                        Button {
-                            showingDismissConfirm = true
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.7))
-                        }
-                        .buttonStyle(.plain)
-                        .confirmationDialog("הטיסה לא נכונה?", isPresented: $showingDismissConfirm) {
-                            Button("מחק את הטיסה הזו", role: .destructive) { onDismiss?() }
-                            Button("ביטול", role: .cancel) {}
-                        } message: {
-                            Text("הטיסה תוסר מהמסך. אם תופיע שוב — סימן שלימור מזהה אותה ממייל; אפשר לדווח לנו.")
-                        }
-                    }
-                }
-                .foregroundStyle(.white.opacity(0.95))
+    // MARK: - Top row (title + days-away + dismiss)
 
-                HStack(alignment: .center, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(flight.departure_airport ?? "—")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                        Text("יציאה").font(.caption).foregroundStyle(.white.opacity(0.7))
-                    }
-                    Image(systemName: "airplane")
-                        .font(.title3)
-                        .foregroundStyle(.white.opacity(0.85))
-                        .rotationEffect(.degrees(0))
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(flight.arrival_airport ?? "—")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                        Text("יעד").font(.caption).foregroundStyle(.white.opacity(0.7))
-                    }
-                    Spacer()
-                }
-
-                // Two-row layout — cramming date + airline + flight number
-                // on one line was truncating the departure time ("09:30 →
-                // 09,...") on smaller widths. Date+time stays prominent on
-                // its own row, airline + #number ride below.
-                VStack(alignment: .leading, spacing: 6) {
-                    if let date = flight.departureDate {
-                        Label(formatDate(date), systemImage: "calendar")
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                    }
-                    HStack(spacing: 10) {
-                        if let airline = flight.airline {
-                            Label(airline, systemImage: "building.2")
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                        }
-                        if let fno = flight.flight_number {
-                            Text("#\(fno)").font(.caption.weight(.semibold).monospacedDigit())
-                                .padding(.horizontal, 8).padding(.vertical, 3)
-                                .background(Capsule().fill(.white.opacity(0.18)))
-                        }
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.9))
-
-                if let ref = flight.booking_reference {
-                    HStack(spacing: 6) {
-                        Image(systemName: "ticket")
-                        Text(ref).monospacedDigit()
-                    }
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.75))
+    private var topRow: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle().fill(.white.opacity(0.18)).frame(width: 32, height: 32)
+                Image(systemName: "airplane.departure")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.white)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                Text("הטיסה הקרובה שלך")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                if let airline = flight.airline {
+                    Text(airline)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .lineLimit(1)
                 }
             }
-            .padding(20)
+            Spacer()
+            if let days = daysAway {
+                Text(daysAwayLabel(days))
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Capsule().fill(.white.opacity(0.25)))
+            }
+            if onDismiss != nil {
+                Button {
+                    showingDismissConfirm = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+                .confirmationDialog("הטיסה לא נכונה?", isPresented: $showingDismissConfirm) {
+                    Button("מחק את הטיסה הזו", role: .destructive) { onDismiss?() }
+                    Button("ביטול", role: .cancel) {}
+                } message: {
+                    Text("הטיסה תוסר מהמסך. אם תופיע שוב — סימן שלימור מזהה אותה ממייל; אפשר לדווח לנו.")
+                }
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
+
+    // MARK: - Route strip (TLV ✈ BKK with dashed connector)
+
+    private var routeStrip: some View {
+        HStack(alignment: .center, spacing: 10) {
+            // Departure airport — pushed all the way to the leading edge
+            // (RTL: right edge of the card) so the route reads from
+            // origin to destination with maximum breathing room between.
+            airportBlock(
+                code: flight.departure_airport ?? "—",
+                city: AirportCityLookup.city(for: flight.departure_airport),
+                alignment: .leading
+            )
+
+            // Animated-feel dashed line with airplane glyph in the
+            // middle. Takes whatever space the airport blocks leave.
+            connector
+                .frame(maxWidth: .infinity)
+
+            airportBlock(
+                code: flight.arrival_airport ?? "—",
+                city: AirportCityLookup.city(for: flight.arrival_airport),
+                alignment: .trailing
+            )
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func airportBlock(code: String, city: String?, alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: 1) {
+            Text(code)
+                .font(.system(size: 32, weight: .heavy, design: .rounded))
+                .foregroundStyle(.white)
+                .kerning(1.2)
+                .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
+            if let city, !city.isEmpty {
+                Text(city)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.78))
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private var connector: some View {
+        ZStack {
+            // Dashed route line behind the plane.
+            DashedRouteLine()
+                .stroke(
+                    Color.white.opacity(0.55),
+                    style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [4, 4])
+                )
+                .frame(height: 1.5)
+
+            // Airplane glyph on a small disc so it sits "above" the line
+            // and reads as the centerpiece.
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [Self.topColor, Self.bottomColor],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ))
+                    .frame(width: 28, height: 28)
+                    .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 0.8))
+                Image(systemName: "airplane")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
+                    // In RTL the visual "from → to" goes right-to-left;
+                    // SwiftUI auto-mirrors the glyph, but we want the
+                    // nose pointing toward destination (left in RTL).
+                    // Default symbol points left already; no rotation
+                    // needed.
+            }
+        }
+    }
+
+    // MARK: - Meta line (date · time · flight #)
+
+    /// Single-line condensed metadata replacing the previous 3-column
+    /// stats strip + chip row. Same info, ~⅓ the vertical real estate.
+    /// The full passenger/booking detail is one tap away in
+    /// `FlightDetailView`, so the card stays the at-a-glance "what flight
+    /// is next" surface.
+    private var metaLine: some View {
+        HStack(spacing: 12) {
+            Spacer(minLength: 0)
+            metaCell(icon: "calendar", value: dateLabel)
+            if hasTimeComponent {
+                metaSeparator
+                metaCell(icon: "clock.fill", value: timeLabel)
+            }
+            if let n = flight.flight_number, !n.isEmpty {
+                metaSeparator
+                metaCell(icon: "number", value: "#\(n)")
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.white.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(.white.opacity(0.18), lineWidth: 0.8)
+        )
+    }
+
+    private func metaCell(icon: String, value: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.72))
+            Text(value)
+                .font(.caption.weight(.bold).monospacedDigit())
+                .foregroundStyle(.white)
+                .lineLimit(1)
+        }
+    }
+
+    private var metaSeparator: some View {
+        Circle()
+            .fill(.white.opacity(0.35))
+            .frame(width: 3, height: 3)
+    }
+
+    // MARK: - Helpers
 
     private var daysAway: Int? {
         guard let date = flight.departureDate else { return nil }
@@ -1252,12 +1698,26 @@ private struct FlightCard: View {
         return cal.dateComponents([.day], from: start, to: target).day
     }
 
-    private func formatDate(_ date: Date) -> String {
+    private func daysAwayLabel(_ days: Int) -> String {
+        if days == 0 { return "היום" }
+        if days == 1 { return "מחר" }
+        if days == 2 { return "מחרתיים" }
+        return "בעוד \(days) ימים"
+    }
+
+    private var dateLabel: String {
+        guard let date = flight.departureDate else { return "—" }
         let f = DateFormatter()
         f.locale = Locale(identifier: "he_IL")
-        // Drop the time portion when the backend gave us only a date — better
-        // to show "שבת 20 יוני" than to invent a misleading "00:00".
-        f.dateFormat = hasTimeComponent ? "EEEE d MMM, HH:mm" : "EEEE d MMM"
+        f.dateFormat = "d MMM"
+        return f.string(from: date)
+    }
+
+    private var timeLabel: String {
+        guard hasTimeComponent, let date = flight.departureDate else { return "—" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "he_IL")
+        f.dateFormat = "HH:mm"
         return f.string(from: date)
     }
 
@@ -1266,6 +1726,69 @@ private struct FlightCard: View {
     private var hasTimeComponent: Bool {
         flight.departure_date_iso.contains("T")
     }
+}
+
+/// Horizontal dashed line used as the route connector inside FlightCard.
+/// A custom Shape lets `.stroke(..., dash:)` actually render — applying a
+/// dash pattern to a plain `Rectangle().frame(height:)` collapses to a
+/// solid bar.
+private struct DashedRouteLine: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let y = rect.midY
+        p.move(to: CGPoint(x: rect.minX, y: y))
+        p.addLine(to: CGPoint(x: rect.maxX, y: y))
+        return p
+    }
+}
+
+/// Minimal IATA-code → Hebrew city-name lookup for the destinations most
+/// Israeli travelers actually fly to. Far from exhaustive — we surface
+/// the name when known and silently fall back to just the code when not,
+/// so an unrecognised airport doesn't look broken.
+private enum AirportCityLookup {
+    static func city(for code: String?) -> String? {
+        guard let code = code?.uppercased(), code.count == 3 else { return nil }
+        return mapping[code]
+    }
+
+    private static let mapping: [String: String] = [
+        // Israel
+        "TLV": "תל אביב", "ETM": "אילת רמון", "VDA": "עובדה",
+        // Europe
+        "LHR": "לונדון", "LGW": "לונדון", "STN": "לונדון", "LTN": "לונדון",
+        "CDG": "פריז", "ORY": "פריז",
+        "AMS": "אמסטרדם",
+        "FRA": "פרנקפורט", "MUC": "מינכן", "BER": "ברלין",
+        "FCO": "רומא", "CIA": "רומא", "MXP": "מילאנו", "LIN": "מילאנו",
+        "MAD": "מדריד", "BCN": "ברצלונה",
+        "ATH": "אתונה", "SKG": "סלוניקי",
+        "VIE": "וינה", "ZRH": "ציריך", "GVA": "ז׳נבה",
+        "PRG": "פראג", "BUD": "בודפשט", "WAW": "ורשה",
+        "CPH": "קופנהגן", "ARN": "סטוקהולם", "HEL": "הלסינקי", "OSL": "אוסלו",
+        "DUB": "דבלין", "LIS": "ליסבון", "BRU": "בריסל",
+        "IST": "איסטנבול", "SAW": "איסטנבול",
+        "LCA": "לרנקה", "PFO": "פאפוס",
+        "BUH": "בוקרשט", "OTP": "בוקרשט", "SOF": "סופיה",
+        // Middle East
+        "DXB": "דובאי", "AUH": "אבו דאבי", "DOH": "דוחה", "AMM": "עמאן",
+        "RUH": "ריאד", "JED": "ג׳דה",
+        // Americas
+        "JFK": "ניו יורק", "LGA": "ניו יורק", "EWR": "ניו יורק / ניוארק",
+        "LAX": "לוס אנג׳לס", "SFO": "סן פרנסיסקו",
+        "MIA": "מיאמי", "ORD": "שיקגו", "BOS": "בוסטון",
+        "YUL": "מונטריאול", "YYZ": "טורונטו",
+        "MEX": "מקסיקו סיטי",
+        // Asia / Pacific
+        "BKK": "בנגקוק", "DMK": "בנגקוק",
+        "HKT": "פוקט", "USM": "קוסמוי",
+        "SIN": "סינגפור", "KUL": "קואלה לומפור",
+        "HKG": "הונג קונג", "ICN": "סיאול", "NRT": "טוקיו", "HND": "טוקיו",
+        "DEL": "דלהי", "BOM": "מומבאי",
+        "SYD": "סידני", "MEL": "מלבורן",
+        // Africa
+        "JNB": "יוהנסבורג", "CPT": "קייפטאון", "NBO": "ניירובי", "CAI": "קהיר",
+    ]
 }
 
 private struct WeatherMinMaxLabel: LabelStyle {
@@ -1497,5 +2020,232 @@ private struct RecommendationContent: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Flight detail sheet
+
+/// Tap-through from the home-screen flight card. Shows the LLM-extracted
+/// fields nicely laid out, plus the original Gmail booking email behind
+/// them (subject + body) so the user can verify what Limor extracted.
+struct FlightDetailView: View {
+    let flight: FlightInsight
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var email: EmailDTO?
+    @State private var loadingEmail = true
+    @State private var emailError: String?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    routeHero
+                    extractedFieldsCard
+                    sourceEmailCard
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 32)
+            }
+            .navigationTitle("פרטי טיסה")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("סגור") { dismiss() }
+                        .foregroundStyle(.limorIndigo)
+                }
+            }
+        }
+        .task { await loadEmail() }
+    }
+
+    // MARK: Route hero
+
+    private var routeHero: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(LinearGradient(
+                    colors: [
+                        Color(red: 0.07, green: 0.36, blue: 0.55),
+                        Color(red: 0.20, green: 0.66, blue: 0.62),
+                    ],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ))
+                .shadow(color: Color(red: 0.07, green: 0.36, blue: 0.55).opacity(0.25), radius: 16, y: 8)
+
+            VStack(spacing: 14) {
+                HStack(alignment: .center, spacing: 18) {
+                    VStack(spacing: 4) {
+                        Text(flight.departure_airport ?? "—")
+                            .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                        Text("יציאה")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.75))
+                    }
+                    Image(systemName: "airplane")
+                        .font(.title)
+                        .foregroundStyle(.white.opacity(0.85))
+                    VStack(spacing: 4) {
+                        Text(flight.arrival_airport ?? "—")
+                            .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                        Text("יעד")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.75))
+                    }
+                }
+                if let date = flight.departureDate {
+                    Text(formattedDateLong(date))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.95))
+                }
+            }
+            .padding(.vertical, 28)
+            .padding(.horizontal, 20)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: Extracted fields
+
+    private var extractedFieldsCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionLabel(icon: "list.bullet.rectangle", title: "מה לימור חילצה")
+                detailRow(icon: "building.2", label: "חברת תעופה", value: flight.airline)
+                detailRow(icon: "number", label: "מספר טיסה", value: flight.flight_number)
+                detailRow(icon: "person.fill", label: "נוסע", value: flight.passenger_name)
+                detailRow(icon: "ticket", label: "מספר הזמנה", value: flight.booking_reference)
+                detailRow(icon: "airplane.departure", label: "שדה יציאה", value: flight.departure_airport)
+                detailRow(icon: "airplane.arrival", label: "שדה יעד", value: flight.arrival_airport)
+                if let d = flight.departureDate {
+                    detailRow(icon: "calendar", label: "המראה", value: formattedDateLong(d))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func detailRow(icon: String, label: String, value: String?) -> some View {
+        if let value, !value.isEmpty {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: icon)
+                    .font(.caption)
+                    .foregroundStyle(.limorIndigo)
+                    .frame(width: 18)
+                Text(label)
+                    .font(.subheadline)
+                    .foregroundStyle(.limorMuted)
+                Spacer(minLength: 8)
+                Text(value)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.limorInk)
+                    .multilineTextAlignment(.trailing)
+            }
+        }
+    }
+
+    // MARK: Source email
+
+    @ViewBuilder
+    private var sourceEmailCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel(icon: "envelope", title: "המייל המקורי")
+                if loadingEmail {
+                    HStack(spacing: 8) {
+                        ProgressView().tint(.limorIndigo)
+                        Text("טוען את המייל…")
+                            .font(.subheadline)
+                            .foregroundStyle(.limorMuted)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else if let email {
+                    emailContent(email)
+                } else if let err = emailError {
+                    Text(err)
+                        .font(.subheadline)
+                        .foregroundStyle(.limorMuted)
+                } else {
+                    Text("המייל המקורי כבר לא מסונכרן (יוצא מהרשימה אחרי שעבר מספיק זמן).")
+                        .font(.subheadline)
+                        .foregroundStyle(.limorMuted)
+                }
+            }
+        }
+    }
+
+    private func emailContent(_ email: EmailDTO) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("נושא")
+                    .font(.caption).foregroundStyle(.limorMuted)
+                Text(email.subject.isEmpty ? "—" : email.subject)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.limorInk)
+                    .textSelection(.enabled)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("מאת")
+                    .font(.caption).foregroundStyle(.limorMuted)
+                Text(email.from_name?.isEmpty == false ? "\(email.from_name!) <\(email.from)>" : email.from)
+                    .font(.subheadline)
+                    .foregroundStyle(.limorInk)
+                    .textSelection(.enabled)
+            }
+            if let date = parseEmailDate(email.received_at) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("התקבל")
+                        .font(.caption).foregroundStyle(.limorMuted)
+                    Text(formattedDateLong(date))
+                        .font(.subheadline)
+                        .foregroundStyle(.limorInk)
+                }
+            }
+            Divider().padding(.vertical, 4)
+            let body = (email.body_text?.isEmpty == false ? email.body_text! : email.snippet)
+            if !body.isEmpty {
+                Text(body)
+                    .font(.body)
+                    .foregroundStyle(.limorInk.opacity(0.9))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text("גוף המייל לא נשמר.")
+                    .font(.subheadline)
+                    .foregroundStyle(.limorMuted)
+            }
+        }
+    }
+
+    // MARK: Helpers
+
+    private func loadEmail() async {
+        guard let id = flight.source_email_id, !id.isEmpty else {
+            loadingEmail = false
+            return
+        }
+        do {
+            email = try await APIClient.shared.emailById(messageId: id)
+        } catch {
+            emailError = "טעינת המייל נכשלה: \(error.localizedDescription)"
+        }
+        loadingEmail = false
+    }
+
+    private func formattedDateLong(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "he_IL")
+        f.dateFormat = flight.departure_date_iso.contains("T")
+            ? "EEEE d MMMM y, HH:mm"
+            : "EEEE d MMMM y"
+        return f.string(from: date)
+    }
+
+    private func parseEmailDate(_ iso: String) -> Date? {
+        if let d = ISO8601DateFormatter.limor.date(from: iso) { return d }
+        return ISO8601DateFormatter().date(from: iso)
     }
 }

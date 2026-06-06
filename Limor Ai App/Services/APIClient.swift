@@ -25,10 +25,31 @@ struct APIClient {
         return URLSession(configuration: config)
     }()
 
+    /// For the heaviest LLM endpoints — the executive email report runs
+    /// Claude Sonnet over the whole inbox+sent window and can take well
+    /// past 90s on the first (forced) generation. No data arrives until
+    /// Anthropic finishes, so the per-request timeout never resets — hence
+    /// a dedicated long session instead of the default 90s one.
+    private let longSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 180
+        return URLSession(configuration: config)
+    }()
+
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
 
     // MARK: - Auth / profile
+
+    /// Forces a Firebase ID token fetch so the App Group bearer is populated
+    /// for extensions even when no API call is in flight yet — e.g. right
+    /// after sign-in. The actual write happens inside `freshIdToken` as a
+    /// side effect; this exists just so callers don't need to throw the
+    /// token away on the floor.
+    @discardableResult
+    func refreshSharedBearer() async -> Bool {
+        await freshIdToken() != nil
+    }
 
     func setDisplayName(_ displayName: String) async throws {
         struct Body: Encodable { let display_name: String }
@@ -85,6 +106,15 @@ struct APIClient {
     func completeReminder(token: String, id: String) async throws -> Reminder {
         struct Empty: Encodable {}
         let env: ReminderEnvelope = try await post("/api/reminders/\(id)/complete", body: Empty())
+        return env.reminder
+    }
+
+    /// Undo a previously completed reminder — used by the "החזר לפעיל"
+    /// affordance in the reminders list. Mirrors `completeReminder` shape
+    /// so call sites can reuse the same optimistic-update pattern.
+    func reopenReminder(token: String, id: String) async throws -> Reminder {
+        struct Empty: Encodable {}
+        let env: ReminderEnvelope = try await post("/api/reminders/\(id)/reopen", body: Empty())
         return env.reminder
     }
 
@@ -212,6 +242,21 @@ struct APIClient {
         let _: EmptyResponse = try await post("/api/email/sync", body: Body(emails: emails))
     }
 
+    /// Pull one previously-synced email's full record (subject, snippet,
+    /// body_text). Used by the flight-detail sheet to show the booking
+    /// email behind the card. Returns `nil` when the message has aged out
+    /// of the rolling per-user snapshot the backend keeps.
+    func emailById(messageId: String) async throws -> EmailDTO? {
+        struct Resp: Decodable { let email: EmailDTO }
+        let escaped = messageId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? messageId
+        do {
+            let resp: Resp = try await get("/api/email/by-id?id=\(escaped)")
+            return resp.email
+        } catch let APIError.server(status, _) where status == 404 {
+            return nil
+        }
+    }
+
     // MARK: - Insights
 
     func getInsights() async throws -> InsightsBundle {
@@ -221,6 +266,23 @@ struct APIClient {
     func refreshInsights() async throws -> InsightsBundle {
         struct Empty: Encodable {}
         return try await post("/api/insights/refresh", body: Empty())
+    }
+
+    // MARK: - Executive email action report
+
+    func getEmailActions() async throws -> EmailActionReport {
+        try await get("/api/email/actions")
+    }
+
+    /// Regenerate the report. `force: true` bypasses the server's 24h cooldown
+    /// (used for explicit pull-to-refresh); `false` lets the server no-op when
+    /// the cached report is still fresh.
+    func refreshEmailActions(force: Bool = false) async throws -> EmailActionReport {
+        struct Empty: Encodable {}
+        let path = force ? "/api/email/actions/refresh?force=1" : "/api/email/actions/refresh"
+        // Sonnet over the whole inbox can run past the default 90s timeout —
+        // use the long session so a real generation doesn't surface as an error.
+        return try await post(path, body: Empty(), longRunning: true)
     }
 
     // MARK: - Personal feed
@@ -244,12 +306,6 @@ struct APIClient {
         struct Empty: Encodable {}
         let path = force ? "/api/feed/refresh?force=1" : "/api/feed/refresh"
         return try await post(path, body: Empty())
-    }
-
-    func topicArticles(topicId: String, force: Bool = false) async throws -> TopicArticlesResponse {
-        let escaped = topicId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? topicId
-        let path = "/api/feed/topic/\(escaped)/articles" + (force ? "?force=1" : "")
-        return try await get(path)
     }
 
     func suggestFeedTopics(query: String) async throws -> [FeedTopic] {
@@ -447,6 +503,13 @@ struct APIClient {
                 defer { lock.unlock() }
                 guard !resolved else { return }
                 resolved = true
+                // Mirror the freshest token into the App Group so the
+                // Widget + Share extension can call the backend on their
+                // own. Tokens are 1h-lived; the next freshIdToken call
+                // overwrites this with a newer one before the old expires.
+                if let token, !token.isEmpty {
+                    SharedStore.bearer = token
+                }
                 cont.resume(returning: token)
             }
 
@@ -471,7 +534,7 @@ struct APIClient {
         return try await send(req)
     }
 
-    private func post<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+    private func post<T: Decodable, B: Encodable>(_ path: String, body: B, longRunning: Bool = false) async throws -> T {
         var req = URLRequest(url: resolveURL(path))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -479,7 +542,7 @@ struct APIClient {
             req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
         }
         req.httpBody = try encoder.encode(body)
-        return try await send(req)
+        return try await send(req, session: longRunning ? longSession : session)
     }
 
     private func deleteReq<T: Decodable>(_ path: String) async throws -> T {
@@ -502,8 +565,8 @@ struct APIClient {
         return try await send(req)
     }
 
-    private func send<T: Decodable>(_ req: URLRequest) async throws -> T {
-        let (data, response) = try await session.data(for: req)
+    private func send<T: Decodable>(_ req: URLRequest, session: URLSession? = nil) async throws -> T {
+        let (data, response) = try await (session ?? self.session).data(for: req)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
             let code = (try? decoder.decode(ServerError.self, from: data))?.error ?? "http_\(http.statusCode)"

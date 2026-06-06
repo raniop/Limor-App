@@ -520,23 +520,6 @@ struct FeedBundle: Codable {
     let generated_at: String?
 }
 
-/// One real article on the topic-detail page. Distinct from `FeedItem`
-/// (which is a synthesised summary across multiple sources) — each
-/// `TopicArticle` is a single publisher's piece, with one source URL.
-struct TopicArticle: Codable, Identifiable, Hashable {
-    var id: String { source.url }
-    let headline: String
-    let summary: String
-    let source: FeedSource
-    let generated_at: String
-}
-
-struct TopicArticlesResponse: Decodable {
-    let topic: FeedTopic
-    let articles: [TopicArticle]
-    let generated_at: String?
-}
-
 // MARK: - Calendar / Contacts (synced to backend)
 
 struct CalendarEventDTO: Codable, Identifiable, Hashable {
@@ -564,6 +547,94 @@ struct EmailDTO: Codable, Identifiable, Hashable {
     /// Plain-text body, only fetched for emails likely to be travel/booking
     /// related. nil for everything else (keeps payload + Firestore lean).
     let body_text: String?
+    /// Provider thread/conversation id (Gmail threadId / Graph
+    /// conversationId), so the backend action extractor can group a
+    /// back-and-forth. `var … = nil` keeps the memberwise init backward
+    /// compatible — call sites that don't set it still compile.
+    var thread_id: String? = nil
+    /// "in" = received by the user, "out" = sent by the user. Drives
+    /// missed-follow-up detection ("they asked, I never replied").
+    var direction: String? = nil
+}
+
+// MARK: - Executive email action report
+
+/// How soon an action item should be handled. Mirrors the backend's
+/// `EmailActionUrgency`.
+enum EmailUrgency: String, Codable, Hashable {
+    case critical, high, medium, low
+
+    /// Map urgency → a sensible due date when turning an item into a reminder.
+    /// critical = end of today, high = +24h, medium = +3 days, low = +7 days.
+    func suggestedDueDate(from now: Date = Date()) -> Date {
+        let cal = Calendar.current
+        switch self {
+        case .critical:
+            // 18:00 today, or +2h if it's already past 18:00.
+            let six = cal.date(bySettingHour: 18, minute: 0, second: 0, of: now) ?? now
+            return six > now ? six : now.addingTimeInterval(2 * 3600)
+        case .high:   return now.addingTimeInterval(24 * 3600)
+        case .medium: return now.addingTimeInterval(3 * 24 * 3600)
+        case .low:    return now.addingTimeInterval(7 * 24 * 3600)
+        }
+    }
+}
+
+/// One actionable email surfaced by the executive assistant.
+struct EmailActionItem: Codable, Identifiable, Hashable {
+    let id: String
+    let sender_name: String
+    let company: String?
+    let subject: String
+    let why: String
+    let required_action: String
+    let suggested_response: String?
+    let urgency: EmailUrgency
+    let importance: Int            // 1…10
+    let source_email_id: String?
+    let needs_review: Bool
+
+    /// Stable identity for "handled" dismissal — survives the daily report
+    /// regeneration (whose `id` is a fresh UUID each time). Prefers the
+    /// source email id; falls back to subject + action content.
+    var dismissKey: String {
+        if let src = source_email_id, !src.isEmpty { return "email:\(src)" }
+        return "content:\(subject)|\(required_action)"
+    }
+}
+
+/// A thread where the user owes someone a follow-up.
+struct EmailFollowUp: Codable, Identifiable, Hashable {
+    let id: String
+    let person: String
+    let reason: String
+    let source_email_id: String?
+
+    /// Stable identity for "handled" dismissal (see `EmailActionItem.dismissKey`).
+    var dismissKey: String {
+        if let src = source_email_id, !src.isEmpty { return "followup:\(src)" }
+        return "followup-content:\(person)|\(reason)"
+    }
+}
+
+/// Daily executive email action report. Mirrors the backend `EmailActionReport`.
+struct EmailActionReport: Codable, Hashable {
+    let top_items: [EmailActionItem]
+    let additional_items: [EmailActionItem]
+    let follow_ups: [EmailFollowUp]
+    let risks: [String]
+    let todo: [String]
+    let generated_at: String?
+
+    var isEmpty: Bool {
+        top_items.isEmpty && additional_items.isEmpty && follow_ups.isEmpty
+            && risks.isEmpty && todo.isEmpty
+    }
+
+    static let empty = EmailActionReport(
+        top_items: [], additional_items: [], follow_ups: [],
+        risks: [], todo: [], generated_at: nil
+    )
 }
 
 struct ContactDTO: Codable, Identifiable, Hashable {

@@ -123,6 +123,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
     static let reminderCompleteActionId = "LIMOR_REMINDER_COMPLETE"
     static let reminderSnoozeActionId = "LIMOR_REMINDER_SNOOZE_10"
 
+    /// Categories + action for the local "2 hours before" heads-up
+    /// (`LeadTimeNotifier`). The meeting variant carries only the
+    /// "remind me in an hour" snooze; the reminder variant adds
+    /// "mark done" on top so the user can still close it out early.
+    /// `LIMOR_LEAD_SNOOZE_1H` schedules a fresh notification 1h later —
+    /// i.e. one hour before the event — handled in `didReceive`.
+    static let leadMeetingCategoryId = "LIMOR_LEAD_MEETING"
+    static let leadReminderCategoryId = "LIMOR_LEAD_REMINDER"
+    static let leadSnooze1hActionId = "LIMOR_LEAD_SNOOZE_1H"
+
     /// Attach a "Mark Done" / "Snooze 10 min" pair to reminder pushes.
     /// Categories are matched at *delivery* time, so this registration
     /// must run before any reminder notification arrives — calling from
@@ -144,7 +154,27 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
             intentIdentifiers: [],
             options: []
         )
-        UNUserNotificationCenter.current().setNotificationCategories([category])
+
+        // "2 hours before" heads-up: one-tap re-nudge an hour later.
+        let snooze1h = UNNotificationAction(
+            identifier: Self.leadSnooze1hActionId,
+            title: "תזכיר לי עוד שעה",
+            options: []
+        )
+        let leadMeeting = UNNotificationCategory(
+            identifier: Self.leadMeetingCategoryId,
+            actions: [snooze1h],
+            intentIdentifiers: [],
+            options: []
+        )
+        let leadReminder = UNNotificationCategory(
+            identifier: Self.leadReminderCategoryId,
+            actions: [snooze1h, complete],
+            intentIdentifiers: [],
+            options: []
+        )
+
+        UNUserNotificationCenter.current().setNotificationCategories([category, leadMeeting, leadReminder])
     }
 
     /// Google Sign-In and MSAL both complete by opening a custom URL back into
@@ -320,9 +350,49 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
                 }
                 return
             }
+        case AppDelegate.leadSnooze1hActionId:
+            // "תזכיר לי עוד שעה" on a 2h-before heads-up → fire a fresh
+            // local notification one hour from now (i.e. ~1h before the
+            // event). No backend hop; this is a pure on-device reschedule.
+            scheduleOneHourSnooze(from: userInfo, reminderId: reminderId)
+            completionHandler()
+            return
         default:
             break
         }
         completionHandler()
+    }
+
+    /// Re-arm a lead-time heads-up an hour later. Reuses the title carried
+    /// in `userInfo` from the original "2 hours before" notification. For a
+    /// reminder we re-attach the reminder category + id so the follow-up
+    /// still offers "mark done"; meetings get a plain banner.
+    nonisolated private func scheduleOneHourSnooze(from userInfo: [AnyHashable: Any], reminderId: String?) {
+        let title = (userInfo["lead_title"] as? String) ?? "תזכורת"
+        let isReminder = (userInfo["lead_kind"] as? String) == "reminder"
+
+        let content = UNMutableNotificationContent()
+        content.title = "בעוד שעה: \(title)"
+        content.sound = .default
+        if isReminder, let reminderId {
+            content.categoryIdentifier = AppDelegate.reminderCategoryId
+            content.userInfo = ["reminder_id": reminderId]
+        }
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 60 * 60, repeats: false)
+        // Stable id keyed to the source so a double-tap can't queue two.
+        let key = reminderId ?? title
+        let request = UNNotificationRequest(
+            identifier: "limor.lead.snoozed.\(key)",
+            content: content,
+            trigger: trigger
+        )
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                print("[push] 1h-snooze schedule failed: \(error.localizedDescription)")
+            } else {
+                print("[push] 1h-snooze scheduled for '\(title)'")
+            }
+        }
     }
 }

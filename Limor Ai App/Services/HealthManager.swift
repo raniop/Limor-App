@@ -231,7 +231,13 @@ final class HealthManager: ObservableObject {
 
         guard nights.count >= 3 else { return nil }
         let total = nights.reduce(0.0) { $0 + $1.hours }
-        return total / Double(nights.count)
+        let avg = total / Double(nights.count)
+        let perNight = nights
+            .sorted { ($0.bedtime ?? .distantPast) < ($1.bedtime ?? .distantPast) }
+            .map { String(format: "%.2fh", $0.hours) }
+            .joined(separator: ", ")
+        NSLog("[sleep] 7-night nights=[%@] avg=%.2fh", perNight, avg)
+        return avg
     }
 
     /// Core sleep query for an arbitrary window — used by both the per-night
@@ -249,7 +255,15 @@ final class HealthManager: ObservableObject {
                 guard !asleep.isEmpty else {
                     continuation.resume(returning: nil); return
                 }
-                let totalSeconds = asleep.reduce(0.0) { $0 + $1.endDate.timeIntervalSince($1.startDate) }
+                // **Union, not sum**: Apple Watch + third-party apps + the
+                // deprecated `asleep` value coexisting with the newer
+                // staged values (`asleepCore` / `asleepDeep` / `asleepREM`)
+                // produce overlapping samples covering the same minutes
+                // multiple times. A naive `endDate − startDate` reduce
+                // would double-count every overlap and inflate both
+                // "שינה אתמול" and the 7-night average. Merging intervals
+                // gives us the actual wall-clock time the user was asleep.
+                let totalSeconds = Self.unionDuration(asleep)
                 let bedtime = asleep.map(\.startDate).min()
                 let wakeTime = asleep.map(\.endDate).max()
                 continuation.resume(returning: SleepNight(
@@ -260,6 +274,24 @@ final class HealthManager: ObservableObject {
             }
             self.store.execute(query)
         }
+    }
+
+    /// Total wall-clock seconds covered by *the union of* a set of samples'
+    /// [startDate, endDate] intervals. Overlapping samples count once.
+    private static func unionDuration(_ samples: [HKCategorySample]) -> TimeInterval {
+        let sorted = samples
+            .map { (start: $0.startDate, end: $0.endDate) }
+            .sorted { $0.start < $1.start }
+        var merged: [(start: Date, end: Date)] = []
+        for s in sorted {
+            if var last = merged.last, last.end >= s.start {
+                last.end = max(last.end, s.end)
+                merged[merged.count - 1] = last
+            } else {
+                merged.append(s)
+            }
+        }
+        return merged.reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) }
     }
 
     private func sleepOrMindfulMinutes(

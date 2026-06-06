@@ -188,14 +188,21 @@ struct GoogleAPIs {
         // Newest first.
         out.sort { $0.received_at > $1.received_at }
 
-        // Step 2: for the (up to 8) emails that look travel-related, fetch the
-        // full body and replace the DTO with a body_text-augmented version.
-        let travelIndices = out.indices
-            .filter { isTravelLikely(out[$0]) }
-            .prefix(8)
+        // Step 2: fetch full bodies. The travel/flight extractor needs them
+        // for booking emails, and the executive action extractor needs the
+        // actual thread content (snippets lose the ask). So we pull bodies
+        // for every travel-likely email PLUS the most-recent N messages
+        // (covers active threads, inbound + sent), deduped and capped.
+        let travelIndices = out.indices.filter { isTravelLikely(out[$0]) }
+        let recentIndices = Array(out.indices.prefix(30))   // out is newest-first
+        var bodyIndices: [Int] = []
+        var seenIdx = Set<Int>()
+        for idx in travelIndices + recentIndices where seenIdx.insert(idx).inserted {
+            bodyIndices.append(idx)
+        }
 
         await withTaskGroup(of: (Int, String?).self) { group in
-            for idx in travelIndices {
+            for idx in bodyIndices {
                 let id = out[idx].message_id
                 group.addTask {
                     let body = try? await fetchEmailFullBody(id: id)
@@ -310,6 +317,7 @@ struct GoogleAPIs {
 
         let (fromName, fromEmail) = parseFromHeader(from)
 
+        let labelIds = msg.labelIds ?? []
         return EmailDTO(
             message_id: msg.id,
             from: fromEmail,
@@ -317,9 +325,13 @@ struct GoogleAPIs {
             subject: subject,
             snippet: msg.snippet ?? "",
             received_at: ISO8601DateFormatter.limor.string(from: received),
-            is_unread: (msg.labelIds ?? []).contains("UNREAD"),
-            labels: msg.labelIds ?? [],
-            body_text: nil
+            is_unread: labelIds.contains("UNREAD"),
+            labels: labelIds,
+            body_text: nil,
+            thread_id: msg.threadId,
+            // Gmail tags the user's own sent messages with the SENT label —
+            // free direction detection, no need for the account address.
+            direction: labelIds.contains("SENT") ? "out" : "in"
         )
     }
 
@@ -422,6 +434,7 @@ private struct GmailMessageRef: Decodable { let id: String }
 
 private struct GmailMessage: Decodable {
     let id: String
+    let threadId: String?
     let snippet: String?
     let internalDate: String?
     let labelIds: [String]?
@@ -462,7 +475,9 @@ private extension EmailDTO {
             received_at: received_at,
             is_unread: is_unread,
             labels: labels,
-            body_text: body
+            body_text: body,
+            thread_id: thread_id,
+            direction: direction
         )
     }
 }

@@ -38,6 +38,7 @@ enum SharedStore {
         /// Map Limor reminder id → EKReminder calendarItemIdentifier, so
         /// completing or deleting in Limor can flip the EK side too.
         static let syncedReminderEkIds = "limor.syncedReminderEkIds"
+        static let syncedReminderEventIds = "limor.syncedReminderEventIds"
         static let onboardingCompleted = "limor.onboardingCompleted"
         static let introCompleted = "limor.introCompleted"
         static let notificationPrefsAsked = "limor.notificationPrefsAsked"
@@ -50,6 +51,7 @@ enum SharedStore {
         static let meetingsNotifEnabled = "limor.meetingsNotif.enabled"
         static let meetingsNotifHour = "limor.meetingsNotif.hour"
         static let meetingsNotifMinute = "limor.meetingsNotif.minute"
+        static let leadTimeNotifEnabled = "limor.leadNotif.enabled"
         static let chatLocalOverlay = "limor.chatLocalOverlay"
         static let customTabKind = "limor.customTabKind"
         static let recurringReminders = "limor.recurringReminders"
@@ -57,6 +59,7 @@ enum SharedStore {
         static let chatUsageCache = "limor.chatUsageCache"
         static let hideBirthdayEvents = "limor.hideBirthdayEvents"
         static let dismissedFlightIds = "limor.dismissedFlightIds"
+        static let dismissedEmailActionKeys = "limor.dismissedEmailActionKeys"
     }
 
     static var bearer: String? {
@@ -209,6 +212,16 @@ enum SharedStore {
         set { defaults.set(newValue, forKey: Keys.syncedReminderEkIds) }
     }
 
+    /// Map of Limor reminder id → EKEvent `eventIdentifier`. Parallel to
+    /// `syncedReminderEkIds`, but for the Apple Calendar (event) mirror
+    /// that `CalendarManager` writes alongside the Reminders one. Lets
+    /// "delete this reminder" wipe both sides instead of leaving a ghost
+    /// calendar block on the user's day.
+    static var syncedReminderEventIds: [String: String] {
+        get { (defaults.dictionary(forKey: Keys.syncedReminderEventIds) as? [String: String]) ?? [:] }
+        set { defaults.set(newValue, forKey: Keys.syncedReminderEventIds) }
+    }
+
     /// True once the user has been walked through the per-permission flow.
     /// While false, MainTabs is gated behind OnboardingView and auto-syncs
     /// (which trigger system permission prompts) are deferred.
@@ -288,6 +301,19 @@ enum SharedStore {
         }
     }
 
+    /// Local-only "heads-up" notification fired 2h before each upcoming
+    /// meeting AND each pending reminder. Scheduled by `LeadTimeNotifier`
+    /// via `UNUserNotificationCenter` — additive to the backend's
+    /// at-due-time reminder push and to MeetingsNotifier's evening digest.
+    /// Defaults to ON so the user gets the lead-time heads-up out of the box.
+    static var leadTimeNotifEnabled: Bool {
+        get { (defaults.object(forKey: Keys.leadTimeNotifEnabled) as? Bool) ?? true }
+        set {
+            defaults.set(newValue, forKey: Keys.leadTimeNotifEnabled)
+            iCloud?.set(newValue, forKey: Keys.leadTimeNotifEnabled)
+        }
+    }
+
     /// Locally-persisted recurring reminders — fired by
     /// `RecurringRemindersScheduler` via UNUserNotificationCenter on
     /// each device. Synced via iCloud KVS so adding a recurring
@@ -355,6 +381,13 @@ enum SharedStore {
             cloud.set(Int64(defaults.integer(forKey: Keys.meetingsNotifMinute)),
                       forKey: Keys.meetingsNotifMinute)
         }
+        if cloud.object(forKey: Keys.leadTimeNotifEnabled) != nil {
+            defaults.set(cloud.bool(forKey: Keys.leadTimeNotifEnabled),
+                         forKey: Keys.leadTimeNotifEnabled)
+        } else if defaults.object(forKey: Keys.leadTimeNotifEnabled) != nil {
+            cloud.set(defaults.bool(forKey: Keys.leadTimeNotifEnabled),
+                      forKey: Keys.leadTimeNotifEnabled)
+        }
         cloud.synchronize()
     }
 
@@ -367,6 +400,19 @@ enum SharedStore {
             let arr = Array(newValue)
             defaults.set(arr, forKey: Keys.dismissedFlightIds)
             iCloud?.set(arr, forKey: Keys.dismissedFlightIds)
+        }
+    }
+
+    /// Stable keys of executive-email action items the user marked "handled".
+    /// Keyed by the item's source email (or a content hash) so a dismissal
+    /// survives the daily report regeneration — the same email surfacing
+    /// again stays hidden. Persisted locally + iCloud.
+    static var dismissedEmailActionKeys: Set<String> {
+        get { Set(defaults.stringArray(forKey: Keys.dismissedEmailActionKeys) ?? []) }
+        set {
+            let arr = Array(newValue)
+            defaults.set(arr, forKey: Keys.dismissedEmailActionKeys)
+            iCloud?.set(arr, forKey: Keys.dismissedEmailActionKeys)
         }
     }
 
@@ -585,5 +631,6 @@ enum SharedStore {
         defaults.removeObject(forKey: Keys.photoB64)
         defaults.removeObject(forKey: Keys.syncedReminderIds)
         defaults.removeObject(forKey: Keys.syncedReminderEkIds)
+        defaults.removeObject(forKey: Keys.syncedReminderEventIds)
     }
 }

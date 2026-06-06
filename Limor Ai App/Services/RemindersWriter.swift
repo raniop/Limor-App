@@ -108,6 +108,30 @@ final class RemindersWriter {
         }
     }
 
+    /// Undo a previous `markCompleted` — flip the mirrored EKReminder back
+    /// to pending. Same best-effort semantics: no-op if the reminder isn't
+    /// mirrored, or if Reminders.app has dropped the item.
+    func markPending(reminderId: String) async {
+        guard let ekId = SharedStore.syncedReminderEkIds[reminderId] else { return }
+        if !hasAccess {
+            let granted = await requestAccess()
+            if !granted { return }
+        }
+        guard let item = store.calendarItem(withIdentifier: ekId) as? EKReminder else {
+            var map = SharedStore.syncedReminderEkIds
+            map.removeValue(forKey: reminderId)
+            SharedStore.syncedReminderEkIds = map
+            return
+        }
+        if !item.isCompleted { return }
+        item.isCompleted = false
+        do {
+            try store.save(item, commit: true)
+        } catch {
+            print("[reminders-write] markPending failed: \(error.localizedDescription)")
+        }
+    }
+
     /// Delete the mirrored EKReminder. Called when the user removes the
     /// Limor reminder so the Reminders.app row goes with it instead of
     /// drifting out of sync.

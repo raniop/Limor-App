@@ -36,6 +36,16 @@
 				<string>msauth.com.rani.Limor-Ai-App</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.rani.Limor-Ai-App.share</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>limor</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>

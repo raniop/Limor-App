@@ -27,10 +27,11 @@ final class WatchAudioRecorder: NSObject, ObservableObject {
     private var ticker: Task<Void, Never>?
 
     /// Auto-cap so a forgotten recording doesn't grow past the
-    /// `sendMessage` payload limit (~65KB; at 24kbps AAC ~16s gives
-    /// us a comfortable margin). UI also exposes a stop button so
-    /// the user rarely hits this.
-    private let maxRecordingSeconds: TimeInterval = 15
+    /// `sendMessage` payload limit. At 16 kbps AAC that's ~2 KB/s, so 30s
+    /// ≈ 60 KB — under the ~65 KB ceiling with margin, while giving the
+    /// user double the talk time (the old 15s cap was cutting people off
+    /// mid-sentence). Keep in sync with `AVEncoderBitRateKey` below.
+    private let maxRecordingSeconds: TimeInterval = 30
 
     func requestPermissionIfNeeded() async -> Bool {
         await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
@@ -67,7 +68,10 @@ final class WatchAudioRecorder: NSObject, ObservableObject {
             AVSampleRateKey: 16000,
             AVNumberOfChannelsKey: 1,
             AVEncoderAudioQualityKey: AVAudioQuality.low.rawValue,
-            AVEncoderBitRateKey: 24000,
+            // 16 kbps keeps a 30s dictation (~60 KB) under the WCSession
+            // sendMessage cap. Speech at 16 kHz mono stays clearly
+            // intelligible at this rate. Keep in sync with maxRecordingSeconds.
+            AVEncoderBitRateKey: 16000,
         ]
         do {
             let rec = try AVAudioRecorder(url: url, settings: settings)

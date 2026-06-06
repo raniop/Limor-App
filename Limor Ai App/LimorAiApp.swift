@@ -45,6 +45,7 @@ struct LimorAiApp: App {
                         Task {
                             await MeetingsNotifier.reschedule()
                             await RecurringRemindersScheduler.reschedule()
+                            await LeadTimeNotifier.reschedule()
                         }
                         // Belt-and-suspenders for backend push: re-fetch the
                         // current FCM token from Firebase Messaging and re-
@@ -84,6 +85,44 @@ struct LimorAiApp: App {
                             try? await UNUserNotificationCenter.current()
                                 .setBadgeCount(0)
                         }
+                        // Drain any pending iOS-Share-Sheet handoffs left
+                        // in the App Group. The trampoline URL
+                        // (`limor://share`) is best-effort — the responder-
+                        // chain trick that fires it from the extension can
+                        // silently no-op on iOS 18, so we *also* check a
+                        // dedicated "shouldOpenChat" App-Group flag the
+                        // extension sets when the user taps "פתח בצ׳אט".
+                        // Whichever signal arrives first wins; the other is
+                        // a no-op.
+                        //
+                        // The flag check happens *synchronously* in this
+                        // MainActor onChange closure (no Task wrapper).
+                        // Wrapping in `Task { @MainActor in }` introduced a
+                        // race on cold launch: by the time the task fired,
+                        // SplashView was still on screen and MainTabs's
+                        // TabView hadn't materialized yet, so the
+                        // `selectedTab = .chat` assignment landed before
+                        // there were any observers — TabView then started
+                        // at its default `.now` and never got the change.
+                        if ShareInbox.shouldOpenChat {
+                            AppRouter.shared.selectedTab = .chat
+                            ShareInbox.shouldOpenChat = false
+                            print("[share] consumed App-Group shouldOpenChat flag → chat tab")
+                            // Re-apply once the splash has dropped — by
+                            // ~700ms the splash min-duration is over and
+                            // MainTabs is in the view tree. Cheap insurance
+                            // against the launch-race window.
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(700))
+                                if AppRouter.shared.selectedTab != .chat {
+                                    AppRouter.shared.selectedTab = .chat
+                                    print("[share] re-applied selectedTab=.chat after splash")
+                                }
+                            }
+                        }
+                        Task { @MainActor in
+                            drainShareInboxToChat()
+                        }
                     }
                 }
                 .onOpenURL { url in
@@ -95,10 +134,54 @@ struct LimorAiApp: App {
                     // URL to both auth SDKs — whichever owns it consumes it,
                     // the other no-ops.
                     print("[url] onOpenURL fired: \(url)")
+                    if url.scheme == "limor" {
+                        // The "open in chat" CTA in the Share Extension is
+                        // the only thing that fires this scheme today, so
+                        // always land the user in the chat tab — *also*
+                        // when the inbox is empty (which it usually is now
+                        // that the extension sends to the backend inline
+                        // and the queue is the failure-fallback path).
+                        AppRouter.shared.selectedTab = .chat
+                        // Clear the App-Group fallback flag so the
+                        // scenePhase hook doesn't double-fire the same
+                        // tab switch a moment later.
+                        ShareInbox.shouldOpenChat = false
+                        drainShareInboxToChat()
+                        return
+                    }
                     if GIDSignIn.sharedInstance.handle(url) { return }
                     let handled = MSALPublicClientApplication.handleMSALResponse(url, sourceApplication: nil)
                     print("[url] MSAL handled response: \(handled)")
                 }
+        }
+    }
+
+    /// Move whatever the Share Extension queued in the App Group into the
+    /// chat tab. Iterates oldest-first; the last item wins for the slot
+    /// (pendingChatMessage is single-valued), so earlier shares are still
+    /// dispatched via `sendToLimor` in sequence — `consumePendingMessageIfAny`
+    /// fires on every `pendingChatMessage` change.
+    @MainActor
+    private func drainShareInboxToChat() {
+        let items = ShareInbox.drainAll()
+        print("[share] drainShareInboxToChat: \(items.count) pending item(s)")
+        guard !items.isEmpty else { return }
+        for item in items {
+            let imageData = ShareInbox.consumeImageData(for: item)
+            let text = item.text ?? ""
+            print("[share]  → item \(item.id.uuidString.prefix(8)) text=\(text.prefix(40).debugDescription) imageBytes=\(imageData?.count ?? 0)")
+            if let imageData {
+                AppRouter.shared.sendToLimor(
+                    text: text,
+                    attachment: .init(
+                        data: imageData,
+                        mime: "image/jpeg",
+                        filename: "shared-\(item.id.uuidString.prefix(8)).jpg"
+                    )
+                )
+            } else if !text.isEmpty {
+                AppRouter.shared.sendToLimor(text)
+            }
         }
     }
 }

@@ -290,14 +290,20 @@ struct MicrosoftAPIs {
             .init(name: "$top",     value: String(limit)),
             .init(name: "$orderby", value: "receivedDateTime desc"),
             .init(name: "$filter",  value: "receivedDateTime ge \(filterDate)"),
-            .init(name: "$select",  value: "id,subject,from,receivedDateTime,bodyPreview,isRead,categories,internetMessageId"),
+            .init(name: "$select",  value: "id,subject,from,receivedDateTime,bodyPreview,isRead,categories,internetMessageId,conversationId"),
         ]
         let data = try await get(components.url!, scopes: [mailReadScope])
         let response = try decode(GraphMailListResponse.self, from: data)
 
+        // The signed-in account address — used to tell sent mail (from me)
+        // from received mail, since /me/messages spans all folders including
+        // Sent Items. Empty if we can't resolve it (direction stays "in").
+        let accountEmail = ((try? application().allAccounts())?.first?.username ?? "").lowercased()
+
         var out: [EmailDTO] = response.value.map { msg in
             let fromName  = msg.from?.emailAddress?.name
             let fromEmail = msg.from?.emailAddress?.address ?? ""
+            let direction: String = (!accountEmail.isEmpty && fromEmail.lowercased() == accountEmail) ? "out" : "in"
             return EmailDTO(
                 message_id: msg.id,
                 from: fromEmail,
@@ -307,20 +313,28 @@ struct MicrosoftAPIs {
                 received_at: msg.receivedDateTime ?? formatter.string(from: Date()),
                 is_unread: !(msg.isRead ?? true),
                 labels: msg.categories ?? [],
-                body_text: nil
+                body_text: nil,
+                thread_id: msg.conversationId,
+                direction: direction
             )
         }
 
         // Newest first (server already sorts, but be defensive).
         out.sort { $0.received_at > $1.received_at }
 
-        // Augment travel-likely emails with full body.
-        let travelIndices = out.indices
-            .filter { isTravelLikely(out[$0]) }
-            .prefix(8)
+        // Fetch full bodies for travel-likely emails (flight extractor) PLUS
+        // the most-recent N (executive action extractor needs thread content,
+        // not just bodyPreview). Deduped and capped.
+        let travelIndices = out.indices.filter { isTravelLikely(out[$0]) }
+        let recentIndices = Array(out.indices.prefix(30))
+        var bodyIndices: [Int] = []
+        var seenIdx = Set<Int>()
+        for idx in travelIndices + recentIndices where seenIdx.insert(idx).inserted {
+            bodyIndices.append(idx)
+        }
 
         await withTaskGroup(of: (Int, String?).self) { group in
-            for idx in travelIndices {
+            for idx in bodyIndices {
                 let id = out[idx].message_id
                 group.addTask {
                     let body = try? await fetchEmailFullBody(id: id)
@@ -487,6 +501,7 @@ private struct GraphMailMessage: Decodable {
     let isRead: Bool?
     let categories: [String]?
     let internetMessageId: String?
+    let conversationId: String?
 }
 
 private struct GraphMailFrom: Decodable {
@@ -522,7 +537,9 @@ private extension EmailDTO {
             received_at: received_at,
             is_unread: is_unread,
             labels: labels,
-            body_text: body
+            body_text: body,
+            thread_id: thread_id,
+            direction: direction
         )
     }
 }

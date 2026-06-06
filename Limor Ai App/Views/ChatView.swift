@@ -59,6 +59,7 @@ struct ChatView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var showingPhotoPicker = false
     @State private var showingFileImporter = false
+    @State private var showingVoiceMode = false
     @State private var attachmentData: Data?
     @State private var attachmentMime: String?
     @State private var attachmentFilename: String?
@@ -296,6 +297,11 @@ struct ChatView: View {
                     .presentationDetents([.medium, .large])
                 }
             }
+            .fullScreenCover(isPresented: $showingVoiceMode) {
+                VoiceModeView()
+                    .environmentObject(auth)
+                    .environmentObject(router)
+            }
         }
     }
 
@@ -389,6 +395,8 @@ struct ChatView: View {
                 }
                 .disabled(preparingAttachment || isSending || voice.isRecordingVoiceMessage)
 
+                voiceModeButton
+
                 micButton
 
                 // TextField + send button live in their own sub-view so
@@ -414,6 +422,28 @@ struct ChatView: View {
                 .fill(.ultraThinMaterial)
                 .ignoresSafeArea(edges: .bottom)
         )
+    }
+
+    /// Voice-mode entry — full-screen hands-free conversation. Distinct
+    /// from `micButton` which records a one-shot voice message. This one
+    /// opens a continuous loop where Limor also *talks back*. Extracted
+    /// into its own computed property so the composer's HStack stays
+    /// simple enough for the Swift compiler to type-check in a sensible
+    /// timeframe — inlining all four composer buttons hits the
+    /// "unable to type-check this expression" limit.
+    private var voiceModeButton: some View {
+        Button {
+            showingVoiceMode = true
+        } label: {
+            Image(systemName: "waveform")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.limorPink)
+                .frame(width: 38, height: 38)
+                .background(Circle().fill(Color.limorPink.opacity(0.12)))
+                .frame(width: 44, height: 44)
+        }
+        .disabled(preparingAttachment || isSending || voice.isRecordingVoiceMessage)
+        .accessibilityLabel("שיחה קולית עם לימור")
     }
 
     /// Mic button that drives the voice-message gesture. Two modes:
@@ -779,12 +809,25 @@ struct ChatView: View {
     /// straight away. Clears the router slot whether the send succeeds
     /// or fails so we don't loop on a sticky pending value.
     private func consumePendingMessageIfAny() async {
-        guard let queued = router.pendingChatMessage,
-              !queued.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              !isSending
-        else { return }
+        // A pending attachment (from the iOS Share Sheet handoff) can fire on
+        // its own — caption may be empty when the user shares only an image.
+        // We require *something* to send: either non-blank text or a queued
+        // attachment.
+        let queuedText = router.pendingChatMessage ?? ""
+        let trimmed = queuedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasAttachment = router.pendingChatAttachment != nil
+        guard (!trimmed.isEmpty || hasAttachment), !isSending else { return }
+        if let att = router.pendingChatAttachment {
+            attachmentData = att.data
+            attachmentMime = att.mime
+            attachmentFilename = att.filename
+            attachmentImagePreview = att.mime.hasPrefix("image/")
+                ? UIImage(data: att.data)
+                : nil
+            router.pendingChatAttachment = nil
+        }
         router.pendingChatMessage = nil
-        await send(text: queued)
+        await send(text: trimmed)
     }
 
     @MainActor
@@ -828,53 +871,6 @@ struct ChatView: View {
             overlay.append(replyBubble)
             SharedStore.chatLocalOverlay = overlay
             return
-        }
-
-        // Smart shopping list — when the input looks like a grocery list
-        // (single word, comma-separated, or one item per line) intercept
-        // locally instead of burning chat tokens on "ok, added".
-        if attachmentData == nil {
-            let items = ShoppingDetector.extractShoppingItems(text)
-            if !items.isEmpty {
-                var addedNames: [String] = []
-                var existingNames: [String] = []
-                for item in items {
-                    if ShoppingListStore.shared.add(item) {
-                        addedNames.append(item)
-                    } else {
-                        existingNames.append(item)
-                    }
-                }
-                let userBubble = ChatMessage(
-                    role: .user,
-                    content: text,
-                    created_at: ISO8601DateFormatter.limor.string(from: Date())
-                )
-                var lines: [String] = []
-                if !addedNames.isEmpty {
-                    let joined = addedNames.joined(separator: ", ")
-                    let verb = addedNames.count == 1 ? "הוספתי" : "הוספתי \(addedNames.count) פריטים"
-                    lines.append("🛒 \(verb) לרשימת הקניות: \(joined)")
-                }
-                if !existingNames.isEmpty {
-                    let joined = existingNames.joined(separator: ", ")
-                    lines.append("ℹ️ כבר היו ברשימה: \(joined)")
-                }
-                let replyBubble = ChatMessage(
-                    role: .assistant,
-                    content: lines.joined(separator: "\n"),
-                    created_at: ISO8601DateFormatter.limor.string(from: Date())
-                )
-                messages.append(userBubble)
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                    messages.append(replyBubble)
-                }
-                var overlay = SharedStore.chatLocalOverlay
-                overlay.append(userBubble)
-                overlay.append(replyBubble)
-                SharedStore.chatLocalOverlay = overlay
-                return
-            }
         }
 
         let payloadText = text.isEmpty ? defaultPromptForAttachment() : text
@@ -982,58 +978,6 @@ struct ChatView: View {
         let transcript = await voice.transcribeAudioFile(url: audioURL, locale: .hebrew)
         let trimmedTranscript = transcript?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let messageText = trimmedTranscript.isEmpty ? "[הודעה קולית]" : trimmedTranscript
-
-        // Voice equivalent of the text-side local shopping intercept —
-        // without this branch a dictated grocery list ("ביצים, חלב,
-        // גבינה") goes straight to the chat LLM, which happily replies
-        // "הוספתי לרשימת הקניות" but nothing actually gets written to
-        // the on-device store (the iOS ShoppingListStore is the source
-        // of truth). Match the text path's behavior so dictation and
-        // typing produce the same result.
-        let voiceShoppingItems = trimmedTranscript.isEmpty
-            ? []
-            : ShoppingDetector.extractShoppingItems(trimmedTranscript)
-        if !voiceShoppingItems.isEmpty {
-            let items = voiceShoppingItems
-            var addedNames: [String] = []
-            var existingNames: [String] = []
-            for item in items {
-                if ShoppingListStore.shared.add(item) {
-                    addedNames.append(item)
-                } else {
-                    existingNames.append(item)
-                }
-            }
-            var lines: [String] = []
-            if !addedNames.isEmpty {
-                let joined = addedNames.joined(separator: ", ")
-                let verb = addedNames.count == 1 ? "הוספתי" : "הוספתי \(addedNames.count) פריטים"
-                lines.append("🛒 \(verb) לרשימת הקניות: \(joined)")
-            }
-            if !existingNames.isEmpty {
-                let joined = existingNames.joined(separator: ", ")
-                lines.append("ℹ️ כבר היו ברשימה: \(joined)")
-            }
-            let replyBubble = ChatMessage(
-                role: .assistant,
-                content: lines.joined(separator: "\n"),
-                created_at: ISO8601DateFormatter.limor.string(from: Date())
-            )
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                messages.append(replyBubble)
-            }
-            // Persist the optimistic audio bubble itself — Codable now
-            // round-trips its filename + duration, and VoiceService
-            // records into the same `voiceMessagesDirectory` we read on
-            // decode, so re-entering the chat tab brings the audio
-            // bubble back with a working play button instead of a
-            // text-only transcript bubble.
-            var overlay = SharedStore.chatLocalOverlay
-            overlay.append(optimistic)
-            overlay.append(replyBubble)
-            SharedStore.chatLocalOverlay = overlay
-            return
-        }
 
         // Load the M4A as base64. We don't fail the send if reading fails
         // — Limor can still respond to the transcript.

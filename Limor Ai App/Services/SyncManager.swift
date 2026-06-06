@@ -14,6 +14,9 @@ final class SyncManager: ObservableObject {
     /// Updated only after `/api/insights/refresh` returns. Views can observe
     /// this to know when the insights snapshot is actually fresh on the server.
     @Published private(set) var lastInsightsRefresh: Date?
+    /// Updated after `/api/email/actions/refresh` returns (server-side 24h
+    /// cooldown). The executive email report card observes this to re-fetch.
+    @Published private(set) var lastEmailActionsRefresh: Date?
     @Published private(set) var isSyncing = false
 
     /// Per-type throttle. Email/insights are the most "fresh data" sensitive,
@@ -89,7 +92,7 @@ final class SyncManager: ObservableObject {
                 let granted = GoogleAPIs.grantedScopes()
                 print("[sync] email: starting Gmail fetch. Granted Google scopes: \(granted)")
                 do {
-                    emails.append(contentsOf: try await GoogleAPIs.fetchRecentEmails(daysBack: 7, limit: 25))
+                    emails.append(contentsOf: try await GoogleAPIs.fetchRecentEmails(daysBack: 14, limit: 60))
                 } catch {
                     print("[sync] gmail fetch failed: \(error.localizedDescription)")
                 }
@@ -98,7 +101,7 @@ final class SyncManager: ObservableObject {
                 let granted = MicrosoftAPIs.grantedScopes()
                 print("[sync] email: starting Outlook fetch. Granted MS scopes: \(granted)")
                 do {
-                    emails.append(contentsOf: try await MicrosoftAPIs.fetchRecentEmails(daysBack: 7, limit: 25))
+                    emails.append(contentsOf: try await MicrosoftAPIs.fetchRecentEmails(daysBack: 14, limit: 60))
                 } catch {
                     print("[sync] outlook fetch failed: \(error.localizedDescription)")
                 }
@@ -122,6 +125,18 @@ final class SyncManager: ObservableObject {
                     print("[sync] insights refreshed")
                 } catch {
                     print("[sync] insights refresh failed: \(error.localizedDescription)")
+                }
+            }
+            // Executive email action report — server enforces a 24h cooldown,
+            // so this cheap call no-ops most of the time and only burns Sonnet
+            // once a day. Bumps `lastEmailActionsRefresh` so the card re-fetches.
+            Task { @MainActor in
+                do {
+                    _ = try await APIClient.shared.refreshEmailActions(force: false)
+                    lastEmailActionsRefresh = Date()
+                    print("[sync] email actions refreshed")
+                } catch {
+                    print("[sync] email actions refresh failed: \(error.localizedDescription)")
                 }
             }
         } catch {

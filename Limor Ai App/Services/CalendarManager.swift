@@ -64,4 +64,93 @@ final class CalendarManager: ObservableObject {
         if event.birthdayContactIdentifier?.isEmpty == false { return true }
         return false
     }
+
+    // MARK: - Reminder → Calendar Event mirror
+    //
+    // Limor reminders mirror to *both* Apple Reminders (`RemindersWriter`)
+    // and Apple Calendar — the latter so a reminder at 09:00 shows up
+    // alongside meetings on the user's calendar view, not just as a
+    // checklist row in Reminders.app. Each Limor reminder maps to a single
+    // 30-minute EKEvent. Tracking lives in `SharedStore.syncedReminderEventIds`
+    // (parallel to the existing `syncedReminderEkIds` for the Reminders side).
+
+    private static let mirroredEventDuration: TimeInterval = 30 * 60
+
+    /// First writable calendar on the device, preferring the user's default
+    /// for new events. Falls back to any non-birthday/subscription calendar
+    /// if `defaultCalendarForNewEvents` is nil (rare, but possible when the
+    /// user has only read-only calendars).
+    private func chosenWritableCalendar() -> EKCalendar? {
+        if let def = store.defaultCalendarForNewEvents, def.allowsContentModifications {
+            return def
+        }
+        return store.calendars(for: .event)
+            .first { $0.allowsContentModifications && $0.type != .birthday }
+    }
+
+    /// Create an EKEvent for the given Limor reminder unless one already
+    /// exists for it on this device. Idempotent — safe to call repeatedly
+    /// from `mirrorAll`-style sync paths. No-op if calendar access hasn't
+    /// been granted (the chat tools depend on the same permission, so by
+    /// the time the user is creating reminders they've usually approved).
+    func writeReminderAsEventIfNeeded(reminderId: String, task: String, dueAt: Date) async {
+        if SharedStore.syncedReminderEventIds[reminderId] != nil { return }
+        if !hasAccess {
+            let granted = await requestAccess()
+            if !granted { return }
+        }
+        guard let calendar = chosenWritableCalendar() else { return }
+
+        let event = EKEvent(eventStore: store)
+        event.title = task
+        event.startDate = dueAt
+        event.endDate = dueAt.addingTimeInterval(Self.mirroredEventDuration)
+        event.calendar = calendar
+        // Mark the event with a note so users (and future-us) can see why
+        // a non-meeting entry is on the calendar.
+        event.notes = "נוצר על ידי לימור מתוך תזכורת."
+        do {
+            try store.save(event, span: .thisEvent, commit: true)
+            if let id = event.eventIdentifier {
+                var map = SharedStore.syncedReminderEventIds
+                map[reminderId] = id
+                SharedStore.syncedReminderEventIds = map
+            }
+        } catch {
+            print("[calendar-write] failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Bulk mirror for the reminders list — drops any pending reminder that
+    /// doesn't already have a matching calendar event. Mirrors the shape of
+    /// `RemindersWriter.mirrorAll`.
+    func mirrorRemindersAsEvents(_ reminders: [Reminder]) async {
+        for r in reminders where r.status == .pending {
+            await writeReminderAsEventIfNeeded(
+                reminderId: r.id, task: r.task, dueAt: r.dueDate
+            )
+        }
+    }
+
+    /// Drop the mirrored EKEvent so a deleted Limor reminder doesn't leave
+    /// an orphan block on the user's calendar. Mirrors
+    /// `RemindersWriter.delete`.
+    func deleteReminderEvent(reminderId: String) async {
+        guard let eventId = SharedStore.syncedReminderEventIds[reminderId] else { return }
+        if !hasAccess {
+            let granted = await requestAccess()
+            if !granted { return }
+        }
+        defer {
+            var map = SharedStore.syncedReminderEventIds
+            map.removeValue(forKey: reminderId)
+            SharedStore.syncedReminderEventIds = map
+        }
+        guard let event = store.event(withIdentifier: eventId) else { return }
+        do {
+            try store.remove(event, span: .thisEvent, commit: true)
+        } catch {
+            print("[calendar-write] delete failed: \(error.localizedDescription)")
+        }
+    }
 }

@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// User-curated news feed card on NowView. Shows ONE topic at a time on a
-/// page view that auto-advances every few seconds; tapping a slide opens a
-/// dedicated detail sheet with the full body + sources.
+/// User-curated news feed card on NowView. Shows one row per topic with
+/// the synthesised headline + lead. Rows are static — the previous
+/// "tap to open topic page" flow burned a Sonnet + web_search call per
+/// tap and got removed for cost reasons.
 struct FeedCard: View {
     @Binding var bundle: FeedBundle
     var onRefresh: () async -> Void
@@ -11,7 +12,6 @@ struct FeedCard: View {
     @State private var currentIndex: Int = 0
     @State private var showingTopicEditor = false
     @State private var refreshing = false
-    @State private var detailItem: FeedItem?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -25,6 +25,13 @@ struct FeedCard: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Match the reminder hero's defense: clip the *content* to the
+        // card shape so any child that overflows horizontally (long
+        // unbreakable word in a headline) can't trick NowView's outer
+        // ScrollView into thinking horizontal content exists. Applied
+        // before `liquidGlassBackground` so the card's shadow can still
+        // draw outside the clipped area.
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .liquidGlassBackground(cornerRadius: 24, tint: nil)
         .sheet(isPresented: $showingTopicEditor) {
             FeedTopicEditor(
@@ -40,11 +47,6 @@ struct FeedCard: View {
             .environment(\.layoutDirection, .rightToLeft)
             .environment(\.locale, Locale(identifier: "he_IL"))
         }
-        .sheet(item: $detailItem) { item in
-            FeedDetailView(item: item)
-                .environment(\.layoutDirection, .rightToLeft)
-                .environment(\.locale, Locale(identifier: "he_IL"))
-        }
         .onChange(of: bundle.topics.map(\.id)) { _, _ in
             if currentIndex >= bundle.topics.count { currentIndex = 0 }
         }
@@ -59,16 +61,16 @@ struct FeedCard: View {
         }
     }
 
-    /// New design: vertical stack — one row per topic, with its top headline
-    /// + a short lead. Replaces the paged carousel because users were
-    /// missing topics behind the swipe gesture and never realised there was
-    /// more than one.
+    /// Vertical stack — one row per topic, with its top headline + a short
+    /// lead. Static cards (no longer tappable): the previous "tap to open
+    /// topic page" pulled a fresh Sonnet + web_search call every time the
+    /// user explored a card, which combined with auto-refresh was the
+    /// biggest Anthropic cost driver. The synthesised headline + body is
+    /// what users actually read; the extended article list is gone.
     private var pagedFeed: some View {
         VStack(spacing: 10) {
             ForEach(Array(slides.enumerated()), id: \.offset) { _, pair in
-                FeedTopicRow(topic: pair.topic, item: pair.item) {
-                    if let item = pair.item { detailItem = item }
-                }
+                FeedTopicRow(topic: pair.topic, item: pair.item)
             }
         }
     }
@@ -188,55 +190,47 @@ struct FeedCard: View {
 private struct FeedTopicRow: View {
     let topic: FeedTopic
     let item: FeedItem?
-    let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(alignment: .top, spacing: 12) {
-                accentBar
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
-                        Text(topic.label)
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.limorIndigo)
-                            .padding(.horizontal, 8).padding(.vertical, 3)
-                            .background(Capsule().fill(Color.limorIndigo.opacity(0.12)))
-                        Spacer(minLength: 0)
-                        if item != nil {
-                            Image(systemName: "chevron.left")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.limorMuted)
-                        }
-                    }
+        HStack(alignment: .top, spacing: 12) {
+            accentBar
+            VStack(alignment: .leading, spacing: 6) {
+                Text(topic.label)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.limorIndigo)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(Color.limorIndigo.opacity(0.12)))
 
-                    if let item, !item.headline.isEmpty {
-                        Text(item.headline)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.limorInk)
+                if let item, !item.headline.isEmpty {
+                    Text(item.headline)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.limorInk)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !item.body.isEmpty {
+                        Text(item.body)
+                            .font(.caption)
+                            .foregroundStyle(.limorInk.opacity(0.7))
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                        if !item.body.isEmpty {
-                            Text(item.body)
-                                .font(.caption)
-                                .foregroundStyle(.limorInk.opacity(0.7))
-                                .lineLimit(2)
-                                .multilineTextAlignment(.leading)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    } else {
-                        Text("עוד אין עדכון — נסה לרענן")
-                            .font(.caption)
-                            .foregroundStyle(.limorMuted)
-                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                } else {
+                    Text("עוד אין עדכון — נסה לרענן")
+                        .font(.caption)
+                        .foregroundStyle(.limorMuted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .padding(.vertical, 4)
+            // Belt + suspenders so a long unbreakable word in the body can't
+            // push the row past the screen edge and trick NowView's parent
+            // ScrollView into thinking horizontal content exists.
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
-        .disabled(item == nil)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Slim indigo strip on the leading edge — visual rhythm between
@@ -245,267 +239,6 @@ private struct FeedTopicRow: View {
         Capsule()
             .fill(item == nil ? Color.limorMuted.opacity(0.3) : Color.limorIndigo)
             .frame(width: 3)
-    }
-}
-
-// MARK: - Topic hub (Limor's synthesis + a multi-article list)
-
-/// Acts as a "topic page": Limor's synthesised lead at the top, then a
-/// fetched list of distinct articles within the topic's domain. Articles
-/// come from `GET /api/feed/topic/:id/articles`, which has its own 30-min
-/// cache server-side. Tapping an article opens the publisher externally.
-struct FeedDetailView: View {
-    let item: FeedItem
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var articles: [TopicArticle] = []
-    @State private var loading = true
-    @State private var refreshing = false
-    @State private var loadError: String?
-    @State private var lastUpdated: Date?
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                LiquidBackdrop()
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 22) {
-                        leadSummaryCard
-                        articlesSection
-                        if let lastUpdated {
-                            Text("עודכן \(relative(lastUpdated))")
-                                .font(.caption2)
-                                .foregroundStyle(.limorMuted)
-                        }
-                    }
-                    .padding(20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .navigationTitle(item.topic_label)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("סגור") { dismiss() }
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.limorIndigo)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await load(force: true) }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(.limorIndigo)
-                            .rotationEffect(.degrees(refreshing ? 360 : 0))
-                            .animation(refreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: refreshing)
-                    }
-                    .disabled(refreshing)
-                }
-            }
-        }
-        .task { await load(force: false) }
-    }
-
-    // MARK: - Loading
-
-    private func load(force: Bool) async {
-        if force { refreshing = true } else if articles.isEmpty { loading = true }
-        defer {
-            refreshing = false
-            loading = false
-        }
-        do {
-            let resp = try await APIClient.shared.topicArticles(topicId: item.topic_id, force: force)
-            articles = resp.articles
-            lastUpdated = parseIso(resp.generated_at) ?? Date()
-            loadError = nil
-        } catch {
-            loadError = error.localizedDescription
-        }
-    }
-
-    // MARK: - Lead synthesis card
-
-    private var leadSummaryCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
-                Image(systemName: "sparkles")
-                    .font(.caption.weight(.bold))
-                Text("סיכום של לימור")
-                    .font(.caption.weight(.semibold))
-            }
-            .foregroundStyle(.limorIndigo)
-
-            Text(item.headline)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(.limorInk)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if !item.body.isEmpty {
-                Text(item.body)
-                    .font(.subheadline)
-                    .foregroundStyle(.limorInk.opacity(0.85))
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(LinearGradient(
-                    colors: [
-                        Color.limorIndigo.opacity(0.10),
-                        Color.limorViolet.opacity(0.05)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
-        )
-    }
-
-    // MARK: - Articles list
-
-    @ViewBuilder
-    private var articlesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Text("כתבות בנושא")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.limorInk)
-                if !articles.isEmpty {
-                    Text("\(articles.count)")
-                        .font(.caption.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(.limorMuted)
-                        .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(Capsule().fill(Color.limorMuted.opacity(0.15)))
-                }
-                Spacer()
-            }
-
-            if loading && articles.isEmpty {
-                ForEach(0..<4, id: \.self) { _ in skeletonCard }
-            } else if let loadError, articles.isEmpty {
-                errorCard(message: loadError)
-            } else if articles.isEmpty {
-                emptyCard
-            } else {
-                ForEach(articles) { article in
-                    if let url = URL(string: article.source.url) {
-                        Link(destination: url) {
-                            articleCard(article: article, url: url)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-    }
-
-    private func articleCard(article: TopicArticle, url: URL) -> some View {
-        let host = (url.host ?? "").replacingOccurrences(of: "www.", with: "")
-        return VStack(alignment: .leading, spacing: 8) {
-            if !host.isEmpty {
-                Text(host)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.limorMuted)
-                    .textCase(.lowercase)
-            }
-            Text(article.headline)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.limorInk)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-            if !article.summary.isEmpty {
-                Text(article.summary)
-                    .font(.caption)
-                    .foregroundStyle(.limorInk.opacity(0.7))
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            HStack(spacing: 4) {
-                Spacer()
-                Text("פתח את הכתבה")
-                    .font(.caption.weight(.semibold))
-                Image(systemName: "arrow.up.forward")
-                    .font(.caption.weight(.bold))
-            }
-            .foregroundStyle(.limorIndigo)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.ultraThinMaterial)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.limorMuted.opacity(0.15), lineWidth: 0.5)
-        )
-    }
-
-    private var skeletonCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.limorMuted.opacity(0.15))
-                .frame(width: 80, height: 10)
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.limorMuted.opacity(0.20))
-                .frame(height: 16)
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.limorMuted.opacity(0.12))
-                .frame(width: 220, height: 12)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.ultraThinMaterial)
-        )
-        .redacted(reason: .placeholder)
-    }
-
-    private func errorCard(message: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("לא הצלחתי לטעון כתבות")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.limorInk)
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(.limorMuted)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.limorDanger.opacity(0.10))
-        )
-    }
-
-    private var emptyCard: some View {
-        Text("עוד אין כתבות בנושא הזה. נסה לרענן.")
-            .font(.subheadline)
-            .foregroundStyle(.limorMuted)
-            .padding(.vertical, 12)
-    }
-
-    private func parseIso(_ s: String?) -> Date? {
-        guard let s else { return nil }
-        return ISO8601DateFormatter.limor.date(from: s) ?? ISO8601DateFormatter().date(from: s)
-    }
-
-    private func relative(_ date: Date) -> String {
-        let f = RelativeDateTimeFormatter()
-        f.locale = Locale(identifier: "he_IL")
-        f.unitsStyle = .short
-        return f.localizedString(for: date, relativeTo: Date())
     }
 }
 

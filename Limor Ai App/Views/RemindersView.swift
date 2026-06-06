@@ -11,6 +11,12 @@ struct RemindersView: View {
     /// `NewReminderSheet` UI, just pre-filled with the current task +
     /// due time so the user can tweak either.
     @State private var editingReminder: Reminder?
+    /// Reminder the user just asked to mark as done. Drives the
+    /// confirmation dialog — without it, a stray tap on the small circle
+    /// button (or the matching hero in NowView) silently moved a real
+    /// reminder to the "completed" pile with no easy undo path. Cleared
+    /// when the dialog dismisses.
+    @State private var pendingComplete: Reminder?
 
     private let lightImpact = UIImpactFeedbackGenerator(style: .light)
     private let successHaptic = UINotificationFeedbackGenerator()
@@ -37,7 +43,7 @@ struct RemindersView: View {
                             ForEach(sections, id: \.title) { section in
                                 ReminderSection(
                                     section: section,
-                                    onComplete: { r in await complete(r) },
+                                    onRequestComplete: { r in pendingComplete = r },
                                     onDelete: { r in await remove(r) },
                                     onSnooze: { r, m in await snooze(r, minutes: m) },
                                     onEdit: { r in editingReminder = r }
@@ -52,10 +58,11 @@ struct RemindersView: View {
                                         tint: .limorSuccess,
                                         reminders: Array(completed.prefix(20))
                                     ),
-                                    onComplete: { _ in },
+                                    onRequestComplete: { _ in },
                                     onDelete: { r in await remove(r) },
                                     onSnooze: { _, _ in },
                                     onEdit: { _ in },
+                                    onReactivate: { r in await reactivate(r) },
                                     showActions: false
                                 )
                             }
@@ -111,6 +118,27 @@ struct RemindersView: View {
                 Button("אוקיי", role: .cancel) {}
             } message: {
                 Text(errorMessage ?? "")
+            }
+            .confirmationDialog(
+                "לסמן כבוצע?",
+                isPresented: Binding(
+                    get: { pendingComplete != nil },
+                    set: { if !$0 { pendingComplete = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: pendingComplete
+            ) { r in
+                // Skip `message:` — the reminder card the user just tapped
+                // is still on screen and a long task text was stretching
+                // the dialog way too tall.
+                Button("סמן כבוצע", role: .none) {
+                    let target = r
+                    pendingComplete = nil
+                    Task { await complete(target) }
+                }
+                Button("ביטול", role: .cancel) {
+                    pendingComplete = nil
+                }
             }
         }
     }
@@ -172,8 +200,17 @@ struct RemindersView: View {
         do {
             let raw = try await APIClient.shared.listReminders(token: auth.token ?? "")
             reminders = Self.dedupePendingDuplicates(raw)
-            // Mirror chat-created reminders to iOS Reminders too (idempotent).
+            // Mirror chat-created reminders to iOS Reminders *and* Apple
+            // Calendar so they show up in both surfaces (idempotent).
             await RemindersWriter.shared.mirrorAll(reminders)
+            await CalendarManager.shared.mirrorRemindersAsEvents(reminders)
+        } catch is CancellationError {
+            // SwiftUI cancels the .refreshable Task when the user
+            // pull-to-refreshes twice in quick succession, or when the
+            // view re-renders mid-fetch. Surfacing this as a red error
+            // banner is a false alarm.
+        } catch let urlErr as URLError where urlErr.code == .cancelled {
+            // URLSession's own "request cancelled" — same root cause.
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -217,9 +254,13 @@ struct RemindersView: View {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                 reminders.insert(created, at: 0)
             }
-            // Mirror to iOS Reminders.app (best-effort, in background).
+            // Mirror to iOS Reminders.app + Apple Calendar (best-effort,
+            // in background).
             Task {
                 await RemindersWriter.shared.writeIfNeeded(
+                    reminderId: created.id, task: created.task, dueAt: created.dueDate
+                )
+                await CalendarManager.shared.writeReminderAsEventIfNeeded(
                     reminderId: created.id, task: created.task, dueAt: created.dueDate
                 )
             }
@@ -249,6 +290,36 @@ struct RemindersView: View {
             // silently no-ops if this reminder wasn't mirrored (e.g. created
             // on a different device).
             await RemindersWriter.shared.markCompleted(reminderId: r.id)
+        } catch {
+            errorMessage = error.localizedDescription
+            await reload()
+        }
+    }
+
+    /// Reverse of `complete(_:)` — flip a completed reminder back to
+    /// pending both locally and server-side. Called when the user taps the
+    /// green checkmark in the "הושלמו" section or picks "החזר לפעיל" from
+    /// the context menu. No confirmation here: the act of tapping a
+    /// completed item is itself an explicit "I want to bring this back".
+    private func reactivate(_ r: Reminder) async {
+        lightImpact.impactOccurred()
+        applyLocalUpdate(id: r.id) { current in
+            Reminder(
+                id: current.id,
+                task: current.task,
+                due_at: current.due_at,
+                status: .pending,
+                created_at: current.created_at,
+                completed_at: nil,
+                msUntilDue: current.msUntilDue,
+                isOverdue: current.dueDate < Date()
+            )
+        }
+        do {
+            _ = try await APIClient.shared.reopenReminder(token: auth.token ?? "", id: r.id)
+            // Mirror the change to iOS Reminders.app — un-check the EK
+            // counterpart so both sides stay in sync.
+            await RemindersWriter.shared.markPending(reminderId: r.id)
         } catch {
             errorMessage = error.localizedDescription
             await reload()
@@ -321,9 +392,10 @@ struct RemindersView: View {
         }
         do {
             try await APIClient.shared.deleteReminder(token: auth.token ?? "", id: r.id)
-            // Drop the matching EKReminder so it doesn't linger in iOS
-            // Reminders.app after the Limor reminder is gone.
+            // Drop the matching EKReminder + EKEvent so the Limor reminder
+            // is gone from both Apple Reminders and Apple Calendar.
             await RemindersWriter.shared.delete(reminderId: r.id)
+            await CalendarManager.shared.deleteReminderEvent(reminderId: r.id)
         } catch {
             errorMessage = error.localizedDescription
             await reload()
@@ -394,10 +466,17 @@ private struct HeroCountdownCard: View {
 
 private struct ReminderSection: View {
     let section: RemindersView.Section
-    let onComplete: (Reminder) async -> Void
+    /// Called when the user *asks* to complete a reminder — the parent
+    /// shows a confirmation dialog before actually completing. Different
+    /// from "onComplete" of the old API to avoid silent mistaken taps.
+    let onRequestComplete: (Reminder) -> Void
     let onDelete: (Reminder) async -> Void
     let onSnooze: (Reminder, Int) async -> Void
     let onEdit: (Reminder) -> Void
+    /// Only set for the "הושלמו" section — flips a completed reminder
+    /// back to pending. nil in the active sections (where this action
+    /// doesn't make sense).
+    var onReactivate: ((Reminder) async -> Void)?
     var showActions: Bool = true
 
     var body: some View {
@@ -421,10 +500,11 @@ private struct ReminderSection: View {
                     ReminderCard(
                         reminder: r,
                         showActions: showActions,
-                        onComplete: { await onComplete(r) },
+                        onRequestComplete: { onRequestComplete(r) },
                         onSnooze: { m in await onSnooze(r, m) },
                         onDelete: { await onDelete(r) },
-                        onEdit: { onEdit(r) }
+                        onEdit: { onEdit(r) },
+                        onReactivate: onReactivate.map { fn in { await fn(r) } }
                     )
                 }
             }
@@ -437,20 +517,41 @@ private struct ReminderSection: View {
 private struct ReminderCard: View {
     let reminder: Reminder
     let showActions: Bool
-    let onComplete: () async -> Void
+    /// Active-card complete request — funnels through a confirmation
+    /// dialog at the parent level so we don't silently flip a real
+    /// reminder to done on a stray tap.
+    let onRequestComplete: () -> Void
     let onSnooze: (Int) async -> Void
     let onDelete: () async -> Void
     let onEdit: () -> Void
+    /// Set on cards inside the "הושלמו" section. Lets the user tap the
+    /// green check to bring the reminder back to pending — the missing
+    /// safety net before this existed.
+    let onReactivate: (() async -> Void)?
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             if showActions {
                 Button {
-                    Task { await onComplete() }
+                    onRequestComplete()
                 } label: {
                     Image(systemName: "circle")
                         .font(.title2.weight(.medium))
                         .foregroundStyle(reminder.isOverdue ? Color.limorDanger : Color.limorIndigo)
+                }
+                .buttonStyle(.plain)
+            } else if let onReactivate {
+                // Completed reminders: green check is a button that flips
+                // the reminder back to pending. iconography stays the
+                // same so the section still reads as "done", but tapping
+                // is now meaningful — the only path to undo a mistaken
+                // completion.
+                Button {
+                    Task { await onReactivate() }
+                } label: {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.limorSuccess)
                 }
                 .buttonStyle(.plain)
             } else {
@@ -498,7 +599,7 @@ private struct ReminderCard: View {
                     Label("ערוך", systemImage: "pencil")
                 }
                 Button {
-                    Task { await onComplete() }
+                    onRequestComplete()
                 } label: { Label("סמן כבוצע", systemImage: "checkmark") }
                 Menu {
                     Button("10 דקות") { Task { await onSnooze(10) } }
@@ -506,6 +607,10 @@ private struct ReminderCard: View {
                     Button("שעה") { Task { await onSnooze(60) } }
                     Button("3 שעות") { Task { await onSnooze(180) } }
                 } label: { Label("דחה ל…", systemImage: "alarm") }
+            } else if let onReactivate {
+                Button {
+                    Task { await onReactivate() }
+                } label: { Label("החזר לפעיל", systemImage: "arrow.uturn.backward") }
             }
             Button(role: .destructive) {
                 Task { await onDelete() }

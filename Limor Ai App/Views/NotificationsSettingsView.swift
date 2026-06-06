@@ -25,6 +25,10 @@ struct NotificationsSettingsView: View {
     @State private var meetingsNotifHour: Int = SharedStore.meetingsNotifHour
     @State private var meetingsNotifMinute: Int = SharedStore.meetingsNotifMinute
 
+    // Local-only "2 hours before" heads-up for meetings + reminders,
+    // scheduled on-device by LeadTimeNotifier. Defaults to ON.
+    @State private var leadNotifEnabled: Bool = SharedStore.leadTimeNotifEnabled
+
     var body: some View {
         ZStack {
             LiquidBackdrop()
@@ -39,6 +43,7 @@ struct NotificationsSettingsView: View {
                     }
                     localSectionHeader
                     meetingsLocalCard
+                    leadNotifCard
                     footerText
                 }
                 .padding(.horizontal, 18)
@@ -253,6 +258,57 @@ struct NotificationsSettingsView: View {
                     )
                     .labelsHidden()
                 }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(.regularMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.limorMuted.opacity(0.15), lineWidth: 0.5)
+        )
+    }
+
+    private var leadNotifCard: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(Color.limorIndigo.opacity(0.18))
+                        .frame(width: 42, height: 42)
+                    Image(systemName: "clock.badge.exclamationmark.fill")
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(.limorIndigo)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("שעתיים לפני")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.limorInk)
+                    Text("התראה שעתיים לפני כל פגישה ותזכורת · אפשר לדחות בשעה")
+                        .font(.caption)
+                        .foregroundStyle(.limorMuted)
+                        .lineLimit(2)
+                }
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { leadNotifEnabled },
+                    set: { newValue in
+                        leadNotifEnabled = newValue
+                        SharedStore.leadTimeNotifEnabled = newValue
+                        Task {
+                            if newValue {
+                                _ = try? await UNUserNotificationCenter.current()
+                                    .requestAuthorization(options: [.alert, .sound, .badge])
+                            }
+                            await LeadTimeNotifier.reschedule()
+                        }
+                    }
+                ))
+                .labelsHidden()
+                .tint(.limorIndigo)
             }
         }
         .padding(16)

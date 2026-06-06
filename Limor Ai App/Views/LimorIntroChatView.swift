@@ -401,6 +401,17 @@ struct LimorIntroChatView: View {
         guard !typingLimor, !sending else { return }
         gender = g
         answers.append(g.hebrewLabel)
+        // Mirror to the App Group right away so the Share Extension (and
+        // anywhere else that reads `UserGender.current`) picks the correct
+        // grammatical form for *this* user without waiting for the next
+        // profile-facts refresh. Map the local enum 1:1.
+        UserGender.store({
+            switch g {
+            case .male:   return .male
+            case .female: return .female
+            case .other:  return .other
+            }
+        }())
         proceedAfterAnswer()
     }
 

@@ -1,11 +1,10 @@
 import SwiftUI
 
-/// Home-feed card showing the next few upcoming events from the user's iOS
-/// calendar. Reads directly from `CalendarManager` (EventKit), which already
-/// aggregates events from whatever Apple / Google / Outlook accounts the
-/// user has wired into iOS Calendar — no backend round-trip and no
-/// dependency on the in-app source picker. Tap navigates to
-/// `MeetingsListView` for the full list.
+/// Home-feed card showing the next few upcoming events. Reads through
+/// `CalendarAggregator`, which merges every source enabled in the in-app
+/// picker — Apple EventKit + Google + Outlook (Microsoft Graph) — so a
+/// calendar connected via the in-app Microsoft flow shows here too, not just
+/// in Limor's chat. Tap navigates to `MeetingsListView` for the full list.
 struct MeetingsCard: View {
     @StateObject private var calendar = CalendarManager.shared
     @State private var events: [CalendarEventDTO] = []
@@ -37,10 +36,11 @@ struct MeetingsCard: View {
                             .foregroundStyle(.limorMuted)
                     }
 
-                    if !calendar.hasAccess {
-                        accessRow
-                    } else if events.isEmpty && loadedOnce {
-                        emptyRow
+                    if events.isEmpty && loadedOnce {
+                        // Only nudge for EventKit access when Apple is an
+                        // enabled source — a Graph-only (Outlook/Google) setup
+                        // can be legitimately empty without any iOS permission.
+                        if CalendarAggregator.needsAppleAccess { accessRow } else { emptyRow }
                     } else if events.isEmpty {
                         loadingRow
                     } else {
@@ -60,20 +60,12 @@ struct MeetingsCard: View {
     }
 
     private func reload() async {
-        if !calendar.hasAccess {
-            _ = await calendar.requestAccess()
-        }
-        guard calendar.hasAccess else {
-            loadedOnce = true
-            return
-        }
+        await CalendarAggregator.ensureAppleAccessIfNeeded()
         let now = Date()
-        let raw = calendar.fetchUpcomingEvents(daysAhead: 30)
-        events = raw
+        // Aggregator returns events merged across all enabled sources,
+        // already deduped and sorted by start time.
+        events = await CalendarAggregator.upcomingEvents(daysAhead: 30)
             .filter { (MeetingsCard.parseIso($0.end_at) ?? .distantPast) > now }
-            .sorted { lhs, rhs in
-                (MeetingsCard.parseIso(lhs.start_at) ?? .distantFuture) < (MeetingsCard.parseIso(rhs.start_at) ?? .distantFuture)
-            }
         loadedOnce = true
     }
 
@@ -250,17 +242,12 @@ struct MeetingsListView: View {
     }
 
     private func reload() async {
-        if !calendar.hasAccess {
-            _ = await calendar.requestAccess()
-        }
-        guard calendar.hasAccess else { loaded = true; return }
+        await CalendarAggregator.ensureAppleAccessIfNeeded()
         let now = Date()
-        let raw = calendar.fetchUpcomingEvents(daysAhead: 60)
-        events = raw
+        // Merged across every enabled source (EventKit + Google + Outlook),
+        // deduped and sorted by the aggregator.
+        events = await CalendarAggregator.upcomingEvents(daysAhead: 60)
             .filter { (MeetingsCard.parseIso($0.end_at) ?? .distantPast) > now }
-            .sorted { lhs, rhs in
-                (MeetingsCard.parseIso(lhs.start_at) ?? .distantFuture) < (MeetingsCard.parseIso(rhs.start_at) ?? .distantFuture)
-            }
         loaded = true
     }
 

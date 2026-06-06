@@ -107,10 +107,21 @@ struct WeatherDetailView: View {
                 .symbolRenderingMode(.hierarchical)
                 .shadow(color: .black.opacity(0.2), radius: 20, y: 8)
                 .padding(.top, 8)
-            Text("\(Int(current.temp_c.rounded()))°")
-                .font(.system(size: 96, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.25), radius: 18, y: 6)
+            // Split temperature and degree mark so the degree renders as a
+            // smaller superscript instead of a same-size character hanging
+            // off the right. At 96pt the full "29°" string mathematically
+            // centers but reads visually shifted left because the degree
+            // glyph adds heavy mass to the right — matching the iOS
+            // Weather app look fixes the optical centering.
+            HStack(alignment: .top, spacing: 2) {
+                Text("\(Int(current.temp_c.rounded()))")
+                    .font(.system(size: 96, weight: .bold, design: .rounded))
+                Text("°")
+                    .font(.system(size: 56, weight: .bold, design: .rounded))
+                    .baselineOffset(40)
+            }
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.25), radius: 18, y: 6)
             Text(current.condition)
                 .font(.title3.weight(.medium))
                 .foregroundStyle(.white.opacity(0.9))
