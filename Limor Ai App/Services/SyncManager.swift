@@ -19,6 +19,75 @@ final class SyncManager: ObservableObject {
     @Published private(set) var lastEmailActionsRefresh: Date?
     @Published private(set) var isSyncing = false
 
+    // MARK: - Background activity status (home-screen "Limor is working" chip)
+
+    /// A discrete thing Limor is doing in the background. The home screen
+    /// surfaces a friendly label so the user knows work is happening (e.g.
+    /// "מחפשת טיסות") instead of waiting on a card that silently appears.
+    enum LimorActivity: String, CaseIterable, Hashable {
+        case email, insights, emailActions
+
+        /// Present-tense label shown while the activity runs ("לימור …").
+        var working: String {
+            switch self {
+            case .email:        return "סורקת את המייל שלך"
+            case .insights:     return "מחפשת טיסות ותובנות"
+            case .emailActions: return "עוברת על המשימות מהמייל"
+            }
+        }
+
+        /// Lower = higher priority when choosing which label to headline.
+        var order: Int {
+            switch self {
+            case .email:        return 0
+            case .insights:     return 1
+            case .emailActions: return 2
+            }
+        }
+    }
+
+    /// Currently-running background activities.
+    @Published private(set) var activities: Set<LimorActivity> = []
+
+    /// A friendly "all done" line shown after a batch of activity finishes.
+    /// Deliberately *persists* (doesn't vanish) until the next activity
+    /// starts — closes the loop so the user sees Limor actually finished,
+    /// rather than the indicator just disappearing.
+    @Published private(set) var lastActivitySummary: String?
+
+    /// Activities seen since the indicator was last idle — used to compose
+    /// the done message describing what just happened.
+    private var ranThisBatch: Set<LimorActivity> = []
+
+    /// The single most relevant in-progress label, or nil when idle.
+    var activityHeadline: String? {
+        activities.sorted { $0.order < $1.order }.first?.working
+    }
+
+    private func beginActivity(_ a: LimorActivity) {
+        lastActivitySummary = nil   // a fresh batch supersedes the old "done"
+        ranThisBatch.insert(a)
+        activities.insert(a)
+    }
+
+    private func endActivity(_ a: LimorActivity) {
+        activities.remove(a)
+        if activities.isEmpty {
+            lastActivitySummary = doneMessage(for: ranThisBatch)
+            ranThisBatch.removeAll()
+        }
+    }
+
+    private func doneMessage(for ran: Set<LimorActivity>) -> String {
+        if ran.contains(.insights) || ran.contains(.emailActions) {
+            return "עברתי על המייל ועדכנתי הכול ✨"
+        }
+        if ran.contains(.email) {
+            return "סיימתי לסרוק את המייל ✨"
+        }
+        return "הכול מעודכן ✨"
+    }
+
     /// Per-type throttle. Email/insights are the most "fresh data" sensitive,
     /// so they re-run more frequently. Contacts barely change → longer.
     private let emailThrottle: TimeInterval = 15 * 60   // 15 minutes
@@ -82,6 +151,7 @@ final class SyncManager: ObservableObject {
             print("[sync] email: throttled (last=\(last))")
             return
         }
+        beginActivity(.email)
         do {
             // Fetch from each enabled provider in parallel — keeps total wait
             // bounded by the slower one, not the sum. Failures are logged and
@@ -114,11 +184,18 @@ final class SyncManager: ObservableObject {
             try await APIClient.shared.syncEmail(emails: emails)
             lastEmailSync = Date()
             print("[sync] email uploaded \(emails.count) messages")
+            // Hand the indicator straight from "scanning email" to the two
+            // downstream passes — begin them BEFORE ending email so the chip
+            // never blinks to "done" in the gap.
+            beginActivity(.insights)
+            beginActivity(.emailActions)
+            endActivity(.email)
             // Once emails land, kick off the insights extractor — Claude scans
             // the snapshot for flights / travel info and saves a bundle.
             // We update `lastInsightsRefresh` after it completes so views can
             // observe and re-fetch the insights snapshot reactively.
             Task { @MainActor in
+                defer { endActivity(.insights) }
                 do {
                     _ = try await APIClient.shared.refreshInsights()
                     lastInsightsRefresh = Date()
@@ -131,6 +208,7 @@ final class SyncManager: ObservableObject {
             // so this cheap call no-ops most of the time and only burns Sonnet
             // once a day. Bumps `lastEmailActionsRefresh` so the card re-fetches.
             Task { @MainActor in
+                defer { endActivity(.emailActions) }
                 do {
                     _ = try await APIClient.shared.refreshEmailActions(force: false)
                     lastEmailActionsRefresh = Date()
@@ -141,6 +219,7 @@ final class SyncManager: ObservableObject {
             }
         } catch {
             print("[sync] email failed: \(error.localizedDescription)")
+            endActivity(.email)
         }
     }
 

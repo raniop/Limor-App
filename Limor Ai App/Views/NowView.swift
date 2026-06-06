@@ -63,6 +63,7 @@ struct NowView: View {
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 18) {
                             greetingHeader
+                            limorStatusChip
                             ForEach(cardOrder.filter { !hiddenCards.contains($0) }) { card in
                                 cardView(for: card)
                             }
@@ -223,6 +224,49 @@ struct NowView: View {
         if let fresh = try? await APIClient.shared.refreshFeed(force: false) {
             feed = fresh
         }
+    }
+
+    // MARK: Limor background-activity status
+
+    /// Subtle chip under the greeting: while Limor scans email / hunts
+    /// flights / triages tasks it shows what she's doing; when the batch
+    /// finishes it settles into a friendly "done" line that persists (so
+    /// the user sees she finished) until the next activity starts.
+    @ViewBuilder
+    private var limorStatusChip: some View {
+        Group {
+            if let working = sync.activityHeadline {
+                statusChip(icon: "sparkles", text: "לימור \(working)…", tint: .limorViolet, working: true)
+            } else if let done = sync.lastActivitySummary {
+                statusChip(icon: "checkmark.circle.fill", text: done, tint: .limorSuccess, working: false)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: sync.activityHeadline)
+        .animation(.easeInOut(duration: 0.3), value: sync.lastActivitySummary)
+    }
+
+    private func statusChip(icon: String, text: String, tint: Color, working: Bool) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(tint)
+                .symbolEffect(.pulse, isActive: working)
+            Text(text)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.limorInk)
+            Spacer(minLength: 0)
+            if working {
+                ProgressView()
+                    .controlSize(.mini)
+                    .tint(tint)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Capsule().fill(tint.opacity(0.10)))
+        .overlay(Capsule().stroke(tint.opacity(0.18), lineWidth: 0.5))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
     // MARK: Greeting
