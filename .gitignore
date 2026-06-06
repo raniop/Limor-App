@@ -19,6 +19,8 @@ Package.resolved
 
 # Claude Code local overrides
 .claude/settings.local.json
+# Spawned agent worktrees — embedded git repos, never commit these.
+.claude/worktrees/
 
 # Regenerated on every build by tools/inject-git-sha.rb.
 # Committed once with a "dev" placeholder so a fresh clone compiles

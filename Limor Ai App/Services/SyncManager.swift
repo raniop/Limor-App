@@ -25,7 +25,7 @@ final class SyncManager: ObservableObject {
     /// surfaces a friendly label so the user knows work is happening (e.g.
     /// "מחפשת טיסות") instead of waiting on a card that silently appears.
     enum LimorActivity: String, CaseIterable, Hashable {
-        case email, insights, emailActions
+        case email, insights, emailActions, feed, calendar
 
         /// Present-tense label shown while the activity runs ("לימור …").
         var working: String {
@@ -33,6 +33,8 @@ final class SyncManager: ObservableObject {
             case .email:        return "סורקת את המייל שלך"
             case .insights:     return "מחפשת טיסות ותובנות"
             case .emailActions: return "עוברת על המשימות מהמייל"
+            case .feed:         return "מעדכנת לך חדשות"
+            case .calendar:     return "מסנכרנת את היומן"
             }
         }
 
@@ -42,6 +44,8 @@ final class SyncManager: ObservableObject {
             case .email:        return 0
             case .insights:     return 1
             case .emailActions: return 2
+            case .feed:         return 3
+            case .calendar:     return 4
             }
         }
     }
@@ -64,17 +68,36 @@ final class SyncManager: ObservableObject {
         activities.sorted { $0.order < $1.order }.first?.working
     }
 
+    /// Debounces the "done" message so the brief gaps between sequential
+    /// syncAll steps (calendar → … → email) don't flash a premature summary.
+    private var doneDebounce: Task<Void, Never>?
+
+    /// Begin tracking a background activity. Public so view-side work that
+    /// isn't routed through SyncManager (e.g. the home feed regen) can light
+    /// up the same chip. Idempotent.
+    func startActivity(_ a: LimorActivity) { beginActivity(a) }
+    /// Finish tracking a background activity. Pair with `startActivity`.
+    func finishActivity(_ a: LimorActivity) { endActivity(a) }
+
     private func beginActivity(_ a: LimorActivity) {
-        lastActivitySummary = nil   // a fresh batch supersedes the old "done"
+        doneDebounce?.cancel()      // a fresh activity cancels a pending "done"
+        lastActivitySummary = nil   // and supersedes the old one
         ranThisBatch.insert(a)
         activities.insert(a)
     }
 
     private func endActivity(_ a: LimorActivity) {
         activities.remove(a)
-        if activities.isEmpty {
-            lastActivitySummary = doneMessage(for: ranThisBatch)
-            ranThisBatch.removeAll()
+        guard activities.isEmpty else { return }
+        // Wait a beat before declaring "done" — if the next sync step begins
+        // within the window it cancels this, keeping the chip continuous.
+        let batch = ranThisBatch
+        doneDebounce?.cancel()
+        doneDebounce = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard let self, !Task.isCancelled, self.activities.isEmpty else { return }
+            self.lastActivitySummary = self.doneMessage(for: batch)
+            self.ranThisBatch.removeAll()
         }
     }
 
@@ -84,6 +107,12 @@ final class SyncManager: ObservableObject {
         }
         if ran.contains(.email) {
             return "סיימתי לסרוק את המייל ✨"
+        }
+        if ran.contains(.feed) {
+            return "עדכנתי לך את החדשות ✨"
+        }
+        if ran.contains(.calendar) {
+            return "סנכרנתי את היומן ✨"
         }
         return "הכול מעודכן ✨"
     }
@@ -104,6 +133,9 @@ final class SyncManager: ObservableObject {
             print("[sync] calendar: no sources enabled, skipping")
             return
         }
+
+        beginActivity(.calendar)
+        defer { endActivity(.calendar) }
 
         // Fetch from each enabled source; a single provider's failure must not
         // wipe out the others' results (otherwise a transient Google outage

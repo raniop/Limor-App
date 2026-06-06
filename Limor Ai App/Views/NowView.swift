@@ -221,6 +221,8 @@ struct NowView: View {
             return
         }
         lastFeedAutoRefresh = Date()
+        sync.startActivity(.feed)
+        defer { sync.finishActivity(.feed) }
         if let fresh = try? await APIClient.shared.refreshFeed(force: false) {
             feed = fresh
         }
