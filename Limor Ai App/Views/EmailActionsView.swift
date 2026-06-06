@@ -481,11 +481,21 @@ struct EmailActionsView: View {
     }
 
     private func refresh(force: Bool) async {
+        guard !refreshing else { return }   // ignore a second tap mid-refresh
         refreshing = true
         defer { refreshing = false }
+        // Run the (often 30-60s Sonnet) regen in an UNSTRUCTURED task so that
+        // SwiftUI cancelling the pull-to-refresh gesture's task doesn't abort
+        // the request — that was surfacing a bogus "cancelled" error alert.
+        // The work finishes server-side regardless and we pick up the result.
+        let work = Task { try await APIClient.shared.refreshEmailActions(force: force) }
         do {
-            report = try await APIClient.shared.refreshEmailActions(force: force)
+            report = try await work.value
             loaded = true
+        } catch is CancellationError {
+            // Gesture/task cancelled — not a real error, say nothing.
+        } catch let error as URLError where error.code == .cancelled {
+            // Same — a cancelled request isn't worth an alert.
         } catch {
             errorMessage = error.localizedDescription
         }
