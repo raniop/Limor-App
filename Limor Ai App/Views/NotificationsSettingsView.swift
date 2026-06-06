@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 import UserNotifications
 
@@ -17,6 +18,8 @@ struct NotificationsSettingsView: View {
     @State private var loadError: String?
     @State private var saving = false
     @State private var saveTask: Task<Void, Never>?
+    /// Holds the preview player so it isn't deallocated mid-sound.
+    @State private var soundPreviewPlayer: AVAudioPlayer?
 
     // Local-only "tomorrow's meetings" notification — fired on-device, not
     // via the backend. Backed directly by SharedStore so the user's pick
@@ -36,6 +39,7 @@ struct NotificationsSettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     masterCard
+                    soundCard
                     ForEach(Array(doc.prefs.enumerated()), id: \.element.kind) { index, _ in
                         presetCard(index: index)
                             .opacity(doc.master_enabled ? 1 : 0.55)
@@ -323,6 +327,70 @@ struct NotificationsSettingsView: View {
         )
     }
 
+    // MARK: Sound picker (global)
+
+    private var soundCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle().fill(Color.limorIndigo.opacity(0.18)).frame(width: 42, height: 42)
+                    Image(systemName: "bell.badge.waveform.fill")
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(.limorIndigo)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("צליל ההתראות")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.limorInk)
+                    Text("הצליל שיתנגן בכל ההתראות מלימור — תזכורות, פגישות והתראות יומיות")
+                        .font(.caption)
+                        .foregroundStyle(.limorMuted)
+                        .lineLimit(2)
+                }
+                Spacer()
+            }
+            Divider().opacity(0.4)
+            soundOptionRow(sound: nil, label: "ברירת מחדל")
+            ForEach(ReminderSound.allCases) { s in
+                soundOptionRow(sound: s, label: s.displayName)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.regularMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.limorMuted.opacity(0.15), lineWidth: 0.5)
+        )
+    }
+
+    private func soundOptionRow(sound: ReminderSound?, label: String) -> some View {
+        let selected = doc.sound == sound?.fileName
+        return Button {
+            selectSound(sound)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.body)
+                    .foregroundStyle(selected ? Color.limorIndigo : Color.limorMuted)
+                Text(label)
+                    .font(.subheadline)
+                    .foregroundStyle(.limorInk)
+                Spacer()
+                if sound != nil {
+                    Image(systemName: "play.circle")
+                        .font(.body)
+                        .foregroundStyle(.limorMuted)
+                }
+            }
+            .contentShape(Rectangle())
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
+    }
+
     private var footerText: some View {
         Text("שעות בעיתוי מקומי (Asia/Jerusalem). אם השרת לא היה זמין בשעה שנקבעה — ההתראה תישלח ברגע שניתן באותו יום.")
             .font(.caption2)
@@ -381,8 +449,38 @@ struct NotificationsSettingsView: View {
         defer { loading = false }
         do {
             doc = try await APIClient.shared.notificationPrefs()
+            // Mirror the server's chosen sound locally so on-device
+            // notifications (lead-time, meetings) match the push sound.
+            SharedStore.notificationSoundName = doc.sound
         } catch {
             loadError = error.localizedDescription
+        }
+    }
+
+    /// Apply a sound selection: update the doc + local mirror, save to the
+    /// backend (so push uses it), re-arm local schedules so the change takes
+    /// effect immediately, and play a short preview.
+    private func selectSound(_ sound: ReminderSound?) {
+        doc.sound = sound?.fileName
+        SharedStore.notificationSoundName = sound?.fileName
+        scheduleSave()
+        Task {
+            await MeetingsNotifier.reschedule()
+            await LeadTimeNotifier.reschedule()
+            await RecurringRemindersScheduler.reschedule()
+        }
+        if let sound { playPreview(sound) }
+    }
+
+    private func playPreview(_ sound: ReminderSound) {
+        guard let url = Bundle.main.url(forResource: sound.rawValue, withExtension: "caf") else { return }
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, options: [.mixWithOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+            soundPreviewPlayer = try AVAudioPlayer(contentsOf: url)
+            soundPreviewPlayer?.play()
+        } catch {
+            print("[sound] preview failed: \(error.localizedDescription)")
         }
     }
 

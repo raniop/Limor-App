@@ -52,6 +52,7 @@ enum SharedStore {
         static let meetingsNotifHour = "limor.meetingsNotif.hour"
         static let meetingsNotifMinute = "limor.meetingsNotif.minute"
         static let leadTimeNotifEnabled = "limor.leadNotif.enabled"
+        static let notificationSoundName = "limor.notifSoundName"
         static let chatLocalOverlay = "limor.chatLocalOverlay"
         static let customTabKind = "limor.customTabKind"
         static let recurringReminders = "limor.recurringReminders"
@@ -311,6 +312,18 @@ enum SharedStore {
         set {
             defaults.set(newValue, forKey: Keys.leadTimeNotifEnabled)
             iCloud?.set(newValue, forKey: Keys.leadTimeNotifEnabled)
+        }
+    }
+
+    /// Chosen notification sound — a bundled `.caf` filename ("bell.caf"), or
+    /// nil for the default iOS sound. Mirrors `NotificationPrefsDoc.sound`
+    /// (server-synced for push); local notifiers (lead-time, meetings) read
+    /// it here to set `content.sound`. Synced via iCloud across devices.
+    static var notificationSoundName: String? {
+        get { defaults.string(forKey: Keys.notificationSoundName) }
+        set {
+            defaults.set(newValue, forKey: Keys.notificationSoundName)
+            iCloud?.set(newValue, forKey: Keys.notificationSoundName)
         }
     }
 

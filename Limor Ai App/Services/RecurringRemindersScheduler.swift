@@ -42,7 +42,8 @@ enum RecurringRemindersScheduler {
                     // silently to no-sound if the file is missing.
                     content.sound = UNNotificationSound(named: UNNotificationSoundName(soundName))
                 } else {
-                    content.sound = .default
+                    // No per-reminder pick → use the global notification sound.
+                    content.sound = .limorChosen
                 }
 
                 var components = DateComponents()

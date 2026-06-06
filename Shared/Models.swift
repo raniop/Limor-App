@@ -688,6 +688,10 @@ struct NotificationPref: Codable, Hashable, Identifiable {
 struct NotificationPrefsDoc: Codable {
     var master_enabled: Bool
     var prefs: [NotificationPref]
+    /// Chosen notification sound — a bundled `.caf` filename (e.g. "bell.caf"),
+    /// or nil for the default iOS sound. The backend mirrors it into reminder
+    /// + daily push payloads; local notifications read it from SharedStore.
+    var sound: String? = nil
 }
 
 // MARK: - User profile (what Limor knows about you)

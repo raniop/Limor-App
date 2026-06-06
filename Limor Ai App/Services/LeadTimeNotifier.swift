@@ -1,6 +1,20 @@
 import Foundation
 import UserNotifications
 
+extension UNNotificationSound {
+    /// The user's chosen notification sound (a bundled `.caf` selected in
+    /// Settings → התראות), or the system default when none is set. Used by
+    /// every on-device notification Limor schedules so they all share one
+    /// voice. Push notifications get the same sound server-side via the
+    /// APNs `sound` field.
+    static var limorChosen: UNNotificationSound {
+        if let name = SharedStore.notificationSoundName, !name.isEmpty {
+            return UNNotificationSound(named: UNNotificationSoundName(name))
+        }
+        return .default
+    }
+}
+
 /// Schedules on-device "heads-up" notifications a fixed lead time (2h)
 /// before each upcoming calendar meeting AND each pending reminder.
 ///
@@ -84,7 +98,7 @@ enum LeadTimeNotifier {
                 body += " · \(loc)"
             }
             content.body = body
-            content.sound = .default
+            content.sound = .limorChosen
             // "תזכיר לי עוד שעה" action; lead_title lets the handler re-arm.
             content.categoryIdentifier = AppDelegate.leadMeetingCategoryId
             content.userInfo = ["lead_kind": "meeting", "lead_title": ev.title]
@@ -129,7 +143,7 @@ enum LeadTimeNotifier {
             let content = UNMutableNotificationContent()
             content.title = "בעוד שעתיים: \(r.task)"
             content.body = "מועד התזכורת: \(formatTime(r.dueDate))"
-            content.sound = .default
+            content.sound = .limorChosen
             // Lead category = "תזכיר לי עוד שעה" + "סמן כטופל". lead_title /
             // reminder_id let the snooze handler re-arm and still complete.
             content.categoryIdentifier = AppDelegate.leadReminderCategoryId

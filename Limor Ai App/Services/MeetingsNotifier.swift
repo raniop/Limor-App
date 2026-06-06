@@ -128,7 +128,7 @@ enum MeetingsNotifier {
             body += "\n+ ועוד \(events.count - 5)"
         }
         content.body = body
-        content.sound = .default
+        content.sound = .limorChosen
         return content
     }
 
