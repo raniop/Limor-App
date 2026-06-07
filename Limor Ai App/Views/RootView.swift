@@ -144,7 +144,7 @@ struct RootView: View {
                 .transition(.opacity)
                 .task { await reconcileIntroCompletion() }
             } else {
-                MainTabs()
+                AdaptiveRootShell()
             }
         case .signedOut:
             SignInView()
@@ -373,6 +373,74 @@ struct MainTabs: View {
             switch kind {
             case .shoppingList: ShoppingListView()
             case .meetings:     MeetingsListView()
+            }
+        }
+    }
+}
+
+/// Picks the navigation shell by size class: iPhone (compact) keeps the bottom
+/// TabView; iPad (regular) gets a sidebar so the extra width is actually used.
+struct AdaptiveRootShell: View {
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+    var body: some View {
+        if hSizeClass == .regular {
+            MainSidebar()
+        } else {
+            MainTabs()
+        }
+    }
+}
+
+/// iPad sidebar navigation. Same destinations as the iPhone tabs, driven by the
+/// same `AppRouter.selectedTab`, so deep links / CTAs that switch tabs keep
+/// working. Each screen already wraps itself in a NavigationStack, so it slots
+/// straight into the split-view detail column.
+struct MainSidebar: View {
+    @EnvironmentObject private var router: AppRouter
+    @AppStorage("limor.customTabKind", store: SharedStore.appGroupDefaults)
+    private var customTabRaw: String = ""
+
+    private var customTab: CustomTabKind? { CustomTabKind(rawValue: customTabRaw) }
+
+    var body: some View {
+        NavigationSplitView {
+            List(selection: Binding<AppRouter.Tab?>(
+                get: { router.selectedTab },
+                set: { if let t = $0 { router.selectedTab = t } }
+            )) {
+                row(.now, "הפיד שלי", "sparkles")
+                if let custom = customTab { row(.custom, custom.title, custom.icon) }
+                row(.reminders, "תזכורות", "bell.fill")
+                row(.chat, "צ'אט", "bubble.left.and.bubble.right.fill")
+                row(.settings, "הגדרות", "gearshape.fill")
+            }
+            .navigationTitle("לימור")
+        } detail: {
+            detail
+        }
+        .tint(.limorTabTint)
+    }
+
+    private func row(_ tab: AppRouter.Tab, _ title: String, _ icon: String) -> some View {
+        Label(title, systemImage: icon).tag(tab)
+    }
+
+    @ViewBuilder private var detail: some View {
+        switch router.selectedTab {
+        case .now:       NowView()
+        case .reminders: RemindersView()
+        case .chat:      ChatView()
+        case .settings:  SettingsView()
+        case .custom:
+            if let c = customTab {
+                NavigationStack {
+                    switch c {
+                    case .shoppingList: ShoppingListView()
+                    case .meetings:     MeetingsListView()
+                    }
+                }
+            } else {
+                NowView()
             }
         }
     }
