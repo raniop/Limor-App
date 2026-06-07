@@ -175,6 +175,10 @@ struct EmailActionsView: View {
     @State private var addedReminderItemIds: Set<String> = []
     @State private var errorMessage: String?
     @State private var dismissed: Set<String> = SharedStore.dismissedEmailActionKeys
+    // Refresh progress (Sonnet over the inbox takes ~30–60s, so we show a
+    // smoothly-creeping bar that snaps to 100% the moment it's ready).
+    @State private var progress: Double = 0
+    @State private var showProgressBar = false
 
     // Items the user marked "handled" are filtered out everywhere.
     private var visibleTop: [EmailActionItem] {
@@ -201,6 +205,10 @@ struct EmailActionsView: View {
             LiquidBackdrop()
             content
         }
+        .overlay(alignment: .top) {
+            if showProgressBar { progressBanner }
+        }
+        .animation(.easeInOut(duration: 0.3), value: showProgressBar)
         .navigationTitle("מוקד המייל")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
@@ -481,10 +489,53 @@ struct EmailActionsView: View {
         loaded = true
     }
 
+    // MARK: Progress bar
+
+    private var progressBanner: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles").foregroundStyle(.limorViolet)
+                Text(progress >= 1 ? "מוכן ✨" : "לימור עוברת על המייל…")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.limorInk)
+                Spacer()
+                Text("\(Int(progress * 100))%")
+                    .font(.caption.weight(.bold).monospacedDigit())
+                    .foregroundStyle(.limorViolet)
+            }
+            ProgressView(value: progress).tint(.limorViolet)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.limorViolet.opacity(0.2)))
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    /// Smoothly creep the bar toward ~92% while the refresh runs (asymptotic,
+    /// so it slows as it goes — honest about "almost there but waiting"), then
+    /// snap to 100% the moment the result lands.
+    private func runProgress() async {
+        progress = 0
+        showProgressBar = true
+        let start = Date()
+        while refreshing {
+            let elapsed = Date().timeIntervalSince(start)
+            progress = min(0.92, 1 - exp(-elapsed / 18))
+            try? await Task.sleep(for: .milliseconds(150))
+        }
+        withAnimation(.easeOut(duration: 0.3)) { progress = 1.0 }
+        try? await Task.sleep(for: .milliseconds(650))
+        showProgressBar = false
+    }
+
     private func refresh(force: Bool) async {
         guard !refreshing else { return }   // ignore a second tap mid-refresh
         refreshing = true
         defer { refreshing = false }
+        let progressTask = Task { await runProgress() }
+        defer { _ = progressTask }
         // Run the (often 30-60s Sonnet) regen in an UNSTRUCTURED task so that
         // SwiftUI cancelling the pull-to-refresh gesture's task doesn't abort
         // the request — that was surfacing a bogus "cancelled" error alert.
