@@ -296,16 +296,13 @@ struct NowView: View {
     private func cardLayout(width: CGFloat) -> some View {
         let visible = cardOrder.filter { !hiddenCards.contains($0) }
         if hSizeClass == .regular {
-            // Hero spans full width; the rest pack into a TRUE masonry (each
-            // card drops into the currently-shortest column) → zero gaps. The
-            // cards are laid out in `cardOrder`, and a long-press drag reorders
-            // that sequence — so you can rearrange freely AND it stays packed.
+            // Every card — including the next-reminder hero — packs into a TRUE
+            // masonry (each drops into the currently-shortest column) → zero
+            // gaps, and the hero is a normal column-width card instead of a
+            // giant full-width banner. Long-press drag reorders the sequence.
             let columns = width > 1150 ? 3 : 2
-            if visible.contains(.nextReminder) {
-                cardView(for: .nextReminder)
-            }
             MasonryLayout(columns: columns, spacing: 18) {
-                ForEach(visible.filter { $0 != .nextReminder }) { card in
+                ForEach(visible) { card in
                     reorderableCard(card)
                 }
             }
