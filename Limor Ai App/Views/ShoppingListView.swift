@@ -199,6 +199,7 @@ struct ShoppingListView: View {
     @State private var newItemDraft: String = ""
     @FocusState private var inputFocused: Bool
     @State private var showingArchive = false
+    @Environment(\.horizontalSizeClass) private var hSizeClass
 
     var body: some View {
         ZStack {
@@ -296,15 +297,28 @@ struct ShoppingListView: View {
 
     private var list: some View {
         ScrollView {
-            VStack(spacing: 8) {
-                ForEach(store.items) { item in
-                    row(for: item)
+            Group {
+                if hSizeClass == .regular {
+                    // iPad → flow items into 2–3 columns to use the width.
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 260, maximum: 460), spacing: 10)],
+                              alignment: .leading, spacing: 10) {
+                        ForEach(store.items) { item in
+                            row(for: item)
+                        }
+                    }
+                } else {
+                    VStack(spacing: 8) {
+                        ForEach(store.items) { item in
+                            row(for: item)
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
             .padding(.bottom, 32)
-            .limorReadableWidth()
+            .frame(maxWidth: hSizeClass == .regular ? 1100 : .infinity)
+            .frame(maxWidth: .infinity)
         }
     }
 

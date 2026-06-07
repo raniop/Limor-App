@@ -17,6 +17,9 @@ struct RemindersView: View {
     /// reminder to the "completed" pile with no easy undo path. Cleared
     /// when the dialog dismisses.
     @State private var pendingComplete: Reminder?
+    @State private var selectedReminderId: String?
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+    private var isRegular: Bool { hSizeClass == .regular }
 
     private let lightImpact = UIImpactFeedbackGenerator(style: .light)
     private let successHaptic = UINotificationFeedbackGenerator()
@@ -26,51 +29,14 @@ struct RemindersView: View {
             ZStack {
                 LiquidBackdrop()
 
-                ScrollView(showsIndicators: false) {
-                    if reminders.isEmpty && !isLoading {
-                        VStack {
-                            Spacer(minLength: 40)
-                            LimorEmptyState(
-                                icon: "bell.badge",
-                                title: "אין תזכורות פעילות",
-                                subtitle: "לחצי על + למעלה כדי להוסיף תזכורת חדשה, או בקשי מלימור בצ'אט.",
-                                iconGradient: LimorGradient.brand
-                            )
-                        }
-                    } else {
-                        VStack(spacing: 14) {
-                            heroNext
-                            ForEach(sections, id: \.title) { section in
-                                ReminderSection(
-                                    section: section,
-                                    onRequestComplete: { r in pendingComplete = r },
-                                    onDelete: { r in await remove(r) },
-                                    onSnooze: { r, m in await snooze(r, minutes: m) },
-                                    onEdit: { r in editingReminder = r }
-                                )
-                            }
-
-                            if !completed.isEmpty {
-                                ReminderSection(
-                                    section: .init(
-                                        title: "הושלמו",
-                                        icon: "checkmark.seal.fill",
-                                        tint: .limorSuccess,
-                                        reminders: Array(completed.prefix(20))
-                                    ),
-                                    onRequestComplete: { _ in },
-                                    onDelete: { r in await remove(r) },
-                                    onSnooze: { _, _ in },
-                                    onEdit: { _ in },
-                                    onReactivate: { r in await reactivate(r) },
-                                    showActions: false
-                                )
-                            }
-                        }
-                        .padding(.horizontal, 18)
-                        .padding(.bottom, 24)
-                        .limorReadableWidth()
+                if isRegular {
+                    HStack(spacing: 0) {
+                        listColumn.frame(maxWidth: .infinity)
+                        Divider()
+                        reminderDetailColumn.frame(width: 430)
                     }
+                } else {
+                    listColumn
                 }
             }
             .navigationTitle("תזכורות")
@@ -148,6 +114,84 @@ struct RemindersView: View {
                 }
                 Button("ביטול", role: .cancel) {
                     pendingComplete = nil
+                }
+            }
+        }
+    }
+
+    private var listColumn: some View {
+        ScrollView(showsIndicators: false) {
+            if reminders.isEmpty && !isLoading {
+                VStack {
+                    Spacer(minLength: 40)
+                    LimorEmptyState(
+                        icon: "bell.badge",
+                        title: "אין תזכורות פעילות",
+                        subtitle: "לחצי על + למעלה כדי להוסיף תזכורת חדשה, או בקשי מלימור בצ'אט.",
+                        iconGradient: LimorGradient.brand
+                    )
+                }
+            } else {
+                VStack(spacing: 14) {
+                    heroNext
+                    ForEach(sections, id: \.title) { section in
+                        ReminderSection(
+                            section: section,
+                            onRequestComplete: { r in pendingComplete = r },
+                            onDelete: { r in await remove(r) },
+                            onSnooze: { r, m in await snooze(r, minutes: m) },
+                            // iPad → select into the side detail; iPhone → edit sheet.
+                            onEdit: { r in if isRegular { selectedReminderId = r.id } else { editingReminder = r } }
+                        )
+                    }
+
+                    if !completed.isEmpty {
+                        ReminderSection(
+                            section: .init(
+                                title: "הושלמו",
+                                icon: "checkmark.seal.fill",
+                                tint: .limorSuccess,
+                                reminders: Array(completed.prefix(20))
+                            ),
+                            onRequestComplete: { _ in },
+                            onDelete: { r in await remove(r) },
+                            onSnooze: { _, _ in },
+                            onEdit: { r in if isRegular { selectedReminderId = r.id } },
+                            onReactivate: { r in await reactivate(r) },
+                            showActions: false
+                        )
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 24)
+                .limorReadableWidth()
+            }
+        }
+    }
+
+    @ViewBuilder private var reminderDetailColumn: some View {
+        ZStack {
+            LiquidBackdrop()
+            if let id = selectedReminderId, let r = reminders.first(where: { $0.id == id }) {
+                ReminderDetailPane(
+                    reminder: r,
+                    onComplete: { pendingComplete = r },
+                    onSnooze: { await snooze(r, minutes: 10) },
+                    onEdit: { editingReminder = r },
+                    onDelete: {
+                        await remove(r)
+                        selectedReminderId = nil
+                    }
+                )
+                .id(r.id)
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "hand.point.up.left")
+                        .font(.system(size: 44, weight: .light))
+                        .foregroundStyle(.limorMuted)
+                    Text("בחר תזכורת כדי לצפות בפרטים")
+                        .font(.subheadline)
+                        .foregroundStyle(.limorMuted)
                 }
             }
         }
@@ -751,5 +795,102 @@ private struct QuickPick: View {
                 .overlay(Capsule().stroke(Color.limorIndigo.opacity(0.25), lineWidth: 0.5))
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - iPad detail pane
+
+private struct ReminderDetailPane: View {
+    let reminder: Reminder
+    let onComplete: () -> Void
+    let onSnooze: () async -> Void
+    let onEdit: () -> Void
+    let onDelete: () async -> Void
+
+    private var dueText: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "he_IL")
+        f.dateFormat = "EEEE, d בMMMM · HH:mm"
+        return f.string(from: reminder.dueDate)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                // Status badge
+                HStack(spacing: 6) {
+                    Image(systemName: reminder.status == .completed ? "checkmark.seal.fill"
+                          : (reminder.isOverdue ? "exclamationmark.triangle.fill" : "bell.fill"))
+                    Text(reminder.status == .completed ? "הושלמה"
+                         : (reminder.isOverdue ? "עבר הזמן" : "פעילה"))
+                }
+                .font(.caption.weight(.bold))
+                .foregroundStyle(reminder.status == .completed ? Color.limorSuccess
+                                 : (reminder.isOverdue ? Color.limorDanger : Color.limorIndigo))
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(Capsule().fill((reminder.status == .completed ? Color.limorSuccess
+                                           : (reminder.isOverdue ? Color.limorDanger : Color.limorIndigo)).opacity(0.12)))
+
+                Text(reminder.task)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.limorInk)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 8) {
+                    Image(systemName: "clock").foregroundStyle(.limorMuted)
+                    Text(dueText).foregroundStyle(.limorInk)
+                }
+                .font(.subheadline)
+
+                Divider().opacity(0.4)
+
+                if reminder.status == .pending {
+                    Button { onComplete() } label: {
+                        paneButton("סמן כבוצע", icon: "checkmark.circle.fill", filled: true)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button { Task { await onSnooze() } } label: {
+                        paneButton("נודניק 10 דק'", icon: "alarm")
+                    }
+                    .buttonStyle(.plain)
+
+                    Button { onEdit() } label: {
+                        paneButton("ערוך תזכורת", icon: "pencil")
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Button(role: .destructive) { Task { await onDelete() } } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "trash")
+                        Text("מחק")
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.limorDanger)
+                    .padding(.top, 4)
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+            }
+            .padding(22)
+        }
+    }
+
+    private func paneButton(_ title: String, icon: String, filled: Bool = false) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+            Text(title)
+            Spacer()
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(filled ? .white : .limorIndigo)
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(filled ? AnyShapeStyle(LimorGradient.brand) : AnyShapeStyle(Color.limorIndigo.opacity(0.10)))
+        )
     }
 }
