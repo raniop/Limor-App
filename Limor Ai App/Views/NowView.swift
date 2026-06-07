@@ -150,10 +150,22 @@ struct NowView: View {
                 }
             }
             .refreshable {
-                // Pull-to-refresh forces a fresh sync (Gmail + insights too) so
-                // newly-arrived emails show up as flight cards immediately.
+                // Pull-to-refresh = "do EVERYTHING": calendar, email →
+                // insights/flights/email-actions, health, AND the news feed
+                // (forced regen), then re-pull the home snapshot. The held
+                // .fullRefresh activity keeps the status chip continuous, and
+                // the batch settles into one stamped "רעננתי לך הכל" line
+                // instead of whichever sub-step finished last.
+                sync.beginFullRefresh()
                 await SyncManager.shared.syncAll(force: true)
+                sync.startActivity(.feed)
+                if let fresh = try? await APIClient.shared.refreshFeed(force: true) {
+                    feed = fresh
+                    lastFeedAutoRefresh = Date()
+                }
+                sync.finishActivity(.feed)
                 await reload()
+                sync.endFullRefresh()
             }
             .onChange(of: sync.lastInsightsRefresh) { _, _ in
                 // Backend just finished extracting insights — pull the new

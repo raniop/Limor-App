@@ -53,6 +53,7 @@ enum SharedStore {
         static let meetingsNotifHour = "limor.meetingsNotif.hour"
         static let meetingsNotifMinute = "limor.meetingsNotif.minute"
         static let leadTimeNotifEnabled = "limor.leadNotif.enabled"
+        static let departureNotifEnabled = "limor.departureNotif.enabled"
         static let notificationSoundName = "limor.notifSoundName"
         static let chatLocalOverlay = "limor.chatLocalOverlay"
         static let customTabKind = "limor.customTabKind"
@@ -326,6 +327,16 @@ enum SharedStore {
         set {
             defaults.set(newValue, forKey: Keys.leadTimeNotifEnabled)
             iCloud?.set(newValue, forKey: Keys.leadTimeNotifEnabled)
+        }
+    }
+
+    /// "Time to leave" notifications for meetings that have an address —
+    /// computed on-device from the driving ETA. Default ON.
+    static var departureNotifEnabled: Bool {
+        get { (defaults.object(forKey: Keys.departureNotifEnabled) as? Bool) ?? true }
+        set {
+            defaults.set(newValue, forKey: Keys.departureNotifEnabled)
+            iCloud?.set(newValue, forKey: Keys.departureNotifEnabled)
         }
     }
 

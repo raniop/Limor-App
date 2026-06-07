@@ -25,7 +25,7 @@ final class SyncManager: ObservableObject {
     /// surfaces a friendly label so the user knows work is happening (e.g.
     /// "מחפשת טיסות") instead of waiting on a card that silently appears.
     enum LimorActivity: String, CaseIterable, Hashable {
-        case email, insights, emailActions, feed, calendar
+        case email, insights, emailActions, feed, calendar, fullRefresh
 
         /// Present-tense label shown while the activity runs ("לימור …").
         var working: String {
@@ -35,10 +35,13 @@ final class SyncManager: ObservableObject {
             case .emailActions: return "עוברת על המשימות מהמייל"
             case .feed:         return "מעדכנת לך חדשות"
             case .calendar:     return "מסנכרנת את היומן"
+            case .fullRefresh:  return "מרעננת לך הכל"
             }
         }
 
         /// Lower = higher priority when choosing which label to headline.
+        /// `.fullRefresh` is lowest so the specific sub-step label shows while
+        /// it runs, and "מרעננת לך הכל" only appears in the gaps.
         var order: Int {
             switch self {
             case .email:        return 0
@@ -46,8 +49,34 @@ final class SyncManager: ObservableObject {
             case .emailActions: return 2
             case .feed:         return 3
             case .calendar:     return 4
+            case .fullRefresh:  return 99
             }
         }
+    }
+
+    /// True while an explicit pull-to-refresh "do everything" batch is running.
+    /// When the batch ends, the done line becomes one consolidated, timestamped
+    /// message instead of whichever sub-step happened to finish last.
+    private var fullRefreshActive = false
+
+    /// Start a full refresh: hold a `.fullRefresh` activity so the chip stays
+    /// visible continuously (no premature "done" in the gaps between steps).
+    func beginFullRefresh() {
+        fullRefreshActive = true
+        beginActivity(.fullRefresh)
+    }
+
+    /// End a full refresh — releases the held activity, which (once the real
+    /// sub-steps are also done) settles into the consolidated done line.
+    func endFullRefresh() {
+        endActivity(.fullRefresh)
+    }
+
+    private func timestampNow() -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "he_IL")
+        f.dateFormat = "HH:mm"
+        return "היום \(f.string(from: Date()))"
     }
 
     /// What the home-screen chip shows. A SINGLE source of truth so the chip
@@ -115,6 +144,12 @@ final class SyncManager: ObservableObject {
     }
 
     private func doneMessage(for ran: Set<LimorActivity>) -> String {
+        // Explicit pull-to-refresh ran everything → one consolidated, stamped
+        // line (instead of whichever sub-step finished last).
+        if fullRefreshActive {
+            fullRefreshActive = false
+            return "רעננתי לך הכל ✨ · \(timestampNow())"
+        }
         if ran.contains(.insights) || ran.contains(.emailActions) {
             return "עברתי על המייל ועדכנתי הכול ✨"
         }

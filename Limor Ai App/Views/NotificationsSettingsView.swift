@@ -31,6 +31,8 @@ struct NotificationsSettingsView: View {
     // Local-only "2 hours before" heads-up for meetings + reminders,
     // scheduled on-device by LeadTimeNotifier. Defaults to ON.
     @State private var leadNotifEnabled: Bool = SharedStore.leadTimeNotifEnabled
+    // "Time to leave" departure alerts for meetings with an address.
+    @State private var departureNotifEnabled: Bool = SharedStore.departureNotifEnabled
 
     var body: some View {
         ZStack {
@@ -48,6 +50,7 @@ struct NotificationsSettingsView: View {
                     localSectionHeader
                     meetingsLocalCard
                     leadNotifCard
+                    departureNotifCard
                     footerText
                 }
                 .padding(.horizontal, 18)
@@ -308,6 +311,57 @@ struct NotificationsSettingsView: View {
                                     .requestAuthorization(options: [.alert, .sound, .badge])
                             }
                             await LeadTimeNotifier.reschedule()
+                        }
+                    }
+                ))
+                .labelsHidden()
+                .tint(.limorIndigo)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(.regularMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.limorMuted.opacity(0.15), lineWidth: 0.5)
+        )
+    }
+
+    private var departureNotifCard: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(Color.limorIndigo.opacity(0.18))
+                        .frame(width: 42, height: 42)
+                    Image(systemName: "car.fill")
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(.limorIndigo)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("זמן לצאת")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.limorInk)
+                    Text("לפגישה עם כתובת — התראה מתי לצאת לפי זמן הנסיעה בפועל")
+                        .font(.caption)
+                        .foregroundStyle(.limorMuted)
+                        .lineLimit(2)
+                }
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { departureNotifEnabled },
+                    set: { newValue in
+                        departureNotifEnabled = newValue
+                        SharedStore.departureNotifEnabled = newValue
+                        Task {
+                            if newValue {
+                                _ = try? await UNUserNotificationCenter.current()
+                                    .requestAuthorization(options: [.alert, .sound, .badge])
+                            }
+                            await DepartureNotifier.reschedule(force: true)
                         }
                     }
                 ))

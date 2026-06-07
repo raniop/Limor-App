@@ -46,6 +46,7 @@ struct LimorAiApp: App {
                             await MeetingsNotifier.reschedule()
                             await RecurringRemindersScheduler.reschedule()
                             await LeadTimeNotifier.reschedule()
+                            await DepartureNotifier.reschedule()
                         }
                         // Belt-and-suspenders for backend push: re-fetch the
                         // current FCM token from Firebase Messaging and re-
