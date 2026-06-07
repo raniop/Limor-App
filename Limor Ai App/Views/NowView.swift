@@ -16,12 +16,8 @@ struct NowView: View {
     @State private var cardOrder: [HomeCardKind] = HomeCardOrder.load()
     @State private var hiddenCards: Set<HomeCardKind> = HomeCardOrder.loadHidden()
     @State private var showingCustomize = false
-    /// Throttle for the background feed auto-refresh — we never call
-    /// `refreshFeed(force:)` more than once per `feedAutoRefreshThrottle`
-    /// seconds so a foreground bounce or a coordinate jiggle can't hammer
-    /// the LLM regen endpoint.
-    @State private var lastFeedAutoRefresh: Date = .distantPast
-    private let feedAutoRefreshThrottle: TimeInterval = 180
+    /// Throttle for the auto (foreground / app-entry) full refresh.
+    @State private var lastAutoFullRefresh: Date = .distantPast
     /// Which pending reminder is showing on the home hero. Re-clamped on
     /// every render so a complete/snooze can't leave it past the new
     /// last card.
@@ -169,12 +165,9 @@ struct NowView: View {
                 location.requestWhenInUseAndStart()
                 _ = await health.requestAccess()
                 await health.loadToday()
-                Task { await SyncManager.shared.syncHealth() }
-                await reload()
-                // Once the cached snapshot is on screen, fire a fresh
-                // feed regen in the background so the first thing the
-                // user reads isn't yesterday's lead.
-                Task { await autoRefreshFeed() }
+                // App entry → refresh everything (throttle-respecting) and
+                // settle into the stamped "רעננתי לך הכל ✨ · היום HH:mm" line.
+                await fullRefresh(forced: false)
             }
             .onChange(of: location.coordinate?.latitude) { _, _ in
                 Task { await reload() }
@@ -189,13 +182,13 @@ struct NowView: View {
                 Task { await reload() }
             }
             // Auto-refresh the news feed whenever the user returns to the
-            // app from background — covers the case where the screen has
-            // been sitting open for a while and the headlines have gone
-            // stale. Throttled inside `autoRefreshFeed()` so a quick
-            // background bounce won't burn the LLM budget.
+            // App foreground → refresh everything (cooldown-respecting).
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase == .active else { return }
-                Task { await autoRefreshFeed() }
+                // Every time the app comes to the foreground → full refresh
+                // (throttle-respecting) so the user always sees the freshest
+                // data plus the "רעננתי לך הכל ✨ · היום HH:mm" confirmation.
+                Task { await fullRefresh(forced: false) }
             }
             // Periodic poll while the user stays on the screen — the
             // backend regenerates the feed on its own schedule, so a
@@ -208,24 +201,6 @@ struct NowView: View {
                     }
                 }
             }
-        }
-    }
-
-    /// Ask the backend for the freshest feed it's willing to serve. Honors
-    /// the server-side 24h cooldown by passing `force: false` — auto-refresh
-    /// is allowed to *check*, but a fresh Sonnet+web_search regen only fires
-    /// once per day. Explicit pull-to-refresh (elsewhere in this view) still
-    /// passes `force: true` for users who want new headlines right now;
-    /// auto-refresh was burning the Anthropic budget on every foreground.
-    private func autoRefreshFeed() async {
-        guard Date().timeIntervalSince(lastFeedAutoRefresh) > feedAutoRefreshThrottle else {
-            return
-        }
-        lastFeedAutoRefresh = Date()
-        sync.startActivity(.feed)
-        defer { sync.finishActivity(.feed) }
-        if let fresh = try? await APIClient.shared.refreshFeed(force: false) {
-            feed = fresh
         }
     }
 
@@ -1201,13 +1176,23 @@ struct NowView: View {
     /// the status chip continuous and settles into one stamped
     /// "רעננתי לך הכל ✨ · היום HH:mm" line instead of whichever sub-step
     /// finished last.
-    private func fullRefresh() async {
+    /// `forced` (manual button / pull-to-refresh) bypasses every throttle +
+    /// cooldown — a true "regenerate everything now". The auto path (app entry /
+    /// foreground) passes `forced: false`, which respects the per-source
+    /// throttles and the feed's 24h cooldown so it doesn't burn the LLM budget,
+    /// while still re-pulling snapshots and showing the stamped status line.
+    /// The auto path is lightly throttled so a quick app-switch bounce (or the
+    /// `.task` + scenePhase both firing on cold launch) doesn't double-run.
+    private func fullRefresh(forced: Bool = true) async {
+        if !forced {
+            guard Date().timeIntervalSince(lastAutoFullRefresh) > 8 else { return }
+        }
+        lastAutoFullRefresh = Date()
         sync.beginFullRefresh()
-        await SyncManager.shared.syncAll(force: true)
+        await SyncManager.shared.syncAll(force: forced)
         sync.startActivity(.feed)
-        if let fresh = try? await APIClient.shared.refreshFeed(force: true) {
+        if let fresh = try? await APIClient.shared.refreshFeed(force: forced) {
             feed = fresh
-            lastFeedAutoRefresh = Date()
         }
         sync.finishActivity(.feed)
         await reload()
