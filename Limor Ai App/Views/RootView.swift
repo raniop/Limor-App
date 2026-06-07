@@ -391,13 +391,11 @@ struct MainTabs: View {
 /// Picks the navigation shell by size class: iPhone (compact) keeps the bottom
 /// TabView; iPad (regular) gets a sidebar so the extra width is actually used.
 struct AdaptiveRootShell: View {
-    @Environment(\.horizontalSizeClass) private var hSizeClass
+    // Bottom tabs on every device — the user prefers the full-width content
+    // over a side rail. The screens adapt internally (dashboard grid on the
+    // home, master-detail on the lists) for the iPad's extra room.
     var body: some View {
-        if hSizeClass == .regular {
-            MainSidebar()
-        } else {
-            MainTabs()
-        }
+        MainTabs()
     }
 }
 

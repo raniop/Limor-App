@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct NowView: View {
     @EnvironmentObject private var auth: AuthManager
@@ -20,6 +21,8 @@ struct NowView: View {
     @State private var showingCustomize = false
     /// Throttle for the auto (foreground / app-entry) full refresh.
     @State private var lastAutoFullRefresh: Date = .distantPast
+    /// The card currently being dragged for long-press reorder.
+    @State private var draggedCard: HomeCardKind?
     /// Which pending reminder is showing on the home hero. Re-clamped on
     /// every render so a complete/snooze can't leave it past the new
     /// last card.
@@ -293,23 +296,59 @@ struct NowView: View {
     private func cardLayout(width: CGFloat) -> some View {
         let visible = cardOrder.filter { !hiddenCards.contains($0) }
         if hSizeClass == .regular {
+            // Hero spans full width; the rest pack into balanced masonry
+            // columns (independent VStacks, so a short card doesn't leave a
+            // tall gap before the next row like a grid does).
             let columns = width > 1150 ? 3 : 2
             if visible.contains(.nextReminder) {
                 cardView(for: .nextReminder)
             }
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 18), count: columns),
-                alignment: .leading,
-                spacing: 18
-            ) {
-                ForEach(visible.filter { $0 != .nextReminder }) { card in
-                    cardView(for: card)
+            let rest = visible.filter { $0 != .nextReminder }
+            HStack(alignment: .top, spacing: 18) {
+                ForEach(0..<columns, id: \.self) { col in
+                    VStack(spacing: 18) {
+                        ForEach(columnCards(rest, columns: columns, column: col)) { card in
+                            reorderableCard(card)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .top)
                 }
             }
         } else {
             ForEach(visible) { card in
-                cardView(for: card)
+                reorderableCard(card)
             }
+        }
+    }
+
+    /// Round-robin the cards into `columns` masonry columns.
+    private func columnCards(_ cards: [HomeCardKind], columns: Int, column: Int) -> [HomeCardKind] {
+        cards.enumerated().filter { $0.offset % columns == column }.map { $0.element }
+    }
+
+    /// A home card with long-press-drag reorder. The next-reminder hero is
+    /// excluded — it has its own horizontal swipe gesture.
+    @ViewBuilder
+    private func reorderableCard(_ card: HomeCardKind) -> some View {
+        if card == .nextReminder {
+            cardView(for: card)
+        } else {
+            cardView(for: card)
+                .onDrag {
+                    draggedCard = card
+                    return NSItemProvider(object: card.rawValue as NSString)
+                } preview: {
+                    cardView(for: card).frame(width: 320).opacity(0.9)
+                }
+                .onDrop(
+                    of: [.text],
+                    delegate: CardReorderDrop(
+                        target: card,
+                        order: $cardOrder,
+                        dragged: $draggedCard,
+                        onCommit: { HomeCardOrder.save(cardOrder) }
+                    )
+                )
         }
     }
 
@@ -2356,5 +2395,37 @@ struct FlightDetailView: View {
     private func parseEmailDate(_ iso: String) -> Date? {
         if let d = ISO8601DateFormatter.limor.date(from: iso) { return d }
         return ISO8601DateFormatter().date(from: iso)
+    }
+}
+
+// MARK: - Drag-to-reorder home cards
+
+/// Live reorder of the home cards as you long-press and drag one over another.
+struct CardReorderDrop: DropDelegate {
+    let target: HomeCardKind
+    @Binding var order: [HomeCardKind]
+    @Binding var dragged: HomeCardKind?
+    let onCommit: () -> Void
+
+    func dropEntered(info: DropInfo) {
+        guard let dragged, dragged != target,
+              let from = order.firstIndex(of: dragged),
+              let to = order.firstIndex(of: target) else { return }
+        if order[to] != dragged {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                order.move(fromOffsets: IndexSet(integer: from),
+                           toOffset: to > from ? to + 1 : to)
+            }
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragged = nil
+        onCommit()
+        return true
     }
 }
