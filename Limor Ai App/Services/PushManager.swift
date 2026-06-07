@@ -262,6 +262,24 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
                     print("[push] shopping_complete: missing 'item'")
                 }
                 completionHandler(.newData)
+            case "create_event":
+                // Limor's `create_event` tool can't write to the device
+                // calendar from the backend, so it sends this silent push and
+                // we create the EKEvent on-device (mirrors `shopping_add`).
+                let title = (userInfo["title"] as? String) ?? ""
+                let startStr = userInfo["start_at"] as? String
+                if !title.isEmpty, let startStr,
+                   let start = ISO8601DateFormatter.limor.date(from: startStr) ?? ISO8601DateFormatter().date(from: startStr) {
+                    let end = (userInfo["end_at"] as? String)
+                        .flatMap { ISO8601DateFormatter.limor.date(from: $0) ?? ISO8601DateFormatter().date(from: $0) }
+                        ?? start.addingTimeInterval(60 * 60)
+                    let location = userInfo["location"] as? String
+                    let ok = await CalendarManager.shared.createEvent(title: title, start: start, end: end, location: location)
+                    print("[push] create_event('\(title)') → \(ok)")
+                } else {
+                    print("[push] create_event: missing/invalid title or start_at")
+                }
+                completionHandler(.newData)
             case "reminder":
                 // Backend stamps `kind: "reminder"` + `wakeApp: true` on
                 // each reminder push, so this path also fires while the

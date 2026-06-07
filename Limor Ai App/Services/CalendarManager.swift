@@ -121,6 +121,35 @@ final class CalendarManager: ObservableObject {
         }
     }
 
+    /// Create a calendar event that blocks time (Limor's `create_event` tool,
+    /// delivered via silent push). Distinct from a reminder — this is a real
+    /// EKEvent with a start + end + optional location. Returns true on success.
+    @discardableResult
+    func createEvent(title: String, start: Date, end: Date, location: String?) async -> Bool {
+        if !hasAccess {
+            let granted = await requestAccess()
+            if !granted { return false }
+        }
+        guard let calendar = chosenWritableCalendar() else { return false }
+        let event = EKEvent(eventStore: store)
+        event.title = title
+        event.startDate = start
+        event.endDate = end > start ? end : start.addingTimeInterval(60 * 60)
+        if let location, !location.trimmingCharacters(in: .whitespaces).isEmpty {
+            event.location = location
+        }
+        event.calendar = calendar
+        event.notes = "נוצר על ידי לימור."
+        do {
+            try store.save(event, span: .thisEvent, commit: true)
+            print("[calendar-write] created event '\(title)' at \(start)")
+            return true
+        } catch {
+            print("[calendar-write] create event failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+
     /// Bulk mirror for the reminders list — drops any pending reminder that
     /// doesn't already have a matching calendar event. Mirrors the shape of
     /// `RemindersWriter.mirrorAll`.
