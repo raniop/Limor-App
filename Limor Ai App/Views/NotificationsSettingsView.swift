@@ -33,6 +33,10 @@ struct NotificationsSettingsView: View {
     @State private var leadNotifEnabled: Bool = SharedStore.leadTimeNotifEnabled
     // "Time to leave" departure alerts for meetings with an address.
     @State private var departureNotifEnabled: Bool = SharedStore.departureNotifEnabled
+    // Night-quiet window — safety net against automated notifications at night.
+    @State private var quietEnabled: Bool = SharedStore.quietHoursEnabled
+    @State private var quietStart: Int = SharedStore.quietStartHour
+    @State private var quietEnd: Int = SharedStore.quietEndHour
 
     var body: some View {
         ZStack {
@@ -51,6 +55,7 @@ struct NotificationsSettingsView: View {
                     meetingsLocalCard
                     leadNotifCard
                     departureNotifCard
+                    quietHoursCard
                     footerText
                 }
                 .padding(.horizontal, 18)
@@ -381,6 +386,74 @@ struct NotificationsSettingsView: View {
         )
     }
 
+    private var quietHoursCard: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle().fill(Color.limorViolet.opacity(0.18)).frame(width: 42, height: 42)
+                    Image(systemName: "moon.zzz.fill")
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(.limorViolet)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("שקט לילה")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.limorInk)
+                    Text("לא לשלוח התראות אוטומטיות בשעות הלילה")
+                        .font(.caption)
+                        .foregroundStyle(.limorMuted)
+                        .lineLimit(2)
+                }
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { quietEnabled },
+                    set: { quietEnabled = $0; applyQuiet() }
+                ))
+                .labelsHidden()
+                .tint(.limorViolet)
+            }
+            if quietEnabled {
+                Divider().opacity(0.4)
+                HStack {
+                    Text("מ-").font(.subheadline).foregroundStyle(.limorInk)
+                    hourPicker(selection: Binding(get: { quietStart }, set: { quietStart = $0; applyQuiet() }))
+                    Spacer()
+                    Text("עד").font(.subheadline).foregroundStyle(.limorInk)
+                    hourPicker(selection: Binding(get: { quietEnd }, set: { quietEnd = $0; applyQuiet() }))
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.limorMuted.opacity(0.15), lineWidth: 0.5))
+    }
+
+    private func hourPicker(selection: Binding<Int>) -> some View {
+        Picker("", selection: selection) {
+            ForEach(0..<24, id: \.self) { h in
+                Text(String(format: "%02d:00", h)).tag(h)
+            }
+        }
+        .pickerStyle(.menu)
+        .tint(.limorViolet)
+    }
+
+    /// Push the quiet-hours state into the doc (server) + SharedStore (local)
+    /// and re-arm the local notifiers so the window applies immediately.
+    private func applyQuiet() {
+        doc.quiet_start = quietEnabled ? quietStart : nil
+        doc.quiet_end = quietEnabled ? quietEnd : nil
+        SharedStore.quietHoursEnabled = quietEnabled
+        SharedStore.quietStartHour = quietStart
+        SharedStore.quietEndHour = quietEnd
+        scheduleSave()
+        Task {
+            await LeadTimeNotifier.reschedule()
+            await MeetingsNotifier.reschedule()
+        }
+    }
+
     // MARK: Sound picker (global)
 
     private var soundCard: some View {
@@ -506,6 +579,15 @@ struct NotificationsSettingsView: View {
             // Mirror the server's chosen sound locally so on-device
             // notifications (lead-time, meetings) match the push sound.
             SharedStore.notificationSoundName = doc.sound
+            // Mirror quiet hours so local notifiers honor the same window.
+            if let s = doc.quiet_start, let e = doc.quiet_end {
+                quietEnabled = true; quietStart = s; quietEnd = e
+            } else {
+                quietEnabled = false
+            }
+            SharedStore.quietHoursEnabled = quietEnabled
+            SharedStore.quietStartHour = quietStart
+            SharedStore.quietEndHour = quietEnd
         } catch {
             loadError = error.localizedDescription
         }

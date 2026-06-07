@@ -55,6 +55,9 @@ enum SharedStore {
         static let leadTimeNotifEnabled = "limor.leadNotif.enabled"
         static let departureNotifEnabled = "limor.departureNotif.enabled"
         static let notificationSoundName = "limor.notifSoundName"
+        static let quietHoursEnabled = "limor.quietHours.enabled"
+        static let quietStartHour = "limor.quietHours.start"
+        static let quietEndHour = "limor.quietHours.end"
         static let chatLocalOverlay = "limor.chatLocalOverlay"
         static let customTabKind = "limor.customTabKind"
         static let recurringReminders = "limor.recurringReminders"
@@ -350,6 +353,32 @@ enum SharedStore {
             defaults.set(newValue, forKey: Keys.notificationSoundName)
             iCloud?.set(newValue, forKey: Keys.notificationSoundName)
         }
+    }
+
+    /// Night-quiet window. Defaults ON 23:00→07:00 — a safety net so automated
+    /// notifications never wake the user. Local notifiers (lead-time) skip fire
+    /// times inside it; the backend enforces it for daily pushes.
+    static var quietHoursEnabled: Bool {
+        get { (defaults.object(forKey: Keys.quietHoursEnabled) as? Bool) ?? true }
+        set { defaults.set(newValue, forKey: Keys.quietHoursEnabled); iCloud?.set(newValue, forKey: Keys.quietHoursEnabled) }
+    }
+    static var quietStartHour: Int {
+        get { (defaults.object(forKey: Keys.quietStartHour) as? Int) ?? 23 }
+        set { defaults.set(newValue, forKey: Keys.quietStartHour); iCloud?.set(Int64(newValue), forKey: Keys.quietStartHour) }
+    }
+    static var quietEndHour: Int {
+        get { (defaults.object(forKey: Keys.quietEndHour) as? Int) ?? 7 }
+        set { defaults.set(newValue, forKey: Keys.quietEndHour); iCloud?.set(Int64(newValue), forKey: Keys.quietEndHour) }
+    }
+
+    /// True if `date`'s local hour falls inside the enabled quiet window.
+    /// Handles a window that wraps past midnight (start > end, e.g. 23→7).
+    static func isWithinQuietHours(_ date: Date) -> Bool {
+        guard quietHoursEnabled else { return false }
+        let start = quietStartHour, end = quietEndHour
+        if start == end { return false }
+        let hour = Calendar.current.component(.hour, from: date)
+        return start < end ? (hour >= start && hour < end) : (hour >= start || hour < end)
     }
 
     /// Locally-persisted recurring reminders — fired by

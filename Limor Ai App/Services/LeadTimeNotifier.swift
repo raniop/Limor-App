@@ -90,6 +90,7 @@ enum LeadTimeNotifier {
 
             let fire = start.addingTimeInterval(-leadInterval)
             guard fire > now else { continue } // Already inside the 2h window.
+            if SharedStore.isWithinQuietHours(fire) { continue } // night-quiet
 
             let content = UNMutableNotificationContent()
             content.title = "בעוד שעתיים: \(ev.title)"
@@ -137,6 +138,7 @@ enum LeadTimeNotifier {
 
         for r in reminders {
             let fire = r.dueDate.addingTimeInterval(-leadInterval)
+            if SharedStore.isWithinQuietHours(fire) { continue } // night-quiet
             guard fire > now else { continue } // Due within 2h (or past) — the
             // backend's at-due-time push covers this; no early nudge to give.
 

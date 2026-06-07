@@ -711,6 +711,11 @@ struct NotificationPrefsDoc: Codable {
     /// or nil for the default iOS sound. The backend mirrors it into reminder
     /// + daily push payloads; local notifications read it from SharedStore.
     var sound: String? = nil
+    /// Quiet-hours window (hour-of-day 0-23, Asia/Jerusalem). When both are
+    /// set, automated daily pushes are suppressed inside [start, end) (wraps
+    /// midnight when start > end). nil = no quiet hours.
+    var quiet_start: Int? = nil
+    var quiet_end: Int? = nil
 }
 
 // MARK: - User profile (what Limor knows about you)
