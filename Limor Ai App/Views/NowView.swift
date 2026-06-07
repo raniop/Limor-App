@@ -81,6 +81,11 @@ struct NowView: View {
                         .padding(.horizontal, 18)
                         .padding(.top, 4)
                         .padding(.bottom, 24)
+                        // Cap the column at ~700pt and center it on iPad — but
+                        // never wider than the viewport, which preserves the
+                        // iPhone full-width layout and the no-horizontal-scroll
+                        // guarantee (layout width stays ≤ the viewport).
+                        .frame(width: min(geo.size.width, 700))
                         .frame(width: geo.size.width)
                         .clipped()
                     }

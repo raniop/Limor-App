@@ -69,6 +69,7 @@ struct RemindersView: View {
                         }
                         .padding(.horizontal, 18)
                         .padding(.bottom, 24)
+                        .limorReadableWidth()
                     }
                 }
             }

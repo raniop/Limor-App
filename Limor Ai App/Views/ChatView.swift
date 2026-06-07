@@ -133,6 +133,7 @@ struct ChatView: View {
                             .padding(.horizontal, 14)
                             .padding(.top, 12)
                             .padding(.bottom, 12)
+                            .limorReadableWidth()
                             // Tap anywhere on empty chat area dismisses the
                             // keyboard. SwiftUI prefers a child button's
                             // tap target over this container tap, so audio

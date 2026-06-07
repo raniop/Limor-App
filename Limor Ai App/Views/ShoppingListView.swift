@@ -304,6 +304,7 @@ struct ShoppingListView: View {
             .padding(.horizontal, 16)
             .padding(.top, 14)
             .padding(.bottom, 32)
+            .limorReadableWidth()
         }
     }
 

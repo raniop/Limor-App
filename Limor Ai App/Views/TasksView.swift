@@ -58,6 +58,7 @@ struct TasksView: View {
                 .padding(.horizontal, 18)
                 .padding(.top, 12)
                 .padding(.bottom, 28)
+                .limorReadableWidth()
             }
         }
         .navigationTitle("משימות")

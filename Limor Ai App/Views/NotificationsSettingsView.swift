@@ -60,6 +60,7 @@ struct NotificationsSettingsView: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 18)
+                .limorReadableWidth()
             }
 
             if loading {

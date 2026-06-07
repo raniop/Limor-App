@@ -175,6 +175,7 @@ struct SharedShoppingView: View {
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 32)
+            .limorReadableWidth()
         }
     }
 
@@ -209,6 +210,7 @@ struct SharedShoppingView: View {
                         }
                     }
                     .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 32)
+                    .limorReadableWidth()
                 }
             }
         }

@@ -289,3 +289,17 @@ struct LimorEmptyState: View {
         .padding(.vertical, 40)
     }
 }
+
+// MARK: - iPad / wide-screen adaptation
+
+extension View {
+    /// Cap + center content width on wide screens (iPad, landscape) so lists
+    /// and cards read comfortably instead of stretching edge-to-edge. On
+    /// iPhone (width already below the cap) it has no visible effect, so it's
+    /// safe to apply to any scroll-content container.
+    func limorReadableWidth(_ maxWidth: CGFloat = 680) -> some View {
+        self
+            .frame(maxWidth: maxWidth, alignment: .center)
+            .frame(maxWidth: .infinity, alignment: .center)
+    }
+}
