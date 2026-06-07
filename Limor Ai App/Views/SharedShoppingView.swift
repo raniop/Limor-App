@@ -1,4 +1,6 @@
+import CoreImage.CIFilterBuiltins
 import SwiftUI
+import UIKit
 
 /// The shared shopping list — one list two Limor users (e.g. a couple) both
 /// edit. Reached from the shopping screen. Create one to get a share code, or
@@ -10,7 +12,20 @@ struct SharedShoppingView: View {
     @State private var loading = true
     @State private var busy = false
     @State private var confirmLeave = false
+    @State private var showingInvite = false
     @FocusState private var addFocused: Bool
+
+    /// Deep link the partner's camera opens to auto-join.
+    private func joinURL(_ code: String) -> String { "limor://join-shopping?code=\(code)" }
+
+    private func qrImage(_ text: String) -> Image? {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(text.utf8)
+        filter.correctionLevel = "M"
+        guard let output = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 12, y: 12)),
+              let cg = CIContext().createCGImage(output, from: output.extent) else { return nil }
+        return Image(uiImage: UIImage(cgImage: cg))
+    }
 
     var body: some View {
         ZStack {
@@ -47,6 +62,51 @@ struct SharedShoppingView: View {
         .alert("שגיאה", isPresented: .init(
             get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } }
         )) { Button("אוקיי", role: .cancel) {} } message: { Text(store.errorMessage ?? "") }
+        .sheet(isPresented: $showingInvite) {
+            if let list = store.list { inviteSheet(list) }
+        }
+    }
+
+    // MARK: - Invite sheet (QR + code)
+
+    private func inviteSheet(_ list: SharedShoppingList) -> some View {
+        VStack(spacing: 20) {
+            Text("הזמנה לרשימה המשותפת")
+                .font(.title3.weight(.bold)).foregroundStyle(.limorInk)
+                .padding(.top, 24)
+            Text("סרקו את ה‑QR עם המצלמה, או הזינו את הקוד ידנית באפליקציה.")
+                .font(.subheadline).foregroundStyle(.limorMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 30)
+
+            if let qr = qrImage(joinURL(list.code)) {
+                qr.interpolation(.none).resizable().scaledToFit()
+                    .frame(width: 220, height: 220)
+                    .padding(16)
+                    .background(RoundedRectangle(cornerRadius: 20).fill(.white))
+                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.limorMuted.opacity(0.15)))
+            }
+
+            VStack(spacing: 4) {
+                Text("קוד שיתוף").font(.caption).foregroundStyle(.limorMuted)
+                Text(list.code)
+                    .font(.system(size: 34, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.limorInk)
+                    .tracking(4)
+            }
+
+            ShareLink(item: URL(string: joinURL(list.code)) ?? URL(string: "https://limor.app")!,
+                      message: Text("הצטרף לרשימת הקניות המשותפת שלי בלימור עם הקוד \(list.code)")) {
+                HStack { Image(systemName: "square.and.arrow.up"); Text("שתף קישור") }
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                    .padding(.horizontal, 22).padding(.vertical, 12)
+                    .background(Capsule().fill(LimorGradient.brand))
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .background(LiquidBackdrop().ignoresSafeArea())
+        .presentationDetents([.large])
     }
 
     // MARK: - Setup (no shared list yet)
@@ -164,8 +224,10 @@ struct SharedShoppingView: View {
             Spacer()
             Text("\(list.members.count) חברים")
                 .font(.caption2.weight(.semibold)).foregroundStyle(.limorMuted)
-            ShareLink(item: "הצטרף לרשימת הקניות שלי בלימור עם הקוד: \(list.code)") {
-                Image(systemName: "square.and.arrow.up").foregroundStyle(.limorIndigo)
+            Button { showingInvite = true } label: {
+                Image(systemName: "qrcode")
+                    .font(.title3)
+                    .foregroundStyle(.limorIndigo)
             }
         }
         .padding(14)

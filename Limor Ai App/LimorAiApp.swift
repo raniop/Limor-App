@@ -138,6 +138,19 @@ struct LimorAiApp: App {
                     // URL to both auth SDKs — whichever owns it consumes it,
                     // the other no-ops.
                     print("[url] onOpenURL fired: \(url)")
+                    // Shared shopping-list join — fired when the partner scans
+                    // the QR (or taps the share link): limor://join-shopping?code=XXX
+                    if url.scheme == "limor", url.host == "join-shopping" {
+                        let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                        if let code = comps?.queryItems?.first(where: { $0.name == "code" })?.value,
+                           !code.isEmpty {
+                            Task {
+                                let ok = await SharedShoppingStore.shared.join(code: code)
+                                if ok { AppRouter.shared.selectedTab = .now }
+                            }
+                        }
+                        return
+                    }
                     if url.scheme == "limor" {
                         // The "open in chat" CTA in the Share Extension is
                         // the only thing that fires this scheme today, so

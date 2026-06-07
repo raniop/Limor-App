@@ -11,6 +11,7 @@ struct TasksView: View {
     @State private var selectedTag: String?
     @State private var errorMessage: String?
     @State private var busy = false
+    @State private var editingTask: LimorTask?
     @FocusState private var addFocused: Bool
 
     private var open: [LimorTask] { tasks.filter { !$0.done } }
@@ -65,6 +66,20 @@ struct TasksView: View {
         .alert("שגיאה", isPresented: .init(
             get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } }
         )) { Button("אוקיי", role: .cancel) {} } message: { Text(errorMessage ?? "") }
+        .sheet(item: $editingTask) { task in
+            TaskEditSheet(task: task) { newTitle, newTags in
+                await updateTask(task, title: newTitle, tags: newTags)
+            }
+        }
+    }
+
+    private func updateTask(_ task: LimorTask, title: String, tags: [String]) async {
+        do {
+            let updated = try await APIClient.shared.updateTask(id: task.id, title: title, tags: tags)
+            if let i = tasks.firstIndex(where: { $0.id == task.id }) { tasks[i] = updated }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     // MARK: Add box
@@ -154,6 +169,8 @@ struct TasksView: View {
                         }
                     }
                 }
+                .contentShape(Rectangle())
+                .onTapGesture { editingTask = task }   // tap to edit
                 Spacer(minLength: 0)
                 Button {
                     Task { await remove(task) }
@@ -294,5 +311,63 @@ struct TasksCard: View {
             SharedStore.cacheTasks(fresh)
         }
         loadedOnce = true
+    }
+}
+
+// MARK: - Edit sheet
+
+private struct TaskEditSheet: View {
+    let task: LimorTask
+    let onSave: (String, [String]) async -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var title: String
+    @State private var tagsText: String
+    @State private var saving = false
+
+    init(task: LimorTask, onSave: @escaping (String, [String]) async -> Void) {
+        self.task = task
+        self.onSave = onSave
+        _title = State(initialValue: task.title)
+        _tagsText = State(initialValue: task.tags.joined(separator: ", "))
+    }
+
+    private var parsedTags: [String] {
+        tagsText.split(whereSeparator: { $0 == "," || $0 == "،" })
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("משימה") {
+                    TextField("כותרת", text: $title, axis: .vertical)
+                }
+                Section("תגיות") {
+                    TextField("מופרדות בפסיק", text: $tagsText)
+                }
+            }
+            .navigationTitle("עריכת משימה")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("ביטול") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("שמור") {
+                        saving = true
+                        let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let tags = parsedTags
+                        Task {
+                            await onSave(t, tags)
+                            dismiss()
+                        }
+                    }
+                    .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || saving)
+                }
+            }
+        }
+        .environment(\.layoutDirection, .rightToLeft)
+        .presentationDetents([.medium])
     }
 }
