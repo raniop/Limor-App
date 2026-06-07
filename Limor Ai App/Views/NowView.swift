@@ -296,19 +296,15 @@ struct NowView: View {
     private func cardLayout(width: CGFloat) -> some View {
         let visible = cardOrder.filter { !hiddenCards.contains($0) }
         if hSizeClass == .regular {
-            // Hero spans full width; the rest flow into an ORDERED grid so the
-            // visual position maps 1:1 to `cardOrder`. That's what lets a
-            // long-press drag drop a card EXACTLY where you let go — a masonry
-            // packs algorithmically, so dragged cards felt like they jumped.
+            // Hero spans full width; the rest pack into a TRUE masonry (each
+            // card drops into the currently-shortest column) → zero gaps. The
+            // cards are laid out in `cardOrder`, and a long-press drag reorders
+            // that sequence — so you can rearrange freely AND it stays packed.
             let columns = width > 1150 ? 3 : 2
             if visible.contains(.nextReminder) {
                 cardView(for: .nextReminder)
             }
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 18, alignment: .top), count: columns),
-                alignment: .leading,
-                spacing: 18
-            ) {
+            MasonryLayout(columns: columns, spacing: 18) {
                 ForEach(visible.filter { $0 != .nextReminder }) { card in
                     reorderableCard(card)
                 }
@@ -2421,5 +2417,54 @@ struct CardReorderDrop: DropDelegate {
         dragged = nil
         onCommit()
         return true
+    }
+}
+
+// MARK: - Masonry layout (gap-free multi-column packing)
+
+/// Places each subview into the currently-shortest column — a true masonry
+/// (Pinterest-style) pack, so short and tall cards interleave with no gaps.
+/// Subview order = `cardOrder`, so drag-reorder rearranges the flow while it
+/// stays packed.
+struct MasonryLayout: Layout {
+    var columns: Int
+    var spacing: CGFloat
+
+    private func columnWidth(for totalWidth: CGFloat) -> CGFloat {
+        let cols = max(1, columns)
+        return (totalWidth - spacing * CGFloat(cols - 1)) / CGFloat(cols)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+        let total = proposal.width ?? 0
+        let colW = columnWidth(for: total)
+        var heights = Array(repeating: CGFloat(0), count: max(1, columns))
+        for sv in subviews {
+            let h = sv.sizeThatFits(.init(width: colW, height: nil)).height
+            let c = shortest(heights)
+            heights[c] += h + spacing
+        }
+        let tallest = heights.max() ?? 0
+        return CGSize(width: total, height: max(0, tallest - spacing))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
+        let colW = columnWidth(for: bounds.width)
+        var heights = Array(repeating: CGFloat(0), count: max(1, columns))
+        for sv in subviews {
+            let h = sv.sizeThatFits(.init(width: colW, height: nil)).height
+            let c = shortest(heights)
+            let x = bounds.minX + CGFloat(c) * (colW + spacing)
+            let y = bounds.minY + heights[c]
+            sv.place(at: CGPoint(x: x, y: y), anchor: .topLeading,
+                     proposal: .init(width: colW, height: h))
+            heights[c] += h + spacing
+        }
+    }
+
+    private func shortest(_ heights: [CGFloat]) -> Int {
+        var idx = 0
+        for i in heights.indices where heights[i] < heights[idx] { idx = i }
+        return idx
     }
 }
