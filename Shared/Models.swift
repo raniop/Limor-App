@@ -510,6 +510,20 @@ struct ShoppingStateDTO: Codable {
     let archive: [ShoppingGroup]
 }
 
+/// A shopping list shared between Limor users (backend-authoritative, not
+/// iCloud). Members join via `code`.
+struct SharedShoppingList: Codable, Identifiable, Hashable {
+    let id: String
+    let owner_id: String
+    var members: [String]
+    let code: String
+    var items: [ShoppingItem]
+    let created_at: String
+    let updated_at: String
+}
+
+struct SharedListEnvelope: Decodable { let list: SharedShoppingList? }
+
 // MARK: - Personal feed (user-chosen topics with web_search-powered updates)
 
 struct FeedTopic: Codable, Identifiable, Hashable {

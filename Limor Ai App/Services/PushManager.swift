@@ -236,6 +236,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
                 print("[push] refreshing shopping from backend")
                 await ShoppingListStore.shared.refreshFromBackend()
                 completionHandler(.newData)
+            case "shopping_shared":
+                // The other member edited the SHARED list — re-pull it.
+                print("[push] refreshing shared shopping list")
+                await SharedShoppingStore.shared.load()
+                completionHandler(.newData)
             case "shopping_add":
                 // Limor's `add_shopping_item` tool can't write to the
                 // user's iCloud directly, so the backend sends this

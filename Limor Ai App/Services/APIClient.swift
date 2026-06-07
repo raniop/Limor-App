@@ -202,6 +202,36 @@ struct APIClient {
         let _: EmptyResponse = try await put("/api/shopping", body: state)
     }
 
+    // MARK: - Shared shopping list
+
+    func getSharedList() async throws -> SharedShoppingList? {
+        let env: SharedListEnvelope = try await get("/api/shopping/shared")
+        return env.list
+    }
+
+    func createSharedList() async throws -> SharedShoppingList? {
+        struct Empty: Encodable {}
+        let env: SharedListEnvelope = try await post("/api/shopping/shared/create", body: Empty())
+        return env.list
+    }
+
+    func joinSharedList(code: String) async throws -> SharedShoppingList? {
+        struct Body: Encodable { let code: String }
+        let env: SharedListEnvelope = try await post("/api/shopping/shared/join", body: Body(code: code))
+        return env.list
+    }
+
+    func putSharedListItems(_ items: [ShoppingItem]) async throws -> SharedShoppingList? {
+        struct Body: Encodable { let items: [ShoppingItem] }
+        let env: SharedListEnvelope = try await put("/api/shopping/shared", body: Body(items: items))
+        return env.list
+    }
+
+    func leaveSharedList() async throws {
+        struct Empty: Encodable {}
+        let _: EmptyResponse = try await post("/api/shopping/shared/leave", body: Empty())
+    }
+
     // MARK: - Devices / Push
 
     func registerFcmToken(token: String, deviceName: String?) async throws {

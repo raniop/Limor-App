@@ -92,11 +92,13 @@
 		C90DAB36E14115250F0E4905 /* MeetingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F6F221E867B5452659406E0 /* MeetingsCard.swift */; };
 		C971164640BA0BAA2980F04D /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E3E42644D5D54B11F655BCA /* AppRouter.swift */; };
 		CD0A960866D7AD10CFE44048 /* WatchMeetingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85D9ADA7BDCC93B3968E27B2 /* WatchMeetingsView.swift */; };
+		CECFF0639211B0355D64D6E0 /* SharedShoppingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20061757CCF7EFE11B4400E /* SharedShoppingStore.swift */; };
 		CFE70349EEDDABCFD7748B96 /* NextUpWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11136A50C05BDB3473FB6677 /* NextUpWidget.swift */; };
 		D10EB884647A3890000FDDB3 /* FeedNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C14813798F555401055250B /* FeedNode.swift */; };
 		D244D7234A83BF2EDBCFF914 /* bell.caf in Resources */ = {isa = PBXBuildFile; fileRef = 058B29D5197CF2387FD39915 /* bell.caf */; };
 		D3EBD1DC243A3A675E42DFBE /* RemindersWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B54FB305BDEB96228F61AB55 /* RemindersWriter.swift */; };
 		D4C8BD6A88AE26F416DDEAA8 /* WidgetTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A7A0CFD2099CE705521225 /* WidgetTheme.swift */; };
+		D4E73982C6C292C698E644C1 /* SharedShoppingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C618026F345F9E24575DEE95 /* SharedShoppingView.swift */; };
 		D52DBA079C74B34E651AFEEC /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70396FD611F130F479EC2B84 /* Components.swift */; };
 		D778A361FB6F144E568FDA35 /* CalendarAggregator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20EDB7A57D4B12BB38E78F90 /* CalendarAggregator.swift */; };
 		DAA6D782D7F81875927A14D8 /* TasksWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E4FD3D2AEFF2EE9DF963D7D /* TasksWidget.swift */; };
@@ -252,6 +254,7 @@
 		C274EB46CC2E7A135C0E5E43 /* BiometricGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricGate.swift; sourceTree = "<group>"; };
 		C39E0EB1D9C38EBF70713865 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C5C3335200C302E0C98B8F26 /* LimorAiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorAiApp.swift; sourceTree = "<group>"; };
+		C618026F345F9E24575DEE95 /* SharedShoppingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedShoppingView.swift; sourceTree = "<group>"; };
 		CD2308FCAB6A8F06F68E1DEF /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D158BA54A5B1C18A5ED2CD2F /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		D216AE6CC0C93E78A29C3EFF /* ShareAPI.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareAPI.swift; sourceTree = "<group>"; };
@@ -260,6 +263,7 @@
 		DD03C0C2E3CB7D86833DFAC9 /* ActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityController.swift; sourceTree = "<group>"; };
 		DE3796EDF9B6675BBE13322F /* Limor Ai App Watch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Limor Ai App Watch.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E07C0CEB4AD38CED9FBE3231 /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
+		E20061757CCF7EFE11B4400E /* SharedShoppingStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedShoppingStore.swift; sourceTree = "<group>"; };
 		E37DE61A7E69CFA5FD06DAB8 /* ContactsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsManager.swift; sourceTree = "<group>"; };
 		E5BDC1EAA445B4E2AA5340AF /* ReminderLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderLiveActivity.swift; sourceTree = "<group>"; };
 		F1A7A0CFD2099CE705521225 /* WidgetTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetTheme.swift; sourceTree = "<group>"; };
@@ -386,6 +390,7 @@
 				59613087C68B3E8558B808AB /* LeadTimeNotifier.swift */,
 				20EDB7A57D4B12BB38E78F90 /* CalendarAggregator.swift */,
 				19EE2144D896B86A15D7EAFB /* DepartureNotifier.swift */,
+				E20061757CCF7EFE11B4400E /* SharedShoppingStore.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -421,6 +426,7 @@
 				9C235C91EAB4379BADEE8354 /* VoiceModeView.swift */,
 				B9F97D3D2F8E53737FF72CAD /* EmailActionsView.swift */,
 				9AAF1026FA235E65B5654C5F /* TasksView.swift */,
+				C618026F345F9E24575DEE95 /* SharedShoppingView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -781,6 +787,8 @@
 				8CD558DA13ED7F7060C54638 /* EmailActionsView.swift in Sources */,
 				26B815D491139ECB751C8BA7 /* TasksView.swift in Sources */,
 				9C08BFF8EB017D449B4B034D /* DepartureNotifier.swift in Sources */,
+				CECFF0639211B0355D64D6E0 /* SharedShoppingStore.swift in Sources */,
+				D4E73982C6C292C698E644C1 /* SharedShoppingView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

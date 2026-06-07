@@ -222,6 +222,15 @@ struct ShoppingListView: View {
             store.refreshFromICloud()
         }
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink(destination: SharedShoppingView()) {
+                    Image(systemName: "person.2.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.limorIndigo)
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(Capsule().fill(Color.limorIndigo.opacity(0.12)))
+                }
+            }
             // Archive button on the leading side — only renders once the
             // user has at least one archived group to look back at.
             // Inline label with the count so we don't have to lay out a

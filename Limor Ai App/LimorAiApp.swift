@@ -48,6 +48,9 @@ struct LimorAiApp: App {
                             await LeadTimeNotifier.reschedule()
                             await DepartureNotifier.reschedule()
                         }
+                        // Pick up shared-list edits the partner made while we
+                        // were backgrounded.
+                        Task { await SharedShoppingStore.shared.load() }
                         // Belt-and-suspenders for backend push: re-fetch the
                         // current FCM token from Firebase Messaging and re-
                         // upload to the backend. The delegate callback only
