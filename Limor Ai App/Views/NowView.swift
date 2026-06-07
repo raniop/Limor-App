@@ -106,7 +106,7 @@ struct NowView: View {
                                 .foregroundStyle(.limorInk)
                         }
                         Button {
-                            Task { await reload() }
+                            Task { await fullRefresh() }
                         } label: {
                             Image(systemName: "arrow.clockwise")
                                 .font(.body.weight(.semibold))
@@ -154,24 +154,7 @@ struct NowView: View {
                     pendingCompleteFromHero = nil
                 }
             }
-            .refreshable {
-                // Pull-to-refresh = "do EVERYTHING": calendar, email →
-                // insights/flights/email-actions, health, AND the news feed
-                // (forced regen), then re-pull the home snapshot. The held
-                // .fullRefresh activity keeps the status chip continuous, and
-                // the batch settles into one stamped "רעננתי לך הכל" line
-                // instead of whichever sub-step finished last.
-                sync.beginFullRefresh()
-                await SyncManager.shared.syncAll(force: true)
-                sync.startActivity(.feed)
-                if let fresh = try? await APIClient.shared.refreshFeed(force: true) {
-                    feed = fresh
-                    lastFeedAutoRefresh = Date()
-                }
-                sync.finishActivity(.feed)
-                await reload()
-                sync.endFullRefresh()
-            }
+            .refreshable { await fullRefresh() }
             .onChange(of: sync.lastInsightsRefresh) { _, _ in
                 // Backend just finished extracting insights — pull the new
                 // snapshot so the flight card appears without a tab switch.
@@ -1210,6 +1193,26 @@ struct NowView: View {
     private func isToday(_ d: Date) -> Bool { Calendar.current.isDateInToday(d) }
 
     // MARK: Loading
+
+    /// "Do EVERYTHING" refresh — used by BOTH the pull-to-refresh gesture and
+    /// the toolbar refresh button so they behave identically: calendar, email →
+    /// insights/flights/email-actions, health, and a forced news-feed regen,
+    /// then re-pull the home snapshot. The held `.fullRefresh` activity keeps
+    /// the status chip continuous and settles into one stamped
+    /// "רעננתי לך הכל ✨ · היום HH:mm" line instead of whichever sub-step
+    /// finished last.
+    private func fullRefresh() async {
+        sync.beginFullRefresh()
+        await SyncManager.shared.syncAll(force: true)
+        sync.startActivity(.feed)
+        if let fresh = try? await APIClient.shared.refreshFeed(force: true) {
+            feed = fresh
+            lastFeedAutoRefresh = Date()
+        }
+        sync.finishActivity(.feed)
+        await reload()
+        sync.endFullRefresh()
+    }
 
     private func reload() async {
         isLoading = true
