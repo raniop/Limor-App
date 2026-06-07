@@ -122,6 +122,16 @@ struct RootView: View {
 
     @ViewBuilder
     private var content: some View {
+        if DemoMode.isOn {
+            // Bypass auth/onboarding and render the real shell with sample data.
+            AdaptiveRootShell()
+        } else {
+            signedContent
+        }
+    }
+
+    @ViewBuilder
+    private var signedContent: some View {
         switch auth.state {
         case .signedIn:
             if !onboardingCompleted {
@@ -424,9 +434,14 @@ struct MainSidebar: View {
             }
             .navigationTitle("")
             .toolbar(.hidden, for: .navigationBar)
+            // Keep the sidebar slim so the detail (content) gets the room.
+            .navigationSplitViewColumnWidth(min: 230, ideal: 264, max: 300)
         } detail: {
             detail
         }
+        // Detail keeps priority; in portrait the sidebar collapses to a toggle
+        // instead of permanently eating ~40% of the screen.
+        .navigationSplitViewStyle(.prominentDetail)
         .tint(.limorTabTint)
     }
 

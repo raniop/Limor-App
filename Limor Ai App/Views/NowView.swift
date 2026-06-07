@@ -157,6 +157,7 @@ struct NowView: View {
                 Task { await reload() }
             }
             .task {
+                if DemoMode.isOn { seedDemo(); return }
                 // Show last cached snapshot immediately so the screen isn't blank
                 // while we hit the network.
                 if snapshot == nil, let cached = SharedStore.loadLastNow() {
@@ -1211,7 +1212,18 @@ struct NowView: View {
     /// while still re-pulling snapshots and showing the stamped status line.
     /// The auto path is lightly throttled so a quick app-switch bounce (or the
     /// `.task` + scenePhase both firing on cold launch) doesn't double-run.
+    /// Populate the home with sample data for `DemoMode` (no network).
+    private func seedDemo() {
+        snapshot = DemoData.snapshot
+        allReminders = DemoData.reminders
+        insights = DemoData.insights
+        feed = DemoData.feed
+        SharedStore.cacheTasks(DemoData.tasks)
+        isLoading = false
+    }
+
     private func fullRefresh(forced: Bool = true) async {
+        if DemoMode.isOn { return }
         if !forced {
             guard Date().timeIntervalSince(lastAutoFullRefresh) > 8 else { return }
         }
@@ -1228,6 +1240,7 @@ struct NowView: View {
     }
 
     private func reload() async {
+        if DemoMode.isOn { return }
         isLoading = true
         defer { isLoading = false }
         do {

@@ -86,6 +86,7 @@
 		B99A4E6659BC68042EF52B0D /* WatchRemindersListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60FBC4456DCB66433B5232E6 /* WatchRemindersListView.swift */; };
 		BA3F0CEDFE573CDFF414311E /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0126DBEFE9D0FD9C09A0F184 /* GoogleService-Info.plist */; };
 		BBB4601318DCD972FBFC11EB /* WatchShoppingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E0C6ECB8251522681972999 /* WatchShoppingView.swift */; };
+		BF14968159607F15B20C6B03 /* DemoMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB60A773965A18626B8A317C /* DemoMode.swift */; };
 		C186FB50EC1DD6B541F9F7C3 /* VoiceInputSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A23BC6C1BD773FDD3C2D6C3 /* VoiceInputSheet.swift */; };
 		C355EB2FF013CA1DDA4D4436 /* NowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040FFCD9DC418611AA006C63 /* NowView.swift */; };
 		C426955A7E56C6F1357366F6 /* HealthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DB07E2C95CA5E81B2B0467E /* HealthManager.swift */; };
@@ -272,6 +273,7 @@
 		F7F986D36044D42DACEFBBF9 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		F8B58A40BF66B16677563B90 /* SyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncManager.swift; sourceTree = "<group>"; };
 		F9231AB15CD0F7563F824388 /* NotificationPrefsOnboardingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationPrefsOnboardingView.swift; sourceTree = "<group>"; };
+		FB60A773965A18626B8A317C /* DemoMode.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DemoMode.swift; sourceTree = "<group>"; };
 		FDA34640B05602CA3307600E /* WidgetAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetAPI.swift; sourceTree = "<group>"; };
 		FFC2371869E57B0A6FA86FE0 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -322,6 +324,7 @@
 				5D5DD6FD909BB266EA7B62FC /* Views */,
 				24CC41FAD1F1FDE33B3C46C8 /* Sounds */,
 				6F2EF829AC71493350A25A38 /* BuildInfo.swift */,
+				FB60A773965A18626B8A317C /* DemoMode.swift */,
 			);
 			path = "Limor Ai App";
 			sourceTree = "<group>";
@@ -789,6 +792,7 @@
 				9C08BFF8EB017D449B4B034D /* DepartureNotifier.swift in Sources */,
 				CECFF0639211B0355D64D6E0 /* SharedShoppingStore.swift in Sources */,
 				D4E73982C6C292C698E644C1 /* SharedShoppingView.swift in Sources */,
+				BF14968159607F15B20C6B03 /* DemoMode.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
