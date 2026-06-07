@@ -296,22 +296,21 @@ struct NowView: View {
     private func cardLayout(width: CGFloat) -> some View {
         let visible = cardOrder.filter { !hiddenCards.contains($0) }
         if hSizeClass == .regular {
-            // Hero spans full width; the rest pack into balanced masonry
-            // columns (independent VStacks, so a short card doesn't leave a
-            // tall gap before the next row like a grid does).
+            // Hero spans full width; the rest flow into an ORDERED grid so the
+            // visual position maps 1:1 to `cardOrder`. That's what lets a
+            // long-press drag drop a card EXACTLY where you let go — a masonry
+            // packs algorithmically, so dragged cards felt like they jumped.
             let columns = width > 1150 ? 3 : 2
             if visible.contains(.nextReminder) {
                 cardView(for: .nextReminder)
             }
-            let rest = visible.filter { $0 != .nextReminder }
-            HStack(alignment: .top, spacing: 18) {
-                ForEach(0..<columns, id: \.self) { col in
-                    VStack(spacing: 18) {
-                        ForEach(columnCards(rest, columns: columns, column: col)) { card in
-                            reorderableCard(card)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .top)
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 18, alignment: .top), count: columns),
+                alignment: .leading,
+                spacing: 18
+            ) {
+                ForEach(visible.filter { $0 != .nextReminder }) { card in
+                    reorderableCard(card)
                 }
             }
         } else {
@@ -319,11 +318,6 @@ struct NowView: View {
                 reorderableCard(card)
             }
         }
-    }
-
-    /// Round-robin the cards into `columns` masonry columns.
-    private func columnCards(_ cards: [HomeCardKind], columns: Int, column: Int) -> [HomeCardKind] {
-        cards.enumerated().filter { $0.offset % columns == column }.map { $0.element }
     }
 
     /// A home card with long-press-drag reorder. The next-reminder hero is
