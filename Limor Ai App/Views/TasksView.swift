@@ -12,7 +12,11 @@ struct TasksView: View {
     @State private var errorMessage: String?
     @State private var busy = false
     @State private var editingTask: LimorTask?
+    @State private var selectedTaskId: String?
+    @Environment(\.horizontalSizeClass) private var hSizeClass
     @FocusState private var addFocused: Bool
+
+    private var isRegular: Bool { hSizeClass == .regular }
 
     private var open: [LimorTask] { tasks.filter { !$0.done } }
     private var done: [LimorTask] { tasks.filter { $0.done } }
@@ -27,38 +31,18 @@ struct TasksView: View {
     var body: some View {
         ZStack {
             LiquidBackdrop()
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 14) {
-                    addBox
-                    if !allTags.isEmpty { tagFilterRow }
-
-                    if filteredOpen.isEmpty && done.isEmpty && loaded {
-                        LimorEmptyState(
-                            icon: "checklist",
-                            title: "אין משימות",
-                            subtitle: "הוסיפי משימה למעלה, או בקשי מלימור בצ'אט — \"תוסיפי לי משימה\".",
-                            iconGradient: LimorGradient.brand
-                        )
-                        .padding(.top, 30)
-                    } else {
-                        ForEach(filteredOpen) { task in
-                            taskRow(task)
-                        }
-                        if !done.isEmpty {
-                            Text("הושלמו")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.limorMuted)
-                                .padding(.top, 8)
-                            ForEach(done.prefix(20)) { task in
-                                taskRow(task)
-                            }
-                        }
-                    }
+            if isRegular {
+                // iPad master-detail: task list on one side, live editor on the
+                // other.
+                HStack(spacing: 0) {
+                    listColumn
+                        .frame(maxWidth: .infinity)
+                    Divider()
+                    detailColumn
+                        .frame(width: 420)
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 12)
-                .padding(.bottom, 28)
-                .limorReadableWidth()
+            } else {
+                listColumn
             }
         }
         .navigationTitle("משימות")
@@ -70,6 +54,71 @@ struct TasksView: View {
         .sheet(item: $editingTask) { task in
             TaskEditSheet(task: task) { newTitle, newTags in
                 await updateTask(task, title: newTitle, tags: newTags)
+            }
+        }
+    }
+
+    private var listColumn: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 14) {
+                addBox
+                if !allTags.isEmpty { tagFilterRow }
+
+                if filteredOpen.isEmpty && done.isEmpty && loaded {
+                    LimorEmptyState(
+                        icon: "checklist",
+                        title: "אין משימות",
+                        subtitle: "הוסיפי משימה למעלה, או בקשי מלימור בצ'אט — \"תוסיפי לי משימה\".",
+                        iconGradient: LimorGradient.brand
+                    )
+                    .padding(.top, 30)
+                } else {
+                    ForEach(filteredOpen) { task in
+                        taskRow(task)
+                    }
+                    if !done.isEmpty {
+                        Text("הושלמו")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.limorMuted)
+                            .padding(.top, 8)
+                        ForEach(done.prefix(20)) { task in
+                            taskRow(task)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 12)
+            .padding(.bottom, 28)
+            .limorReadableWidth()
+        }
+    }
+
+    // MARK: Detail column (iPad)
+
+    @ViewBuilder private var detailColumn: some View {
+        ZStack {
+            LiquidBackdrop()
+            if let id = selectedTaskId, let task = tasks.first(where: { $0.id == id }) {
+                TaskDetailPane(
+                    task: task,
+                    onSave: { t, tags in await updateTask(task, title: t, tags: tags) },
+                    onToggleDone: { await toggle(task) },
+                    onDelete: {
+                        await remove(task)
+                        selectedTaskId = nil
+                    }
+                )
+                .id(task.id)   // rebuild the editor when the selection changes
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "hand.point.up.left")
+                        .font(.system(size: 44, weight: .light))
+                        .foregroundStyle(.limorMuted)
+                    Text("בחר משימה כדי לצפות ולערוך")
+                        .font(.subheadline)
+                        .foregroundStyle(.limorMuted)
+                }
             }
         }
     }
@@ -171,7 +220,10 @@ struct TasksView: View {
                     }
                 }
                 .contentShape(Rectangle())
-                .onTapGesture { editingTask = task }   // tap to edit
+                .onTapGesture {
+                    // iPad → select into the side editor; iPhone → edit sheet.
+                    if isRegular { selectedTaskId = task.id } else { editingTask = task }
+                }
                 Spacer(minLength: 0)
                 Button {
                     Task { await remove(task) }
@@ -183,6 +235,11 @@ struct TasksView: View {
                 .buttonStyle(.plain)
             }
         }
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.limorIndigo, lineWidth: 2)
+                .opacity(isRegular && selectedTaskId == task.id ? 1 : 0)
+        )
     }
 
     // MARK: Data
@@ -370,5 +427,126 @@ private struct TaskEditSheet: View {
         }
         .environment(\.layoutDirection, .rightToLeft)
         .presentationDetents([.medium])
+    }
+}
+
+// MARK: - iPad detail editor pane
+
+private struct TaskDetailPane: View {
+    let task: LimorTask
+    let onSave: (String, [String]) async -> Void
+    let onToggleDone: () async -> Void
+    let onDelete: () async -> Void
+
+    @State private var title: String
+    @State private var tagsText: String
+    @State private var saving = false
+
+    init(task: LimorTask,
+         onSave: @escaping (String, [String]) async -> Void,
+         onToggleDone: @escaping () async -> Void,
+         onDelete: @escaping () async -> Void) {
+        self.task = task
+        self.onSave = onSave
+        self.onToggleDone = onToggleDone
+        self.onDelete = onDelete
+        _title = State(initialValue: task.title)
+        _tagsText = State(initialValue: task.tags.joined(separator: ", "))
+    }
+
+    private var parsedTags: [String] {
+        tagsText.split(whereSeparator: { $0 == "," || $0 == "،" })
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    private var dirty: Bool {
+        title.trimmingCharacters(in: .whitespacesAndNewlines) != task.title || parsedTags != task.tags
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Button {
+                    Task { await onToggleDone() }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: task.done ? "arrow.uturn.backward.circle.fill" : "checkmark.circle.fill")
+                        Text(task.done ? "החזר לפעילה" : "סמן כבוצע")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(task.done ? .limorMuted : .white)
+                    .padding(.horizontal, 16).padding(.vertical, 10)
+                    .background(Capsule().fill(task.done ? Color.limorMuted.opacity(0.15) : Color.limorSuccess))
+                }
+                .buttonStyle(.plain)
+
+                field(title: "כותרת") {
+                    TextField("כותרת המשימה", text: $title, axis: .vertical)
+                        .font(.body)
+                }
+
+                field(title: "תגיות") {
+                    TextField("מופרדות בפסיק (עבודה, בית…)", text: $tagsText)
+                        .font(.subheadline)
+                }
+
+                if !parsedTags.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(parsedTags, id: \.self) { tag in
+                            Text(tag)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.limorViolet)
+                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .background(Capsule().fill(Color.limorViolet.opacity(0.12)))
+                        }
+                    }
+                }
+
+                Button {
+                    saving = true
+                    Task {
+                        await onSave(title.trimmingCharacters(in: .whitespacesAndNewlines), parsedTags)
+                        saving = false
+                    }
+                } label: {
+                    HStack { Spacer()
+                        Text(saving ? "שומר…" : "שמור שינויים").font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                        Spacer() }
+                    .padding(.vertical, 12)
+                    .background(Capsule().fill(dirty ? AnyShapeStyle(LimorGradient.brand) : AnyShapeStyle(Color.limorMuted.opacity(0.4))))
+                }
+                .buttonStyle(.plain)
+                .disabled(!dirty || saving)
+
+                Divider().opacity(0.4)
+
+                Button(role: .destructive) {
+                    Task { await onDelete() }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "trash")
+                        Text("מחק משימה")
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.limorDanger)
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+            }
+            .padding(22)
+        }
+    }
+
+    @ViewBuilder
+    private func field<C: View>(title: String, @ViewBuilder content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.caption.weight(.bold)).foregroundStyle(.limorMuted)
+            content()
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 12).fill(.ultraThinMaterial))
+        }
     }
 }

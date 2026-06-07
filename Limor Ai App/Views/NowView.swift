@@ -66,8 +66,9 @@ struct NowView: View {
                             // iPad / wide → 2-column card grid that fills the
                             // space; iPhone → single column (unchanged).
                             if hSizeClass == .regular {
-                                LazyVGrid(columns: [GridItem(.flexible(), spacing: 18),
-                                                    GridItem(.flexible(), spacing: 18)],
+                                // Adaptive masonry-ish grid: flows 2–3 columns
+                                // depending on how wide the detail pane is.
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 330, maximum: 560), spacing: 18)],
                                           alignment: .leading, spacing: 18) {
                                     ForEach(cardOrder.filter { !hiddenCards.contains($0) }) { card in
                                         cardView(for: card)
@@ -92,9 +93,10 @@ struct NowView: View {
                         .padding(.top, 4)
                         .padding(.bottom, 24)
                         // Cap the column at ~700pt on iPhone; on iPad let the
-                        // grid use up to ~1100pt. Never wider than the viewport
-                        // (preserves the iPhone layout + no-horizontal-scroll).
-                        .frame(width: min(geo.size.width, hSizeClass == .regular ? 1100 : 700))
+                        // grid use the full detail width (up to ~1400). Never
+                        // wider than the viewport (preserves the iPhone layout +
+                        // no-horizontal-scroll guarantee).
+                        .frame(width: min(geo.size.width, hSizeClass == .regular ? 1400 : 700))
                         .frame(width: geo.size.width)
                         .clipped()
                     }

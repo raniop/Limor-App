@@ -397,6 +397,7 @@ struct AdaptiveRootShell: View {
 /// straight into the split-view detail column.
 struct MainSidebar: View {
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var auth: AuthManager
     @AppStorage("limor.customTabKind", store: SharedStore.appGroupDefaults)
     private var customTabRaw: String = ""
 
@@ -408,21 +409,52 @@ struct MainSidebar: View {
                 get: { router.selectedTab },
                 set: { if let t = $0 { router.selectedTab = t } }
             )) {
-                row(.now, "הפיד שלי", "sparkles")
-                if let custom = customTab { row(.custom, custom.title, custom.icon) }
-                row(.reminders, "תזכורות", "bell.fill")
-                row(.chat, "צ'אט", "bubble.left.and.bubble.right.fill")
-                row(.settings, "הגדרות", "gearshape.fill")
+                profileHeader
+                    .listRowInsets(EdgeInsets(top: 18, leading: 8, bottom: 18, trailing: 8))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+
+                Section {
+                    row(.now, "הפיד שלי", "sparkles")
+                    if let custom = customTab { row(.custom, custom.title, custom.icon) }
+                    row(.reminders, "תזכורות", "bell.fill")
+                    row(.chat, "צ'אט", "bubble.left.and.bubble.right.fill")
+                    row(.settings, "הגדרות", "gearshape.fill")
+                }
             }
-            .navigationTitle("לימור")
+            .navigationTitle("")
+            .toolbar(.hidden, for: .navigationBar)
         } detail: {
             detail
         }
         .tint(.limorTabTint)
     }
 
+    private var profileHeader: some View {
+        HStack(spacing: 12) {
+            ProfileAvatar(photoB64: auth.photoB64, size: 46, bordered: false)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(auth.displayName ?? "לימור")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.limorInk)
+                    .lineLimit(1)
+                Text("העוזרת האישית שלך ✨")
+                    .font(.caption)
+                    .foregroundStyle(.limorMuted)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
     private func row(_ tab: AppRouter.Tab, _ title: String, _ icon: String) -> some View {
-        Label(title, systemImage: icon).tag(tab)
+        Label {
+            Text(title).font(.body.weight(.medium))
+        } icon: {
+            Image(systemName: icon).foregroundStyle(.limorIndigo)
+        }
+        .tag(tab)
+        .padding(.vertical, 4)
     }
 
     @ViewBuilder private var detail: some View {
