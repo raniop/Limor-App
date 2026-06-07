@@ -63,22 +63,7 @@ struct NowView: View {
                             greetingHeader
                             limorStatusChip
                                 .animation(.easeInOut(duration: 0.25), value: sync.chipState)
-                            // iPad / wide → 2-column card grid that fills the
-                            // space; iPhone → single column (unchanged).
-                            if hSizeClass == .regular {
-                                // Adaptive masonry-ish grid: flows 2–3 columns
-                                // depending on how wide the detail pane is.
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 330, maximum: 560), spacing: 18)],
-                                          alignment: .leading, spacing: 18) {
-                                    ForEach(cardOrder.filter { !hiddenCards.contains($0) }) { card in
-                                        cardView(for: card)
-                                    }
-                                }
-                            } else {
-                                ForEach(cardOrder.filter { !hiddenCards.contains($0) }) { card in
-                                    cardView(for: card)
-                                }
-                            }
+                            cardLayout(width: geo.size.width)
 
                             if let errorMessage {
                                 Text(errorMessage)
@@ -298,6 +283,34 @@ struct NowView: View {
     }
 
     // MARK: Card dispatch (drives user-customizable order)
+
+    /// Home card layout. iPhone → single column. iPad/wide → a dashboard: the
+    /// next-reminder hero spans full width, everything else fills a guaranteed
+    /// 2-column (3 on very wide) grid. Extracted from `body` so the type
+    /// checker doesn't choke on the giant scroll-content expression.
+    @ViewBuilder
+    private func cardLayout(width: CGFloat) -> some View {
+        let visible = cardOrder.filter { !hiddenCards.contains($0) }
+        if hSizeClass == .regular {
+            let columns = width > 1150 ? 3 : 2
+            if visible.contains(.nextReminder) {
+                cardView(for: .nextReminder)
+            }
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 18), count: columns),
+                alignment: .leading,
+                spacing: 18
+            ) {
+                ForEach(visible.filter { $0 != .nextReminder }) { card in
+                    cardView(for: card)
+                }
+            }
+        } else {
+            ForEach(visible) { card in
+                cardView(for: card)
+            }
+        }
+    }
 
     @ViewBuilder
     private func cardView(for card: HomeCardKind) -> some View {
