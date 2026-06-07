@@ -17,6 +17,7 @@
 		1AD6712FE6163212217AFA7C /* ShoppingWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 817A06ABA097AD1E948D440A /* ShoppingWidget.swift */; };
 		1E82BA08DF5B64888BF8573A /* VoiceModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C235C91EAB4379BADEE8354 /* VoiceModeView.swift */; };
 		2252284C93C5BD5A1B795D31 /* VoiceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B72EA9E69C14DC9A8337CB9 /* VoiceService.swift */; };
+		26B815D491139ECB751C8BA7 /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAF1026FA235E65B5654C5F /* TasksView.swift */; };
 		2807EEBE7245E118EF50690C /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7FB8222FF4A8B430B9D2C4B8 /* Foundation.framework */; };
 		2CE1881308B3C1A13E91E791 /* ShareInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92772D739A55F49E3D89EE42 /* ShareInbox.swift */; };
 		2EF9E0494BFA826E3FA01631 /* ShareAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D216AE6CC0C93E78A29C3EFF /* ShareAPI.swift */; };
@@ -97,6 +98,7 @@
 		D4C8BD6A88AE26F416DDEAA8 /* WidgetTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A7A0CFD2099CE705521225 /* WidgetTheme.swift */; };
 		D52DBA079C74B34E651AFEEC /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70396FD611F130F479EC2B84 /* Components.swift */; };
 		D778A361FB6F144E568FDA35 /* CalendarAggregator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20EDB7A57D4B12BB38E78F90 /* CalendarAggregator.swift */; };
+		DAA6D782D7F81875927A14D8 /* TasksWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E4FD3D2AEFF2EE9DF963D7D /* TasksWidget.swift */; };
 		DF8D21BCFE5E44E639BC840D /* ShareAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D216AE6CC0C93E78A29C3EFF /* ShareAPI.swift */; };
 		E214B831BCD60C65642FECF8 /* MeetingsNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2229A6ADD1D8CA1B496C395C /* MeetingsNotifier.swift */; };
 		E6C2F9E4BE150CB26ABF7A5E /* NotificationsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3720B9F23F3177BDEAE1F4B7 /* NotificationsSettingsView.swift */; };
@@ -174,6 +176,7 @@
 		058B29D5197CF2387FD39915 /* bell.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = bell.caf; sourceTree = "<group>"; };
 		0920F870874E0CF9DB671EA4 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		0A23BC6C1BD773FDD3C2D6C3 /* VoiceInputSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputSheet.swift; sourceTree = "<group>"; };
+		0E4FD3D2AEFF2EE9DF963D7D /* TasksWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TasksWidget.swift; sourceTree = "<group>"; };
 		100EC212676B9B6AA064B60C /* LimorWatch.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = LimorWatch.entitlements; sourceTree = "<group>"; };
 		10F5700C27913E7F3435CEC5 /* NowWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowWidget.swift; sourceTree = "<group>"; };
 		11136A50C05BDB3473FB6677 /* NextUpWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextUpWidget.swift; sourceTree = "<group>"; };
@@ -231,6 +234,7 @@
 		9391AB93715C0B98325D375B /* ShoppingListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingListView.swift; sourceTree = "<group>"; };
 		99820E43BB465BB3D971C31A /* LimorShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LimorShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A5D1D5B83E2A988DCED1752 /* RelationshipsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RelationshipsView.swift; sourceTree = "<group>"; };
+		9AAF1026FA235E65B5654C5F /* TasksView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TasksView.swift; sourceTree = "<group>"; };
 		9C235C91EAB4379BADEE8354 /* VoiceModeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VoiceModeView.swift; sourceTree = "<group>"; };
 		9D1698B92AFE03772997513C /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		A28D6A515676755BA91AC4E7 /* GoogleAPIs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAPIs.swift; sourceTree = "<group>"; };
@@ -413,6 +417,7 @@
 				037FA4DA69AD407E013CF829 /* PhotoCropSheet.swift */,
 				9C235C91EAB4379BADEE8354 /* VoiceModeView.swift */,
 				B9F97D3D2F8E53737FF72CAD /* EmailActionsView.swift */,
+				9AAF1026FA235E65B5654C5F /* TasksView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -467,6 +472,7 @@
 				D89EF6AFF7FFDCEE9AF97BF5 /* RemindersWidget.swift */,
 				817A06ABA097AD1E948D440A /* ShoppingWidget.swift */,
 				11136A50C05BDB3473FB6677 /* NextUpWidget.swift */,
+				0E4FD3D2AEFF2EE9DF963D7D /* TasksWidget.swift */,
 			);
 			path = "Limor Ai App Widget";
 			sourceTree = "<group>";
@@ -770,6 +776,7 @@
 				4F9405D1AB955ADC0539F69A /* LeadTimeNotifier.swift in Sources */,
 				D778A361FB6F144E568FDA35 /* CalendarAggregator.swift in Sources */,
 				8CD558DA13ED7F7060C54638 /* EmailActionsView.swift in Sources */,
+				26B815D491139ECB751C8BA7 /* TasksView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -799,6 +806,7 @@
 				AC8F2591B80FF7C32A5A6CE9 /* RemindersWidget.swift in Sources */,
 				1AD6712FE6163212217AFA7C /* ShoppingWidget.swift in Sources */,
 				CFE70349EEDDABCFD7748B96 /* NextUpWidget.swift in Sources */,
+				DAA6D782D7F81875927A14D8 /* TasksWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -989,7 +997,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Limor Ai App/Limor Ai App.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 33;
+				CURRENT_PROJECT_VERSION = 34;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = "Limor Ai App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Limor AI";
@@ -1060,7 +1068,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Limor Ai App/Limor Ai App.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 33;
+				CURRENT_PROJECT_VERSION = 34;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = "Limor Ai App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Limor AI";

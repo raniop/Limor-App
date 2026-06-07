@@ -7,6 +7,7 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
     case nextReminder    = "reminder"
     case recommendations = "recommendations"
     case meetings        = "meetings"
+    case tasks           = "tasks"
     case emailActions    = "email_actions"
     case feed            = "feed"
     case nextFlight      = "flight"
@@ -22,6 +23,7 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
         case .nextReminder:    return "התזכורת הבאה"
         case .recommendations: return "טיפ אישי"
         case .meetings:        return "הפגישות הבאות"
+        case .tasks:           return "המשימות שלי"
         case .emailActions:    return "מוקד המייל"
         case .feed:            return "חדשות אחרונות"
         case .nextFlight:      return "טיסה קרובה"
@@ -37,6 +39,7 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
         case .nextReminder:    return "bell.fill"
         case .recommendations: return "sparkles"
         case .meetings:        return "calendar.badge.clock"
+        case .tasks:           return "checklist"
         case .emailActions:    return "tray.full.fill"
         case .feed:            return "newspaper.fill"
         case .nextFlight:      return "airplane.departure"
@@ -52,6 +55,7 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
         case .nextReminder:    return .limorIndigo
         case .recommendations: return .limorViolet
         case .meetings:        return .limorIndigo
+        case .tasks:           return .limorIndigo
         case .emailActions:    return .limorViolet
         case .feed:            return .limorPink
         case .nextFlight:      return Color(red: 0.20, green: 0.66, blue: 0.62)
@@ -70,6 +74,7 @@ enum HomeCardOrder {
     static let defaultOrder: [HomeCardKind] = [
         .nextReminder,
         .meetings,
+        .tasks,
         .emailActions,
         .recommendations,
         .shopping,

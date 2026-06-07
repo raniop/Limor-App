@@ -23,6 +23,7 @@ enum SharedStore {
         static let lng = "limor.lastLng"
         static let lastNow = "limor.lastNowJSON"
         static let cachedReminders = "limor.cachedRemindersJSON"
+        static let cachedTasks = "limor.cachedTasksJSON"
         static let cachedMeetings = "limor.cachedMeetingsJSON"
         static let photoB64 = "limor.photoB64"
         /// Legacy single-value keys — read once during migration to the new
@@ -131,6 +132,19 @@ enum SharedStore {
 
     static func setCachedRemindersData(_ data: Data) {
         defaults.set(data, forKey: Keys.cachedReminders)
+    }
+
+    // MARK: - Tasks cache (for the widget — read from the App Group)
+
+    static func cacheTasks(_ list: [LimorTask]) {
+        if let data = try? JSONEncoder().encode(list) {
+            defaults.set(data, forKey: Keys.cachedTasks)
+        }
+    }
+
+    static func loadTasks() -> [LimorTask] {
+        guard let data = defaults.data(forKey: Keys.cachedTasks) else { return [] }
+        return (try? JSONDecoder().decode([LimorTask].self, from: data)) ?? []
     }
 
     // MARK: - Meetings mirror (for watch)

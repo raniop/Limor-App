@@ -315,6 +315,7 @@ struct NowView: View {
         case .nextReminder:    nextReminderHero
         case .recommendations: recommendationsCard
         case .meetings:        MeetingsCard()
+        case .tasks:           TasksCard()
         case .emailActions:    EmailActionsCard()
         case .feed:            feedCard
         case .nextFlight:      nextFlightCard

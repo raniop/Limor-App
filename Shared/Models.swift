@@ -102,6 +102,25 @@ struct Reminder: Codable, Identifiable, Hashable {
 struct ReminderEnvelope: Decodable { let reminder: Reminder }
 struct RemindersEnvelope: Decodable { let reminders: [Reminder] }
 
+/// A free-form to-do task (no scheduled time, unlike `Reminder`). `tags` are
+/// free-text labels for grouping/filtering. Managed in the Tasks screen and
+/// by Limor's add_task / complete_task / delete_task tools.
+struct LimorTask: Codable, Identifiable, Hashable {
+    let id: String
+    var title: String
+    var done: Bool
+    var tags: [String]
+    let created_at: String
+    var completed_at: String?
+
+    var createdDate: Date {
+        ISO8601DateFormatter.limor.date(from: created_at) ?? .distantPast
+    }
+}
+
+struct TaskEnvelope: Decodable { let task: LimorTask }
+struct TasksEnvelope: Decodable { let tasks: [LimorTask] }
+
 struct Weather: Codable, Hashable {
     let temp_c: Double
     let feels_like_c: Double

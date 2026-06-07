@@ -128,6 +128,43 @@ struct APIClient {
         let _: EmptyResponse = try await deleteReq("/api/reminders/\(id)")
     }
 
+    // MARK: - Tasks (free-form to-dos)
+
+    func listTasks(status: String? = nil) async throws -> [LimorTask] {
+        var path = "/api/tasks"
+        if let status { path += "?status=\(status)" }
+        let env: TasksEnvelope = try await get(path)
+        return env.tasks
+    }
+
+    func createTask(title: String, tags: [String]) async throws -> LimorTask {
+        struct Body: Encodable { let title: String; let tags: [String] }
+        let env: TaskEnvelope = try await post("/api/tasks", body: Body(title: title, tags: tags))
+        return env.task
+    }
+
+    func updateTask(id: String, title: String?, tags: [String]?) async throws -> LimorTask {
+        struct Body: Encodable { let title: String?; let tags: [String]? }
+        let env: TaskEnvelope = try await patch("/api/tasks/\(id)", body: Body(title: title, tags: tags))
+        return env.task
+    }
+
+    func completeTask(id: String) async throws -> LimorTask {
+        struct Empty: Encodable {}
+        let env: TaskEnvelope = try await post("/api/tasks/\(id)/complete", body: Empty())
+        return env.task
+    }
+
+    func reopenTask(id: String) async throws -> LimorTask {
+        struct Empty: Encodable {}
+        let env: TaskEnvelope = try await post("/api/tasks/\(id)/reopen", body: Empty())
+        return env.task
+    }
+
+    func deleteTask(id: String) async throws {
+        let _: EmptyResponse = try await deleteReq("/api/tasks/\(id)")
+    }
+
     /// Patch task text and/or due time on an existing reminder. Either
     /// argument can be nil — backend will only touch the fields the
     /// caller actually sent. Used by the iOS edit-reminder sheet.
@@ -557,6 +594,17 @@ struct APIClient {
     private func put<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
         var req = URLRequest(url: resolveURL(path))
         req.httpMethod = "PUT"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let bearer = await freshIdToken() {
+            req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = try encoder.encode(body)
+        return try await send(req)
+    }
+
+    private func patch<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        var req = URLRequest(url: resolveURL(path))
+        req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let bearer = await freshIdToken() {
             req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")

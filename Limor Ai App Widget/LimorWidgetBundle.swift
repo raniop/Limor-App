@@ -16,6 +16,9 @@ struct LimorWidgetBundle: WidgetBundle {
         // Standalone shopping list — top items + progress.
         ShoppingWidget()
 
+        // Standalone to-do tasks — open items at a glance.
+        TasksWidget()
+
         // Auto-prioritized "what's next": merges meetings + reminders and
         // shows whichever fires first, with the second in the wings.
         NextUpWidget()
