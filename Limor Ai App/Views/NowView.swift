@@ -4,6 +4,8 @@ struct NowView: View {
     @EnvironmentObject private var auth: AuthManager
     @EnvironmentObject private var router: AppRouter
     @Environment(\.scenePhase) private var scenePhase
+    /// .regular on iPad (and large landscape) → multi-column card grid.
+    @Environment(\.horizontalSizeClass) private var hSizeClass
     @StateObject private var location = LocationManager.shared
     @StateObject private var health = HealthManager.shared
     @StateObject private var sync = SyncManager.shared
@@ -61,8 +63,20 @@ struct NowView: View {
                             greetingHeader
                             limorStatusChip
                                 .animation(.easeInOut(duration: 0.25), value: sync.chipState)
-                            ForEach(cardOrder.filter { !hiddenCards.contains($0) }) { card in
-                                cardView(for: card)
+                            // iPad / wide → 2-column card grid that fills the
+                            // space; iPhone → single column (unchanged).
+                            if hSizeClass == .regular {
+                                LazyVGrid(columns: [GridItem(.flexible(), spacing: 18),
+                                                    GridItem(.flexible(), spacing: 18)],
+                                          alignment: .leading, spacing: 18) {
+                                    ForEach(cardOrder.filter { !hiddenCards.contains($0) }) { card in
+                                        cardView(for: card)
+                                    }
+                                }
+                            } else {
+                                ForEach(cardOrder.filter { !hiddenCards.contains($0) }) { card in
+                                    cardView(for: card)
+                                }
                             }
 
                             if let errorMessage {
@@ -77,11 +91,10 @@ struct NowView: View {
                         .padding(.horizontal, 18)
                         .padding(.top, 4)
                         .padding(.bottom, 24)
-                        // Cap the column at ~700pt and center it on iPad — but
-                        // never wider than the viewport, which preserves the
-                        // iPhone full-width layout and the no-horizontal-scroll
-                        // guarantee (layout width stays ≤ the viewport).
-                        .frame(width: min(geo.size.width, 700))
+                        // Cap the column at ~700pt on iPhone; on iPad let the
+                        // grid use up to ~1100pt. Never wider than the viewport
+                        // (preserves the iPhone layout + no-horizontal-scroll).
+                        .frame(width: min(geo.size.width, hSizeClass == .regular ? 1100 : 700))
                         .frame(width: geo.size.width)
                         .clipped()
                     }

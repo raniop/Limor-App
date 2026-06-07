@@ -195,9 +195,17 @@ enum SharedStore {
     }
 
     private static func readSources(key: String, legacyKey: String, default fallback: Set<DataSource>) -> Set<DataSource> {
+        func parse(_ raw: String) -> Set<DataSource> {
+            Set(raw.split(separator: ",").map(String.init).compactMap { DataSource(rawValue: $0) }).filter { $0 != .none }
+        }
         if let raw = defaults.string(forKey: key) {
-            let tokens = raw.split(separator: ",").map(String.init)
-            return Set(tokens.compactMap { DataSource(rawValue: $0) }).filter { $0 != .none }
+            return parse(raw)
+        }
+        // Not set locally yet (fresh install on a second device) — pull the
+        // choice the user already made elsewhere from iCloud KVS and cache it.
+        if let cloud = iCloud, let raw = cloud.string(forKey: key) {
+            defaults.set(raw, forKey: key)
+            return parse(raw)
         }
         // First read after the upgrade: migrate from the legacy singular key
         // (if any). Stays lazy — we only write the new key when the user
@@ -214,6 +222,7 @@ enum SharedStore {
         let cleaned = sources.filter { $0 != .none }
         let raw = cleaned.map(\.rawValue).sorted().joined(separator: ",")
         defaults.set(raw, forKey: key)
+        iCloud?.set(raw, forKey: key)   // sync the choice across the user's devices
     }
 
     /// Reminder IDs we've already mirrored to iOS Reminders.app — avoids duplicates.
