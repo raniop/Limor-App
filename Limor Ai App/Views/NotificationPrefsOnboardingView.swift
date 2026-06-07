@@ -21,7 +21,11 @@ struct NotificationPrefsOnboardingView: View {
             NotificationPref(kind: .morning_brief, enabled: true,  hour: 7,  minute: 30, last_sent_date: nil),
             NotificationPref(kind: .evening_recap, enabled: true,  hour: 20, minute: 30, last_sent_date: nil),
             NotificationPref(kind: .feed_digest,   enabled: false, hour: 8,  minute: 0,  last_sent_date: nil),
-        ]
+        ],
+        // Keep the protective night-quiet default (23:00→07:00) through the
+        // initial save so new users start with it on.
+        quiet_start: 23,
+        quiet_end: 7
     )
     @State private var saving = false
     @State private var errorMessage: String?

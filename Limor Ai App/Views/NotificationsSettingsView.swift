@@ -610,11 +610,16 @@ struct NotificationsSettingsView: View {
 
     private func playPreview(_ sound: ReminderSound) {
         guard let url = Bundle.main.url(forResource: sound.rawValue, withExtension: "caf") else { return }
+        // Stop any in-flight preview first so tapping sounds quickly doesn't
+        // stack them on top of each other.
+        soundPreviewPlayer?.stop()
+        soundPreviewPlayer = nil
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, options: [.mixWithOthers])
+            try AVAudioSession.sharedInstance().setCategory(.playback)
             try AVAudioSession.sharedInstance().setActive(true)
-            soundPreviewPlayer = try AVAudioPlayer(contentsOf: url)
-            soundPreviewPlayer?.play()
+            let player = try AVAudioPlayer(contentsOf: url)
+            soundPreviewPlayer = player
+            player.play()
         } catch {
             print("[sound] preview failed: \(error.localizedDescription)")
         }
