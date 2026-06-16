@@ -9,6 +9,7 @@ struct LimorAiApp: App {
     @StateObject private var auth = AuthManager()
     @StateObject private var push = PushManager.shared
     @StateObject private var router = AppRouter.shared
+    @StateObject private var lang = LanguageManager.shared
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -34,7 +35,12 @@ struct LimorAiApp: App {
                 .environmentObject(auth)
                 .environmentObject(push)
                 .environmentObject(router)
-                .environment(\.layoutDirection, .rightToLeft)
+                .environmentObject(lang)
+                // Language drives layout direction + locale. Re-key the tree by
+                // language so every `tr(...)` call re-evaluates on a switch.
+                .environment(\.layoutDirection, lang.lang.layoutDirection)
+                .environment(\.locale, lang.lang.locale)
+                .id(lang.lang)
                 .onChange(of: scenePhase) { _, newPhase in
                     // Keep on-device notification schedules fresh — re-run
                     // whenever the app comes to the foreground so iOS

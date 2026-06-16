@@ -45,11 +45,11 @@ struct VoiceInputSheet: View {
             await voice.start(locale: locale)
         }
         .onDisappear { voice.reset() }
-        .alert("שגיאה", isPresented: .init(
+        .alert(tr("שגיאה", "Error"), isPresented: .init(
             get: { voice.errorMessage != nil },
             set: { if !$0 { voice.errorMessage = nil } }
         )) {
-            Button("אוקיי", role: .cancel) {}
+            Button(tr("אוקיי", "OK"), role: .cancel) {}
         } message: {
             Text(voice.errorMessage ?? "")
         }
@@ -139,12 +139,12 @@ struct VoiceInputSheet: View {
 
     private var transcriptArea: some View {
         VStack(spacing: 8) {
-            Text(voice.isRecording ? "מקשיבה לך…" : "מוכן")
+            Text(voice.isRecording ? tr("מקשיבה לך…", "Listening…") : tr("מוכן", "Ready"))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.limorMuted)
 
             ScrollView {
-                Text(voice.transcript.isEmpty ? "תגיד משהו ללימור — היא מחכה." : voice.transcript)
+                Text(voice.transcript.isEmpty ? tr("תגיד משהו ללימור — היא מחכה.", "Say something to Limor — she's waiting.") : voice.transcript)
                     .font(.title3.weight(.medium))
                     .foregroundStyle(voice.transcript.isEmpty ? .limorMuted : .limorInk)
                     .multilineTextAlignment(.center)
@@ -163,7 +163,7 @@ struct VoiceInputSheet: View {
             Button {
                 voice.reset()
             } label: {
-                Text("נקה")
+                Text(tr("נקה", "Clear"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.limorMuted)
                     .frame(maxWidth: .infinity)
@@ -202,7 +202,7 @@ struct VoiceInputSheet: View {
                 dismiss()
             } label: {
                 HStack(spacing: 6) {
-                    Text("שלח")
+                    Text(tr("שלח", "Send"))
                     Image(systemName: "paperplane.fill")
                 }
                 .font(.subheadline.weight(.semibold))

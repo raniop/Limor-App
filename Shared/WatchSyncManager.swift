@@ -156,14 +156,14 @@ final class WatchSyncManager: NSObject, ObservableObject {
         do {
             try audio.write(to: url)
         } catch {
-            replyHandler(["error": "לא הצלחתי לשמור את ההקלטה: \(error.localizedDescription)"])
+            replyHandler(["error": tr("לא הצלחתי לשמור את ההקלטה: \(error.localizedDescription)", "Couldn't save the recording: \(error.localizedDescription)")])
             return
         }
         defer { try? FileManager.default.removeItem(at: url) }
         let transcript = await VoiceService.shared.transcribeAudioFile(url: url, locale: .hebrew)
         let trimmed = transcript?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else {
-            replyHandler(["error": "לא הצלחתי להבין את ההקלטה"])
+            replyHandler(["error": tr("לא הצלחתי להבין את ההקלטה", "Couldn't understand the recording")])
             return
         }
         await relayLimorMessage(trimmed, replyHandler: replyHandler)
@@ -326,12 +326,12 @@ enum WatchSyncError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .emptyMessage:      return "אין מה לשלוח"
-        case .notSupported:      return "WCSession לא נתמך"
-        case .notActivated:      return "החיבור לאייפון עוד לא מוכן"
-        case .phoneUnreachable:  return "האייפון לא בטווח"
+        case .emptyMessage:      return tr("אין מה לשלוח", "Nothing to send")
+        case .notSupported:      return tr("WCSession לא נתמך", "WCSession isn't supported")
+        case .notActivated:      return tr("החיבור לאייפון עוד לא מוכן", "Connection to iPhone isn't ready yet")
+        case .phoneUnreachable:  return tr("האייפון לא בטווח", "iPhone is out of range")
         case .phone(let m):      return m
-        case .malformedReply:    return "התשובה מהאייפון לא תקינה"
+        case .malformedReply:    return tr("התשובה מהאייפון לא תקינה", "The reply from iPhone is invalid")
         }
     }
 }

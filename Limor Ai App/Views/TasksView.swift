@@ -13,6 +13,13 @@ struct TasksView: View {
     @State private var busy = false
     @State private var editingTask: LimorTask?
     @State private var selectedTaskId: String?
+    @State private var showNewTask = false
+    @State private var section: TaskSection = .tasks
+    @State private var editingTag: TagEdit?
+
+    enum TaskSection: String, CaseIterable { case tasks, analytics }
+    /// Mirror of SharedStore.tagColorHex so color changes trigger a redraw.
+    @State private var tagColorOverrides: [String: String] = SharedStore.tagColorHex
     @Environment(\.horizontalSizeClass) private var hSizeClass
     @FocusState private var addFocused: Bool
 
@@ -31,67 +38,121 @@ struct TasksView: View {
     var body: some View {
         ZStack {
             LiquidBackdrop()
-            if isRegular {
-                // iPad master-detail: task list on one side, live editor on the
-                // other.
-                HStack(spacing: 0) {
-                    listColumn
-                        .frame(maxWidth: .infinity)
-                    Divider()
-                    detailColumn
-                        .frame(width: 420)
+            VStack(spacing: 0) {
+                // Tasks ↔ Tag breakdown.
+                Picker("", selection: $section) {
+                    Text(tr("משימות", "Tasks")).tag(TaskSection.tasks)
+                    Text(tr("פילוח תגיות", "Tag breakdown")).tag(TaskSection.analytics)
                 }
-            } else {
-                listColumn
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 18).padding(.top, 8)
+                .limorReadableWidth()
+
+                if section == .analytics {
+                    TaskAnalyticsView(tasks: tasks, colorFor: tagColor)
+                } else if isRegular {
+                    // iPad master-detail: task list on one side, live editor on
+                    // the other.
+                    HStack(spacing: 0) {
+                        listColumn
+                            .frame(maxWidth: .infinity)
+                        Divider()
+                        detailColumn
+                            .frame(width: 420)
+                    }
+                } else {
+                    listColumn
+                }
             }
         }
-        .navigationTitle("משימות")
+        .navigationTitle(tr("משימות", "Tasks"))
         .navigationBarTitleDisplayMode(.large)
         .task { await load() }
-        .alert("שגיאה", isPresented: .init(
+        .alert(tr("שגיאה", "Error"), isPresented: .init(
             get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } }
-        )) { Button("אוקיי", role: .cancel) {} } message: { Text(errorMessage ?? "") }
+        )) { Button(tr("אוקיי", "OK"), role: .cancel) {} } message: { Text(errorMessage ?? "") }
         .sheet(item: $editingTask) { task in
             TaskEditSheet(task: task) { newTitle, newTags in
                 await updateTask(task, title: newTitle, tags: newTags)
             }
         }
+        .sheet(isPresented: $showNewTask) {
+            NewTaskSheet(existingTags: allTags) { title, tags in await create(title: title, tags: tags) }
+        }
+        .sheet(item: $editingTag) { item in
+            TagEditSheet(tag: item.name, currentColor: tagColor(item.name)) { newName, hex in
+                await applyTagEdit(old: item.name, newName: newName, colorHex: hex)
+            }
+        }
     }
 
+    /// A `List` (not a ScrollView) so open tasks reorder via the native
+    /// long-press-and-drag — reliable, and it doesn't fight scrolling. Drag
+    /// reorder is only offered on the full open list (no tag filter), where
+    /// the order is unambiguous.
     private var listColumn: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 14) {
+        List {
+            Group {
                 addBox
                 if !allTags.isEmpty { tagFilterRow }
+            }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 6, leading: 18, bottom: 6, trailing: 18))
 
-                if filteredOpen.isEmpty && done.isEmpty && loaded {
-                    LimorEmptyState(
-                        icon: "checklist",
-                        title: "אין משימות",
-                        subtitle: "הוסיפי משימה למעלה, או בקשי מלימור בצ'אט — \"תוסיפי לי משימה\".",
-                        iconGradient: LimorGradient.brand
-                    )
-                    .padding(.top, 30)
-                } else {
-                    ForEach(filteredOpen) { task in
+            if filteredOpen.isEmpty && done.isEmpty && loaded {
+                LimorEmptyState(
+                    icon: "checklist",
+                    title: tr("אין משימות", "No tasks"),
+                    subtitle: tr("הוסיפי משימה למעלה, או בקשי מלימור בצ'אט — \"תוסיפי לי משימה\".", "Add a task above, or ask Limor in chat — \"add me a task\"."),
+                    iconGradient: LimorGradient.brand
+                )
+                .padding(.top, 30)
+                .frame(maxWidth: .infinity)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            } else {
+                ForEach(filteredOpen) { task in
+                    taskRow(task)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 7, leading: 18, bottom: 7, trailing: 18))
+                }
+                .onMove(perform: selectedTag == nil ? moveTask : nil)
+
+                if !done.isEmpty {
+                    Text(tr("הושלמו", "Completed"))
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.limorMuted)
+                        .padding(.top, 8)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 18, bottom: 4, trailing: 18))
+                    ForEach(done.prefix(20)) { task in
                         taskRow(task)
-                    }
-                    if !done.isEmpty {
-                        Text("הושלמו")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.limorMuted)
-                            .padding(.top, 8)
-                        ForEach(done.prefix(20)) { task in
-                            taskRow(task)
-                        }
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 7, leading: 18, bottom: 7, trailing: 18))
+                            .moveDisabled(true)
                     }
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 12)
-            .padding(.bottom, 28)
-            .limorReadableWidth()
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .padding(.top, 6)
+        .padding(.bottom, 12)
+        .limorReadableWidth()
+    }
+
+    /// Reorder within the open list and persist the new order to the backend.
+    private func moveTask(from source: IndexSet, to destination: Int) {
+        var reordered = open
+        reordered.move(fromOffsets: source, toOffset: destination)
+        tasks = reordered + done   // keep completed tasks after the open ones
+        SharedStore.cacheTasks(tasks)
+        let ids = reordered.map(\.id)
+        Task { try? await APIClient.shared.reorderTasks(ids: ids) }
     }
 
     // MARK: Detail column (iPad)
@@ -115,7 +176,7 @@ struct TasksView: View {
                     Image(systemName: "hand.point.up.left")
                         .font(.system(size: 44, weight: .light))
                         .foregroundStyle(.limorMuted)
-                    Text("בחר משימה כדי לצפות ולערוך")
+                    Text(tr("בחר משימה כדי לצפות ולערוך", "Select a task to view and edit"))
                         .font(.subheadline)
                         .foregroundStyle(.limorMuted)
                 }
@@ -134,30 +195,23 @@ struct TasksView: View {
 
     // MARK: Add box
 
+    /// Tapping opens a modal to enter the title + tags — clearer than the old
+    /// inline field (the user found that UX ambiguous).
     private var addBox: some View {
-        GlassCard {
-            VStack(spacing: 10) {
+        Button {
+            showNewTask = true
+        } label: {
+            GlassCard {
                 HStack(spacing: 10) {
-                    TextField("משימה חדשה…", text: $newTitle)
-                        .textFieldStyle(.plain)
-                        .focused($addFocused)
-                        .submitLabel(.done)
-                        .onSubmit { Task { await add() } }
-                    Button {
-                        Task { await add() }
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(newTitle.trimmingCharacters(in: .whitespaces).isEmpty ? Color.limorMuted : Color.limorIndigo)
-                    }
-                    .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty || busy)
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title2).foregroundStyle(.limorIndigo)
+                    Text(tr("משימה חדשה…", "New task…"))
+                        .font(.subheadline.weight(.medium)).foregroundStyle(.limorMuted)
+                    Spacer()
                 }
-                TextField("תגיות (מופרדות בפסיק, אופציונלי)", text: $newTags)
-                    .textFieldStyle(.plain)
-                    .font(.caption)
-                    .foregroundStyle(.limorMuted)
             }
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: Tag filter
@@ -165,10 +219,15 @@ struct TasksView: View {
     private var tagFilterRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                filterChip(label: "הכול", active: selectedTag == nil) { selectedTag = nil }
+                filterChip(label: tr("הכול", "All"), active: selectedTag == nil) { selectedTag = nil }
                 ForEach(allTags, id: \.self) { tag in
-                    filterChip(label: tag, active: selectedTag == tag) {
+                    filterChip(label: tag, active: selectedTag == tag, color: tagColor(tag)) {
                         selectedTag = (selectedTag == tag) ? nil : tag
+                    }
+                    .contextMenu {
+                        Button { editingTag = TagEdit(name: tag) } label: {
+                            Label(tr("ערוך שם וצבע", "Edit name and color"), systemImage: "pencil")
+                        }
                     }
                 }
             }
@@ -176,15 +235,51 @@ struct TasksView: View {
         }
     }
 
-    private func filterChip(label: String, active: Bool, _ tap: @escaping () -> Void) -> some View {
+    private func filterChip(label: String, active: Bool, color: Color = .limorIndigo, _ tap: @escaping () -> Void) -> some View {
         Button(action: tap) {
             Text(label)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(active ? .white : .limorIndigo)
+                .foregroundStyle(active ? .white : color)
                 .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(Capsule().fill(active ? Color.limorIndigo : Color.limorIndigo.opacity(0.12)))
+                .background(Capsule().fill(active ? color : color.opacity(0.14)))
         }
         .buttonStyle(.plain)
+    }
+
+    /// A manual override if set, else a stable distinct color derived from the
+    /// tag name (same tag → same color, so the eye can track it).
+    func tagColor(_ tag: String) -> Color {
+        if let hex = tagColorOverrides[tag], let c = Color(hexString: hex) { return c }
+        return Self.deterministicTagColor(tag)
+    }
+
+    static func deterministicTagColor(_ tag: String) -> Color {
+        let palette: [Color] = [
+            .limorIndigo, .limorViolet, .limorPink, .limorMint, .limorCoral,
+            .limorWarning, Color(red: 0.20, green: 0.66, blue: 0.62),
+            Color(red: 0.27, green: 0.32, blue: 0.55), Color(red: 0.85, green: 0.45, blue: 0.15),
+        ]
+        let h = abs(tag.unicodeScalars.reduce(0) { $0 &+ Int($1.value) })
+        return palette[h % palette.count]
+    }
+
+    /// Apply a tag rename (across every task that uses it) and/or color change.
+    private func applyTagEdit(old: String, newName: String, colorHex: String) async {
+        let new = newName.trimmingCharacters(in: .whitespaces)
+        var map = SharedStore.tagColorHex
+        if !new.isEmpty, new != old {
+            for task in tasks where task.tags.contains(old) {
+                let newTags = task.tags.map { $0 == old ? new : $0 }
+                await updateTask(task, title: task.title, tags: newTags)
+            }
+            map.removeValue(forKey: old)
+            map[new] = colorHex
+            if selectedTag == old { selectedTag = new }
+        } else {
+            map[old] = colorHex
+        }
+        SharedStore.tagColorHex = map
+        tagColorOverrides = map   // trigger redraw with the new colors
     }
 
     // MARK: Task row
@@ -212,9 +307,9 @@ struct TasksView: View {
                             ForEach(task.tags, id: \.self) { tag in
                                 Text(tag)
                                     .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.limorViolet)
+                                    .foregroundStyle(tagColor(tag))
                                     .padding(.horizontal, 7).padding(.vertical, 2)
-                                    .background(Capsule().fill(Color.limorViolet.opacity(0.12)))
+                                    .background(Capsule().fill(tagColor(tag).opacity(0.14)))
                             }
                         }
                     }
@@ -261,18 +356,14 @@ struct TasksView: View {
             .filter { !$0.isEmpty }
     }
 
-    private func add() async {
-        let title = newTitle.trimmingCharacters(in: .whitespaces)
-        guard !title.isEmpty, !busy else { return }
-        busy = true
-        defer { busy = false }
-        let tags = parseTags(newTags)
+    /// Create a task from the modal's title + already-parsed tags.
+    private func create(title: String, tags: [String]) async {
+        let title = title.trimmingCharacters(in: .whitespaces)
+        guard !title.isEmpty else { return }
         do {
             let created = try await APIClient.shared.createTask(title: title, tags: tags)
             tasks.insert(created, at: 0)
             SharedStore.cacheTasks(tasks)
-            newTitle = ""; newTags = ""
-            addFocused = false
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -316,7 +407,7 @@ struct TasksCard: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        SectionLabel(icon: "checklist", title: "המשימות שלי", tint: .limorIndigo)
+                        SectionLabel(icon: "checklist", title: tr("המשימות שלי", "My tasks"), tint: .limorIndigo)
                         Spacer()
                         if open.count > 0 {
                             Text("\(open.count)")
@@ -332,7 +423,7 @@ struct TasksCard: View {
                     if open.isEmpty && loadedOnce {
                         HStack(spacing: 8) {
                             Image(systemName: "checkmark.circle").font(.caption).foregroundStyle(.limorSuccess)
-                            Text("אין משימות פתוחות").font(.caption).foregroundStyle(.secondary)
+                            Text(tr("אין משימות פתוחות", "No open tasks")).font(.caption).foregroundStyle(.secondary)
                         }
                     } else if !open.isEmpty {
                         VStack(spacing: 6) {
@@ -350,7 +441,7 @@ struct TasksCard: View {
                     } else {
                         HStack(spacing: 8) {
                             ProgressView().tint(.limorIndigo).scaleEffect(0.7)
-                            Text("טוען…").font(.caption).foregroundStyle(.secondary)
+                            Text(tr("טוען…", "Loading…")).font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -398,21 +489,21 @@ private struct TaskEditSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("משימה") {
-                    TextField("כותרת", text: $title, axis: .vertical)
+                Section(tr("משימה", "Task")) {
+                    TextField(tr("כותרת", "Title"), text: $title, axis: .vertical)
                 }
-                Section("תגיות") {
-                    TextField("מופרדות בפסיק", text: $tagsText)
+                Section(tr("תגיות", "Tags")) {
+                    TextField(tr("מופרדות בפסיק", "Comma-separated"), text: $tagsText)
                 }
             }
-            .navigationTitle("עריכת משימה")
+            .navigationTitle(tr("עריכת משימה", "Edit task"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("ביטול") { dismiss() }
+                    Button(tr("ביטול", "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("שמור") {
+                    Button(tr("שמור", "Save")) {
                         saving = true
                         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
                         let tags = parsedTags
@@ -422,6 +513,177 @@ private struct TaskEditSheet: View {
                         }
                     }
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || saving)
+                }
+            }
+        }
+        .environment(\.layoutDirection, .rightToLeft)
+        .presentationDetents([.medium])
+    }
+}
+
+// MARK: - New task modal
+
+/// Modal for creating a task — title + optional tags. Replaces the old inline
+/// field, which read ambiguously.
+private struct NewTaskSheet: View {
+    let existingTags: [String]
+    let onCreate: (String, [String]) async -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var tagsText = ""
+    @State private var selected: Set<String> = []
+    @State private var saving = false
+    @FocusState private var titleFocused: Bool
+
+    private var freeTextTags: [String] {
+        tagsText.split(whereSeparator: { $0 == "," || $0 == "،" })
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+    /// Final tag set — picked existing tags + any typed new ones, deduped.
+    private var allTags: [String] {
+        var set = selected
+        for t in freeTextTags { set.insert(t) }
+        return Array(set)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(tr("משימה", "Task")) {
+                    TextField(tr("מה צריך לעשות?", "What needs to be done?"), text: $title, axis: .vertical)
+                        .focused($titleFocused)
+                }
+                Section(tr("תגיות", "Tags")) {
+                    if !existingTags.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(existingTags, id: \.self) { tag in
+                                    tagChip(tag)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                    TextField(tr("תגית חדשה (מופרדות בפסיק)", "New tag (comma-separated)"), text: $tagsText)
+                }
+            }
+            .navigationTitle(tr("משימה חדשה", "New task"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(tr("ביטול", "Cancel")) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(tr("צור", "Create")) {
+                        saving = true
+                        let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let tags = allTags
+                        Task { await onCreate(t, tags); dismiss() }
+                    }
+                    .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || saving)
+                }
+            }
+        }
+        .environment(\.layoutDirection, .rightToLeft)
+        .presentationDetents([.medium])
+        .task { titleFocused = true }
+    }
+
+    private func tagChip(_ tag: String) -> some View {
+        let isOn = selected.contains(tag)
+        let color = TasksView.deterministicTagColor(tag)
+        return Button {
+            if isOn { selected.remove(tag) } else { selected.insert(tag) }
+        } label: {
+            HStack(spacing: 4) {
+                if isOn { Image(systemName: "checkmark").font(.caption2.weight(.bold)) }
+                Text(tag).font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(isOn ? .white : color)
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(Capsule().fill(isOn ? color : color.opacity(0.14)))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Tag editor (rename + color)
+
+struct TagEdit: Identifiable {
+    let id = UUID()
+    let name: String
+}
+
+/// Edit a tag's name and color. Color is chosen from a swatch palette or a
+/// full custom picker. Saving renames the tag across all tasks.
+private struct TagEditSheet: View {
+    let tag: String
+    let currentColor: Color
+    let onSave: (String, String) async -> Void   // (newName, colorHex)
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+    @State private var color: Color
+    @State private var saving = false
+
+    private let palette: [Color] = [
+        .limorIndigo, .limorViolet, .limorPink, .limorMint, .limorCoral,
+        .limorWarning, Color(red: 0.20, green: 0.66, blue: 0.62),
+        Color(red: 0.27, green: 0.32, blue: 0.55), Color(red: 0.85, green: 0.45, blue: 0.15),
+    ]
+
+    init(tag: String, currentColor: Color, onSave: @escaping (String, String) async -> Void) {
+        self.tag = tag
+        self.currentColor = currentColor
+        self.onSave = onSave
+        _name = State(initialValue: tag)
+        _color = State(initialValue: currentColor)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(tr("שם התגית", "Tag name")) {
+                    TextField(tr("שם", "Name"), text: $name)
+                }
+                Section(tr("צבע", "Color")) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 12) {
+                        ForEach(palette.indices, id: \.self) { i in
+                            Circle()
+                                .fill(palette[i])
+                                .frame(width: 32, height: 32)
+                                .overlay(Circle().strokeBorder(.primary.opacity(color == palette[i] ? 0.6 : 0), lineWidth: 2))
+                                .onTapGesture { color = palette[i] }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    ColorPicker(tr("צבע מותאם אישית", "Custom color"), selection: $color, supportsOpacity: false)
+                }
+                Section {
+                    HStack {
+                        Text(tr("תצוגה מקדימה", "Preview")).font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Text(name.isEmpty ? tag : name)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(color)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Capsule().fill(color.opacity(0.14)))
+                    }
+                }
+            }
+            .navigationTitle(tr("עריכת תגית", "Edit tag"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button(tr("ביטול", "Cancel")) { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(tr("שמור", "Save")) {
+                        saving = true
+                        let n = name.trimmingCharacters(in: .whitespaces)
+                        let hex = color.hexString
+                        Task { await onSave(n, hex); dismiss() }
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || saving)
                 }
             }
         }
@@ -472,7 +734,7 @@ private struct TaskDetailPane: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: task.done ? "arrow.uturn.backward.circle.fill" : "checkmark.circle.fill")
-                        Text(task.done ? "החזר לפעילה" : "סמן כבוצע")
+                        Text(task.done ? tr("החזר לפעילה", "Reopen") : tr("סמן כבוצע", "Mark as done"))
                     }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(task.done ? .limorMuted : .white)
@@ -481,13 +743,13 @@ private struct TaskDetailPane: View {
                 }
                 .buttonStyle(.plain)
 
-                field(title: "כותרת") {
-                    TextField("כותרת המשימה", text: $title, axis: .vertical)
+                field(title: tr("כותרת", "Title")) {
+                    TextField(tr("כותרת המשימה", "Task title"), text: $title, axis: .vertical)
                         .font(.body)
                 }
 
-                field(title: "תגיות") {
-                    TextField("מופרדות בפסיק (עבודה, בית…)", text: $tagsText)
+                field(title: tr("תגיות", "Tags")) {
+                    TextField(tr("מופרדות בפסיק (עבודה, בית…)", "Comma-separated (work, home…)"), text: $tagsText)
                         .font(.subheadline)
                 }
 
@@ -511,7 +773,7 @@ private struct TaskDetailPane: View {
                     }
                 } label: {
                     HStack { Spacer()
-                        Text(saving ? "שומר…" : "שמור שינויים").font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                        Text(saving ? tr("שומר…", "Saving…") : tr("שמור שינויים", "Save changes")).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
                         Spacer() }
                     .padding(.vertical, 12)
                     .background(Capsule().fill(dirty ? AnyShapeStyle(LimorGradient.brand) : AnyShapeStyle(Color.limorMuted.opacity(0.4))))
@@ -526,7 +788,7 @@ private struct TaskDetailPane: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "trash")
-                        Text("מחק משימה")
+                        Text(tr("מחק משימה", "Delete task"))
                     }
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.limorDanger)
@@ -548,5 +810,29 @@ private struct TaskDetailPane: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 12).fill(.ultraThinMaterial))
         }
+    }
+}
+
+// MARK: - Color ↔ hex (for manual tag colors)
+
+extension Color {
+    /// "#RRGGBB" → Color. Returns nil for malformed strings.
+    init?(hexString: String) {
+        var s = hexString.trimmingCharacters(in: .whitespaces)
+        if s.hasPrefix("#") { s.removeFirst() }
+        guard s.count == 6, let v = Int(s, radix: 16) else { return nil }
+        self = Color(
+            red: Double((v >> 16) & 0xFF) / 255,
+            green: Double((v >> 8) & 0xFF) / 255,
+            blue: Double(v & 0xFF) / 255
+        )
+    }
+
+    /// "#RRGGBB" for the current resolved color.
+    var hexString: String {
+        let ui = UIColor(self)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        ui.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
     }
 }

@@ -38,14 +38,14 @@ extension Color {
         light: Color(red: 0.984, green: 0.973, blue: 1.0),   // #FBF8FF
         dark:  Color(red: 0.043, green: 0.035, blue: 0.090)  // #0B0917
     )
-    static let limorInk = dynamicColor(
-        light: Color(red: 0.102, green: 0.094, blue: 0.196), // #1A1832
-        dark:  Color(red: 0.953, green: 0.945, blue: 1.0)    // #F3F1FF
-    )
-    static let limorMuted = dynamicColor(
-        light: Color(red: 0.522, green: 0.510, blue: 0.604), // #85829A
-        dark:  Color(red: 0.620, green: 0.604, blue: 0.722)  // #9E9AB8
-    )
+    // `limorInk` / `limorMuted` / `splashBase` are defined as adaptive
+    // Color Sets in Assets.xcassets so the LaunchScreen.storyboard can
+    // reference the exact same values by name — one source of truth keeps
+    // the launch screen and the SwiftUI splash pixel-identical.
+    //   LimorInk:   light #1A1832 / dark #F3F1FF
+    //   LimorMuted: light #85829A / dark #9E9AB8
+    static let limorInk = Color("LimorInk")
+    static let limorMuted = Color("LimorMuted")
 
     /// Tab bar tint. Light mode reuses the brand indigo (#504AE5) which
     /// pops nicely on the bright pastel canvas. In dark mode that same
@@ -61,12 +61,10 @@ extension Color {
 
     /// Splash + LaunchScreen base. Soft pastel lavender in light, a
     /// deep midnight indigo in dark — both keep the colourful logo +
-    /// Hebrew tagline readable. Must match `UILaunchScreen` color so
-    /// the cross-fade from launch into the SwiftUI splash is seamless.
-    static let splashBase = dynamicColor(
-        light: Color(red: 0.937, green: 0.918, blue: 0.992), // #EFEAFD
-        dark:  Color(red: 0.082, green: 0.067, blue: 0.176)  // #15112D
-    )
+    /// Hebrew tagline readable. Defined as the `SplashBase` Color Set so
+    /// `UILaunchScreen` and this SwiftUI splash share the exact value —
+    /// the launch → SwiftUI hand-off is seamless. (light #EFEAFD / dark #15112D)
+    static let splashBase = Color("SplashBase")
 
     /// Surface used by the chat's assistant bubbles, typing indicator,
     /// and suggestion rows. White in light mode (so the bubble feels
@@ -204,10 +202,10 @@ enum LimorTimeOfDay {
 
     var greeting: String {
         switch self {
-        case .morning: return "בוקר טוב"
-        case .noon:    return "צהריים טובים"
-        case .evening: return "ערב טוב"
-        case .night:   return "לילה טוב"
+        case .morning: return tr("בוקר טוב", "Good morning")
+        case .noon:    return tr("צהריים טובים", "Good afternoon")
+        case .evening: return tr("ערב טוב", "Good evening")
+        case .night:   return tr("לילה טוב", "Good night")
         }
     }
 

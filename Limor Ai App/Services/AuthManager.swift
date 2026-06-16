@@ -16,6 +16,9 @@ final class AuthManager: ObservableObject {
     @Published private(set) var displayName: String?
     @Published private(set) var photoB64: String?
     @Published private(set) var email: String?
+    /// Provider IDs linked to the current account ("apple.com", "google.com").
+    /// Drives the "link account" UI in Settings.
+    @Published private(set) var linkedProviders: Set<String> = []
 
     var token: String? { nil }
 
@@ -160,6 +163,80 @@ final class AuthManager: ObservableObject {
         }
     }
 
+    // MARK: - Account linking (same account across providers)
+    //
+    // Linking lets one user sign in with *either* Apple or Google and land on
+    // the same account — e.g. someone who signed up with Apple's hidden relay
+    // email on their iPhone can link Google here, then sign in with Google on
+    // an iPad and reach the very same account + data. We capture the real
+    // identity via OAuth (no manual email typing), which is reliable: Firebase
+    // stores the extra provider on this uid, so a later sign-in with it
+    // resolves back to this account.
+
+    func refreshLinkedProviders() {
+        linkedProviders = Set(Auth.auth().currentUser?.providerData.map(\.providerID) ?? [])
+    }
+
+    /// Link a Google identity to the current account.
+    func linkGoogle() async throws {
+        guard let user = Auth.auth().currentUser else { throw AuthError.notSignedIn }
+        guard let clientID = FirebaseApp.app()?.options.clientID else {
+            throw AuthError.googleConfigMissing
+        }
+        GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+        guard let presenting = topViewController() else {
+            throw AuthError.noPresentingViewController
+        }
+        let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: presenting)
+        guard let idToken = result.user.idToken?.tokenString else {
+            throw AuthError.missingIdentityToken
+        }
+        let credential = GoogleAuthProvider.credential(
+            withIDToken: idToken,
+            accessToken: result.user.accessToken.tokenString
+        )
+        do { _ = try await user.link(with: credential) }
+        catch { throw mapLinkError(error) }
+        refreshLinkedProviders()
+    }
+
+    /// Prepare an Apple authorization request for *linking* (reuses the same
+    /// nonce/scope setup as sign-in).
+    func prepareLinkRequest(_ request: ASAuthorizationAppleIDRequest) {
+        prepareSignInRequest(request)
+    }
+
+    /// Link an Apple identity to the current account.
+    func completeAppleLink(authorization: ASAuthorization) async throws {
+        guard let user = Auth.auth().currentUser else { throw AuthError.notSignedIn }
+        guard
+            let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+            let identityTokenData = credential.identityToken,
+            let identityToken = String(data: identityTokenData, encoding: .utf8),
+            let nonce = currentNonce
+        else { throw AuthError.missingIdentityToken }
+
+        let firebaseCredential = OAuthProvider.appleCredential(
+            withIDToken: identityToken,
+            rawNonce: nonce,
+            fullName: credential.fullName
+        )
+        currentNonce = nil
+        do { _ = try await user.link(with: firebaseCredential) }
+        catch { throw mapLinkError(error) }
+        refreshLinkedProviders()
+    }
+
+    private func mapLinkError(_ error: Error) -> Error {
+        let code = (error as NSError).code
+        if code == AuthErrorCode.providerAlreadyLinked.rawValue { return AuthError.alreadyLinked }
+        if code == AuthErrorCode.credentialAlreadyInUse.rawValue
+            || code == AuthErrorCode.emailAlreadyInUse.rawValue {
+            return AuthError.linkConflict
+        }
+        return error
+    }
+
     // MARK: - Sign out
 
     func signOut() {
@@ -186,6 +263,7 @@ final class AuthManager: ObservableObject {
                 SharedStore.baseURL = url
             }
             state = .signedIn
+            refreshLinkedProviders()
             // Eagerly mint a Firebase ID token so the App Group bearer is
             // populated for the Widget + Share Extension right after sign-in,
             // rather than waiting for the next outgoing API call to do it.
@@ -307,12 +385,18 @@ enum AuthError: LocalizedError {
     case missingIdentityToken
     case googleConfigMissing
     case noPresentingViewController
+    case notSignedIn
+    case alreadyLinked
+    case linkConflict
 
     var errorDescription: String? {
         switch self {
-        case .missingIdentityToken: return "Apple/Google לא החזירו identity token."
-        case .googleConfigMissing:  return "GoogleService-Info.plist חסר או פגום."
-        case .noPresentingViewController: return "לא הצלחתי לפתוח את חלון הכניסה של Google."
+        case .missingIdentityToken: return tr("Apple/Google לא החזירו identity token.", "Apple/Google didn't return an identity token.")
+        case .googleConfigMissing:  return tr("GoogleService-Info.plist חסר או פגום.", "GoogleService-Info.plist is missing or corrupted.")
+        case .noPresentingViewController: return tr("לא הצלחתי לפתוח את חלון הכניסה של Google.", "Couldn't open the Google sign-in window.")
+        case .notSignedIn: return tr("צריך להיות מחובר כדי לקשר חשבון.", "You need to be signed in to link an account.")
+        case .alreadyLinked: return tr("החשבון הזה כבר מקושר.", "This account is already linked.")
+        case .linkConflict: return tr("החשבון הזה כבר משויך למשתמש אחר ב-Limor. אם זה אתה — התחבר איתו ישירות, או נתק אותו שם קודם.", "This account is already linked to another user on Limor. If that's you — sign in with it directly, or unlink it there first.")
         }
     }
 }

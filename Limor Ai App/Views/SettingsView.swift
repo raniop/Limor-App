@@ -1,3 +1,4 @@
+import AuthenticationServices
 import EventKit
 import PhotosUI
 import SwiftUI
@@ -6,6 +7,7 @@ import UserNotifications
 
 struct SettingsView: View {
     @EnvironmentObject private var auth: AuthManager
+    @EnvironmentObject private var lang: LanguageManager
     @Environment(\.scenePhase) private var scenePhase
     @State private var nameDraft: String = ""
     @State private var photoItem: PhotosPickerItem?
@@ -21,6 +23,9 @@ struct SettingsView: View {
     @State private var crmPushPending = false
     @State private var pushDiagnosticRunning = false
     @State private var pushDiagnosticStatus: String?
+    // Account linking (sign in with either provider, same account).
+    @State private var linkingGoogle = false
+    @State private var linkSuccess: String?
     /// Source image loaded from PhotosPicker, awaiting the user's crop
     /// confirmation. Stored as IdentifiedImage rather than UIImage so the
     /// `.sheet(item:)` modifier sees a *stable* identifier across renders
@@ -28,6 +33,13 @@ struct SettingsView: View {
     /// body evaluation made SwiftUI think each render was a *new* sheet
     /// to present, and the cropper opened-and-closed in a tight loop.
     @State private var photoPendingCrop: IdentifiedImage?
+
+    // Organization / B2B license.
+    @State private var currentOrg: APIClient.OrgInfo?
+    @State private var licenseDraft: String = ""
+    @State private var joiningOrg = false
+    @State private var orgError: String?
+    @State private var myCompany: APIClient.CompanyBilling?
 
     /// Selected custom tab kind, mirrored from SharedStore via @AppStorage
     /// so toggling here reactively redraws both this view AND MainTabs.
@@ -41,7 +53,10 @@ struct SettingsView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
+                        if isOwner { ownerAdminCard }
+                        if myCompany != nil { companyManagerCard }
                         profileCard
+                        languageCard
                         memoryCard
                         familyCard
                         notificationsCard
@@ -53,7 +68,9 @@ struct SettingsView: View {
                         sourcesCard
                         customTabCard
                         remindersListCard
+                        organizationCard
                         permissionsCard
+                        linkAccountsCard
                         accountCard
                         buildFooter
                     }
@@ -62,12 +79,14 @@ struct SettingsView: View {
                     .limorReadableWidth()
                 }
             }
-            .navigationTitle("הגדרות")
+            .navigationTitle(tr("הגדרות", "Settings"))
             .navigationBarTitleDisplayMode(.large)
             .task {
                 nameDraft = auth.displayName ?? ""
                 await refreshPermissions()
                 await loadCrmStatus()
+                currentOrg = try? await APIClient.shared.getMyOrg()
+                myCompany = try? await APIClient.shared.getMyCompany()
             }
             .navigationDestination(isPresented: $crmPushPending) {
                 if let status = crmStatus, status.allowed {
@@ -179,11 +198,11 @@ struct SettingsView: View {
                     await SyncManager.shared.syncEmail(force: true)
                 }
             }
-            .alert("שגיאה", isPresented: .init(
+            .alert(tr("שגיאה", "Error"), isPresented: .init(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
             )) {
-                Button("אוקיי", role: .cancel) {}
+                Button(tr("אוקיי", "OK"), role: .cancel) {}
             } message: {
                 Text(errorMessage ?? "")
             }
@@ -218,11 +237,11 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("איך לימור פונה אליך")
+                    Text(tr("איך לימור פונה אליך", "How Limor addresses you"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.limorMuted)
                     HStack(spacing: 8) {
-                        TextField("השם שלך", text: $nameDraft)
+                        TextField(tr("השם שלך", "Your name"), text: $nameDraft)
                             .textFieldStyle(.roundedBorder)
                             .submitLabel(.done)
                             .onSubmit { Task { await saveName() } }
@@ -235,7 +254,7 @@ struct SettingsView: View {
                                     .padding(.horizontal, 12).padding(.vertical, 8)
                                     .background(Capsule().fill(LimorGradient.brand))
                             } else {
-                                Text("שמור")
+                                Text(tr("שמור", "Save"))
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, 14).padding(.vertical, 8)
@@ -276,10 +295,10 @@ struct SettingsView: View {
                             .foregroundStyle(.limorViolet)
                     }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("מה לימור יודעת עליי")
+                        Text(tr("מה לימור יודעת עליי", "What Limor knows about me"))
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.limorInk)
-                        Text("הצג, ערוך או הסר פרטים שלימור זוכרת")
+                        Text(tr("הצג, ערוך או הסר פרטים שלימור זוכרת", "View, edit, or remove details Limor remembers"))
                             .font(.caption)
                             .foregroundStyle(.limorMuted)
                             .lineLimit(1)
@@ -311,10 +330,10 @@ struct SettingsView: View {
                             .foregroundStyle(.limorPink)
                     }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("המשפחה שלי")
+                        Text(tr("המשפחה שלי", "My family"))
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.limorInk)
-                        Text("קשר בני משפחה לאנשי הקשר שלך")
+                        Text(tr("קשר בני משפחה לאנשי הקשר שלך", "Link family members to your contacts"))
                             .font(.caption)
                             .foregroundStyle(.limorMuted)
                             .lineLimit(1)
@@ -346,7 +365,7 @@ struct SettingsView: View {
                             .foregroundStyle(.limorMint)
                     }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("חיבור ל-CRM")
+                        Text(tr("חיבור ל-CRM", "CRM connection"))
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.limorInk)
                         Text(crmCardSubtitle)
@@ -371,12 +390,12 @@ struct SettingsView: View {
     }
 
     private var crmCardSubtitle: String {
-        guard let status = crmStatus else { return "טוען…" }
+        guard let status = crmStatus else { return tr("טוען…", "Loading…") }
         if status.connected {
-            if let phone = status.phone_number, !phone.isEmpty { return "מחובר · \(phone)" }
-            return "מחובר"
+            if let phone = status.phone_number, !phone.isEmpty { return tr("מחובר · \(phone)", "Connected · \(phone)") }
+            return tr("מחובר", "Connected")
         }
-        return "לא מחובר · נדרש Face ID"
+        return tr("לא מחובר · נדרש Face ID", "Not connected · Face ID required")
     }
 
     private func loadCrmStatus() async {
@@ -393,7 +412,7 @@ struct SettingsView: View {
     private func openCrmGated() async {
         do {
             try await BiometricGate.authenticate(
-                reason: "אימות נדרש לפתיחת חיבור ה-CRM"
+                reason: tr("אימות נדרש לפתיחת חיבור ה-CRM", "Authentication required to open the CRM connection")
             )
             crmPushPending = true
         } catch BiometricGate.AuthError.canceled {
@@ -420,10 +439,10 @@ struct SettingsView: View {
                             .foregroundStyle(.limorIndigo)
                     }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("התראות יומיות")
+                        Text(tr("התראות יומיות", "Daily notifications"))
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.limorInk)
-                        Text("בוקר טוב, סיכום ערב, ופיד יומי")
+                        Text(tr("בוקר טוב, סיכום ערב, ופיד יומי", "Good morning, evening recap, and daily feed"))
                             .font(.caption)
                             .foregroundStyle(.limorMuted)
                             .lineLimit(1)
@@ -443,19 +462,19 @@ struct SettingsView: View {
     private var sourcesCard: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 14) {
-                SectionLabel(icon: "rectangle.connected.to.line.below", title: "מקורות נתונים")
+                SectionLabel(icon: "rectangle.connected.to.line.below", title: tr("מקורות נתונים", "Data sources"))
 
-                Text("אפשר לבחור כמה מקורות במקביל — לימור תאחד את הכל.")
+                Text(tr("אפשר לבחור כמה מקורות במקביל — לימור תאחד את הכל.", "You can select several sources at once — Limor will combine them all."))
                     .font(.caption)
                     .foregroundStyle(.limorMuted)
 
                 MultiSourcePicker(
-                    title: "יומן",
+                    title: tr("יומן", "Calendar"),
                     iconName: "calendar",
                     options: [
-                        .init(value: .apple,     label: "אפל (iOS Calendar)", description: "כולל כל היומנים שחיברת ב-iOS"),
-                        .init(value: .google,    label: "Google Calendar", description: "דורש חיבור Google + אישור scope"),
-                        .init(value: .microsoft, label: "Outlook / Office 365", description: "דורש חיבור Microsoft + אישור scope"),
+                        .init(value: .apple,     label: tr("אפל (iOS Calendar)", "Apple (iOS Calendar)"), description: tr("כולל כל היומנים שחיברת ב-iOS", "Includes every calendar you've connected in iOS")),
+                        .init(value: .google,    label: "Google Calendar", description: tr("דורש חיבור Google + אישור scope", "Requires a Google connection + scope approval")),
+                        .init(value: .microsoft, label: "Outlook / Office 365", description: tr("דורש חיבור Microsoft + אישור scope", "Requires a Microsoft connection + scope approval")),
                     ],
                     selection: $calendarSources
                 )
@@ -463,11 +482,11 @@ struct SettingsView: View {
                 Divider().padding(.vertical, 4)
 
                 MultiSourcePicker(
-                    title: "מייל",
+                    title: tr("מייל", "Mail"),
                     iconName: "envelope",
                     options: [
-                        .init(value: .google,    label: "Gmail", description: "דורש חיבור Google + אישור scope"),
-                        .init(value: .microsoft, label: "Outlook / Office 365", description: "דורש חיבור Microsoft + אישור scope"),
+                        .init(value: .google,    label: "Gmail", description: tr("דורש חיבור Google + אישור scope", "Requires a Google connection + scope approval")),
+                        .init(value: .microsoft, label: "Outlook / Office 365", description: tr("דורש חיבור Microsoft + אישור scope", "Requires a Microsoft connection + scope approval")),
                     ],
                     selection: $emailSources
                 )
@@ -484,18 +503,132 @@ struct SettingsView: View {
     private var customTabCard: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 14) {
-                SectionLabel(icon: "rectangle.stack.badge.plus", title: "כפתור מהיר בתחתית")
+                SectionLabel(icon: "rectangle.stack.badge.plus", title: tr("כפתור מהיר בתחתית", "Quick button at the bottom"))
 
-                Text("אפשר להצמיד קיצור דרך נוסף לסרגל התחתון, ליד \"הפיד שלי\".")
+                Text(tr("אפשר להצמיד קיצור דרך נוסף לסרגל התחתון, ליד \"הפיד שלי\".", "You can pin an extra shortcut to the bottom bar, next to \"My feed\"."))
                     .font(.caption)
                     .foregroundStyle(.limorMuted)
 
                 VStack(spacing: 6) {
-                    customTabRow(value: nil, label: "ללא", icon: "minus.circle")
-                    customTabRow(value: .shoppingList, label: "רשימת קניות", icon: "cart.fill")
-                    customTabRow(value: .meetings, label: "פגישות", icon: "calendar")
+                    customTabRow(value: nil, label: tr("ללא", "None"), icon: "minus.circle")
+                    customTabRow(value: .shoppingList, label: tr("רשימת קניות", "Shopping list"), icon: "cart.fill")
+                    customTabRow(value: .meetings, label: tr("פגישות", "Meetings"), icon: "calendar")
                 }
             }
+        }
+    }
+
+    /// The app owner sees an extra entry to the company-management screen.
+    /// Must match OWNER_EMAIL on the backend.
+    private var isOwner: Bool {
+        (auth.email ?? "").lowercased() == "ranioph@gmail.com"
+    }
+
+    /// Shown to a user who manages a company — opens their company's billing.
+    private var companyManagerCard: some View {
+        NavigationLink {
+            CompanyManagerView(initial: myCompany)
+        } label: {
+            GlassCard {
+                HStack(spacing: 12) {
+                    Image(systemName: "building.2.fill")
+                        .font(.title3).foregroundStyle(.limorMint)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(tr("החברה שלי — \(myCompany?.name ?? "")", "My company — \(myCompany?.name ?? "")"))
+                            .font(.subheadline.weight(.bold)).foregroundStyle(.limorInk).lineLimit(1)
+                        Text(tr("כמה החברה משלמת החודש ופירוק לפי משתמש", "How much the company pays this month and a per-user breakdown"))
+                            .font(.caption).foregroundStyle(.limorMuted)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.left").font(.caption.weight(.bold)).foregroundStyle(.limorMuted)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var ownerAdminCard: some View {
+        NavigationLink {
+            AdminBillingView()
+        } label: {
+            GlassCard {
+                HStack(spacing: 12) {
+                    Image(systemName: "chart.bar.doc.horizontal.fill")
+                        .font(.title3).foregroundStyle(.limorIndigo)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(tr("ניהול חברות וחיוב", "Company & billing management"))
+                            .font(.subheadline.weight(.bold)).foregroundStyle(.limorInk)
+                        Text(tr("צור חברות, קודי רישיון, וכמה לגבות החודש", "Create companies, license codes, and how much to charge this month"))
+                            .font(.caption).foregroundStyle(.limorMuted)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.left").font(.caption.weight(.bold)).foregroundStyle(.limorMuted)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Organization / B2B license — a company user enters the license code
+    /// their company received, so their usage is billed to that company.
+    private var organizationCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionLabel(icon: "building.2.fill", title: tr("ארגון / רישיון", "Organization / license"))
+
+                if let org = currentOrg {
+                    HStack(spacing: 10) {
+                        Image(systemName: "checkmark.seal.fill").foregroundStyle(.limorMint)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(tr("מחובר ל-\(org.name)", "Connected to \(org.name)"))
+                                .font(.subheadline.weight(.semibold)).foregroundStyle(.limorInk)
+                            Text(tr("השימוש שלך מחויב לארגון זה", "Your usage is billed to this organization"))
+                                .font(.caption).foregroundStyle(.limorMuted)
+                        }
+                        Spacer()
+                    }
+                    Button(role: .destructive) {
+                        Task {
+                            try? await APIClient.shared.leaveOrg()
+                            currentOrg = nil
+                        }
+                    } label: {
+                        Text(tr("ניתוק מהארגון", "Disconnect from organization")).font(.subheadline.weight(.semibold))
+                    }
+                } else {
+                    Text(tr("יש לך קוד רישיון מחברה? הזן אותו כדי לחבר את החשבון לארגון.", "Have a license code from a company? Enter it to connect your account to the organization."))
+                        .font(.caption).foregroundStyle(.limorMuted)
+                    HStack(spacing: 8) {
+                        TextField(tr("קוד רישיון", "License code"), text: $licenseDraft)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                            .padding(10)
+                            .background(RoundedRectangle(cornerRadius: 10).fill(Color.limorInk.opacity(0.06)))
+                        Button {
+                            Task { await joinOrg() }
+                        } label: {
+                            if joiningOrg { ProgressView() }
+                            else { Text(tr("חיבור", "Connect")).font(.subheadline.weight(.bold)) }
+                        }
+                        .disabled(joiningOrg || licenseDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    if let orgError {
+                        Text(orgError).font(.caption).foregroundStyle(.limorCoral)
+                    }
+                }
+            }
+        }
+    }
+
+    private func joinOrg() async {
+        joiningOrg = true; orgError = nil
+        defer { joiningOrg = false }
+        do {
+            currentOrg = try await APIClient.shared.joinOrg(
+                licenseCode: licenseDraft.trimmingCharacters(in: .whitespaces))
+            licenseDraft = ""
+        } catch {
+            orgError = tr("קוד לא תקין או שאינו פעיל.", "Invalid or inactive code.")
         }
     }
 
@@ -533,19 +666,19 @@ struct SettingsView: View {
     private var remindersListCard: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 14) {
-                SectionLabel(icon: "list.bullet.rectangle", title: "רשימת תזכורות")
+                SectionLabel(icon: "list.bullet.rectangle", title: tr("רשימת תזכורות", "Reminders list"))
 
-                Text("לאן לימור תוסיף תזכורות באפליקציית Reminders של אפל.")
+                Text(tr("לאן לימור תוסיף תזכורות באפליקציית Reminders של אפל.", "Where Limor will add reminders in Apple's Reminders app."))
                     .font(.caption)
                     .foregroundStyle(.limorMuted)
 
                 if reminderLists.isEmpty {
                     HStack {
-                        Text("אין הרשאת תזכורות עדיין")
+                        Text(tr("אין הרשאת תזכורות עדיין", "No Reminders permission yet"))
                             .font(.subheadline)
                             .foregroundStyle(.limorMuted)
                         Spacer()
-                        Button("בקש הרשאה") {
+                        Button(tr("בקש הרשאה", "Request permission")) {
                             Task {
                                 _ = await RemindersWriter.shared.requestAccess()
                                 await loadReminderLists()
@@ -561,7 +694,7 @@ struct SettingsView: View {
                             SharedStore.remindersListId = nil
                         } label: {
                             HStack {
-                                Text("ברירת מחדל של iOS")
+                                Text(tr("ברירת מחדל של iOS", "iOS default"))
                                 if selectedReminderListId == nil {
                                     Image(systemName: "checkmark")
                                 }
@@ -612,7 +745,7 @@ struct SettingsView: View {
            let cal = reminderLists.first(where: { $0.calendarIdentifier == id }) {
             return cal.title
         }
-        return "ברירת מחדל של iOS"
+        return tr("ברירת מחדל של iOS", "iOS default")
     }
 
     private var currentListColor: Color {
@@ -634,7 +767,7 @@ struct SettingsView: View {
         GlassCard {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    SectionLabel(icon: "checkmark.shield", title: "הרשאות")
+                    SectionLabel(icon: "checkmark.shield", title: tr("הרשאות", "Permissions"))
                     Spacer()
                     Button {
                         Task {
@@ -644,7 +777,7 @@ struct SettingsView: View {
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.triangle.2.circlepath").font(.caption2.weight(.bold))
-                            Text("סנכרן עכשיו").font(.caption.weight(.semibold))
+                            Text(tr("סנכרן עכשיו", "Sync now")).font(.caption.weight(.semibold))
                         }
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10).padding(.vertical, 5)
@@ -655,7 +788,7 @@ struct SettingsView: View {
 
                 PermissionRow(
                     icon: "calendar",
-                    title: "יומן (iOS)",
+                    title: tr("יומן (iOS)", "Calendar (iOS)"),
                     granted: permissionSnapshot.calendar,
                     action: { await requestCalendar() }
                 )
@@ -677,7 +810,7 @@ struct SettingsView: View {
                 }
                 PermissionRow(
                     icon: "person.crop.circle",
-                    title: "אנשי קשר",
+                    title: tr("אנשי קשר", "Contacts"),
                     granted: permissionSnapshot.contacts,
                     action: { await requestContacts() }
                 )
@@ -699,19 +832,19 @@ struct SettingsView: View {
                 }
                 PermissionRow(
                     icon: "heart.fill",
-                    title: "בריאות",
+                    title: tr("בריאות", "Health"),
                     granted: permissionSnapshot.health,
                     action: { await requestHealth() }
                 )
                 PermissionRow(
                     icon: "location.fill",
-                    title: "מיקום",
+                    title: tr("מיקום", "Location"),
                     granted: permissionSnapshot.location,
                     action: { LocationManager.shared.requestWhenInUseAndStart() }
                 )
                 PermissionRow(
                     icon: "bell.fill",
-                    title: "התראות",
+                    title: tr("התראות", "Notifications"),
                     granted: permissionSnapshot.notifications,
                     action: { await requestOrOpenNotificationSettings() }
                 )
@@ -738,10 +871,10 @@ struct SettingsView: View {
                         .font(.subheadline).foregroundStyle(.limorIndigo)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("בדוק התראות")
+                    Text(tr("בדוק התראות", "Test notifications"))
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.limorInk)
-                    Text(pushDiagnosticStatus ?? "שולח התראת בדיקה ומחדש רישום לשרת")
+                    Text(pushDiagnosticStatus ?? tr("שולח התראת בדיקה ומחדש רישום לשרת", "Sends a test notification and re-registers with the server"))
                         .font(.caption2)
                         .foregroundStyle(pushDiagnosticStatus == nil ? .limorMuted : .limorInk)
                         .multilineTextAlignment(.leading)
@@ -786,15 +919,15 @@ struct SettingsView: View {
         guard settings.authorizationStatus == .authorized
                 || settings.authorizationStatus == .provisional
         else {
-            pushDiagnosticStatus = "התראות חסומות במערכת. פתח הגדרות → לימור → התראות"
+            pushDiagnosticStatus = tr("התראות חסומות במערכת. פתח הגדרות → לימור → התראות", "Notifications are blocked in system settings. Open Settings → Limor → Notifications")
             return
         }
 
         await PushManager.shared.refreshAndUploadToken()
 
         let content = UNMutableNotificationContent()
-        content.title = "בדיקת התראות"
-        content.body = "אם אתה רואה את זה, מערכת ההתראות עובדת ✅"
+        content.title = tr("בדיקת התראות", "Notification test")
+        content.body = tr("אם אתה רואה את זה, מערכת ההתראות עובדת ✅", "If you see this, the notification system is working ✅")
         content.sound = .default
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false)
         let request = UNNotificationRequest(
@@ -806,10 +939,10 @@ struct SettingsView: View {
             try await UNUserNotificationCenter.current().add(request)
             let hasToken = PushManager.shared.fcmToken != nil
             pushDiagnosticStatus = hasToken
-                ? "נשלחה התראה מקומית. הרישום לשרת חודש ✅"
-                : "התראה מקומית נשלחה, אבל אין עדיין FCM token. נסה שוב בעוד רגע."
+                ? tr("נשלחה התראה מקומית. הרישום לשרת חודש ✅", "Local notification sent. Server registration refreshed ✅")
+                : tr("התראה מקומית נשלחה, אבל אין עדיין FCM token. נסה שוב בעוד רגע.", "Local notification sent, but there's no FCM token yet. Try again in a moment.")
         } catch {
-            pushDiagnosticStatus = "שגיאה: \(error.localizedDescription)"
+            pushDiagnosticStatus = tr("שגיאה: \(error.localizedDescription)", "Error: \(error.localizedDescription)")
         }
     }
 
@@ -827,7 +960,7 @@ struct SettingsView: View {
         // regenerate the bundled plist *after* our script and wipe
         // the LIMOR_GIT_SHA key that lived there.
         return VStack(spacing: 4) {
-            Text("גרסה \(short) (\(build)) · \(BuildInfo.gitSha)")
+            Text(tr("גרסה \(short) (\(build)) · \(BuildInfo.gitSha)", "Version \(short) (\(build)) · \(BuildInfo.gitSha)"))
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.limorMuted)
         }
@@ -835,17 +968,134 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity)
     }
 
+    private var languageCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel(icon: "globe", title: tr("שפה", "Language"))
+                Picker("", selection: Binding(
+                    get: { lang.lang },
+                    set: { lang.lang = $0 }
+                )) {
+                    ForEach(AppLang.allCases) { l in
+                        Text(l.display).tag(l)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text(tr(
+                    "משנה את כל האפליקציה — גם הטקסטים וגם מה שלימור כותבת.",
+                    "Switches the whole app — both the interface and what Limor writes."
+                ))
+                .font(.caption).foregroundStyle(.limorMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var linkAccountsCard: some View {
+        let appleLinked = auth.linkedProviders.contains("apple.com")
+        let googleLinked = auth.linkedProviders.contains("google.com")
+        return GlassCard {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel(icon: "link", title: tr("קישור חשבונות", "Link accounts"))
+
+                Text(tr("קשרי גם Apple וגם Google לאותו חשבון — כך תוכלי להתחבר עם כל אחד מהם בכל מכשיר ולהגיע לאותם הנתונים. נוח כשמתחברים במכשיר חדש.", "Link both Apple and Google to the same account — so you can sign in with either one on any device and reach the same data. Handy when signing in on a new device."))
+                    .font(.caption).foregroundStyle(.limorMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                // Apple
+                providerRow(
+                    icon: "apple.logo", name: "Apple", linked: appleLinked
+                ) {
+                    SignInWithAppleButton(.continue) { request in
+                        auth.prepareLinkRequest(request)
+                    } onCompletion: { result in
+                        switch result {
+                        case .success(let authorization):
+                            Task { await linkApple(authorization) }
+                        case .failure(let err):
+                            if (err as NSError).code != ASAuthorizationError.canceled.rawValue {
+                                errorMessage = err.localizedDescription
+                            }
+                        }
+                    }
+                    .signInWithAppleButtonStyle(.black)
+                    .frame(width: 120, height: 34)
+                }
+
+                // Google
+                providerRow(
+                    icon: "g.circle.fill", name: "Google", linked: googleLinked
+                ) {
+                    Button {
+                        Task { await linkGoogle() }
+                    } label: {
+                        if linkingGoogle {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Text(tr("קשר", "Link")).font(.subheadline.weight(.semibold))
+                        }
+                    }
+                    .buttonStyle(.borderedProminent).tint(.limorIndigo)
+                    .disabled(linkingGoogle)
+                }
+
+                if let linkSuccess {
+                    Label(linkSuccess, systemImage: "checkmark.circle.fill")
+                        .font(.caption.weight(.semibold)).foregroundStyle(.green)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func providerRow<Trailing: View>(
+        icon: String, name: String, linked: Bool,
+        @ViewBuilder action: () -> Trailing
+    ) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).font(.title3).frame(width: 26)
+            Text(name).font(.subheadline.weight(.semibold)).foregroundStyle(.limorInk)
+            Spacer()
+            if linked {
+                Label(tr("מקושר", "Linked"), systemImage: "checkmark.circle.fill")
+                    .font(.caption.weight(.semibold)).foregroundStyle(.green)
+            } else {
+                action()
+            }
+        }
+    }
+
+    private func linkGoogle() async {
+        linkingGoogle = true
+        defer { linkingGoogle = false }
+        do {
+            try await auth.linkGoogle()
+            linkSuccess = tr("Google קושר בהצלחה ✨", "Google linked successfully ✨")
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func linkApple(_ authorization: ASAuthorization) async {
+        do {
+            try await auth.completeAppleLink(authorization: authorization)
+            linkSuccess = tr("Apple קושר בהצלחה ✨", "Apple linked successfully ✨")
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private var accountCard: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 12) {
-                SectionLabel(icon: "person.crop.circle.badge.minus", title: "חשבון")
+                SectionLabel(icon: "person.crop.circle.badge.minus", title: tr("חשבון", "Account"))
 
                 Button(role: .destructive) {
                     auth.signOut()
                 } label: {
                     HStack {
                         Image(systemName: "rectangle.portrait.and.arrow.right")
-                        Text("יציאה").font(.subheadline.weight(.semibold))
+                        Text(tr("יציאה", "Sign out")).font(.subheadline.weight(.semibold))
                         Spacer()
                     }
                     .foregroundStyle(.limorDanger)
@@ -882,7 +1132,7 @@ struct SettingsView: View {
         do {
             guard let data = try await item.loadTransferable(type: Data.self),
                   let uiImage = UIImage(data: data) else {
-                errorMessage = "לא הצלחתי לטעון את התמונה."
+                errorMessage = tr("לא הצלחתי לטעון את התמונה.", "I couldn't load the image.")
                 photoItem = nil
                 return
             }
@@ -897,7 +1147,7 @@ struct SettingsView: View {
         savingPhoto = true
         defer { savingPhoto = false }
         guard let jpeg = image.jpegData(compressionQuality: 0.7) else {
-            errorMessage = "לא הצלחתי לדחוס את התמונה."
+            errorMessage = tr("לא הצלחתי לדחוס את התמונה.", "I couldn't compress the image.")
             return
         }
         do {
@@ -1019,7 +1269,7 @@ private struct PermissionRow: View {
             if granted {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill")
-                    Text("מאושר")
+                    Text(tr("מאושר", "Granted"))
                 }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.limorSuccess)
@@ -1032,7 +1282,7 @@ private struct PermissionRow: View {
                             .padding(.horizontal, 12).padding(.vertical, 6)
                             .background(Capsule().fill(LimorGradient.brand))
                     } else {
-                        Text("הפעל")
+                        Text(tr("הפעל", "Enable"))
                             .font(.caption.weight(.bold)).foregroundStyle(.white)
                             .padding(.horizontal, 12).padding(.vertical, 6)
                             .background(Capsule().fill(LimorGradient.brand))

@@ -225,9 +225,9 @@ private let weekdayLong  = ["יום ראשון", "יום שני", "יום שלי
 /// selected, "ימי חול" / "סופ״ש" when those exact sets match.
 private func weekdayList(_ days: Set<Int>) -> String {
     guard !days.isEmpty else { return "" }
-    if days.count == 7 { return "כל יום" }
-    if days == [1, 2, 3, 4, 5] { return "ימי חול (א–ה)" }
-    if days == [6, 7] { return "סופ״ש (ו, ש)" }
+    if days.count == 7 { return tr("כל יום", "Every day") }
+    if days == [1, 2, 3, 4, 5] { return tr("ימי חול (א–ה)", "Weekdays (Sun–Thu)") }
+    if days == [6, 7] { return tr("סופ״ש (ו, ש)", "Weekend (Fri, Sat)") }
     return days.sorted().map { weekdayShort[$0 - 1] }.joined(separator: ", ")
 }
 
@@ -247,7 +247,7 @@ struct RecurringRemindersView: View {
                 list
             }
         }
-        .navigationTitle("תזכורות חוזרות")
+        .navigationTitle(tr("תזכורות חוזרות", "Recurring reminders"))
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -327,7 +327,7 @@ struct RecurringRemindersView: View {
             Button(role: .destructive) {
                 store.remove(reminder.id)
             } label: {
-                Label("מחק", systemImage: "trash")
+                Label(tr("מחק", "Delete"), systemImage: "trash")
             }
         }
     }
@@ -353,10 +353,10 @@ struct RecurringRemindersView: View {
             Image(systemName: "alarm")
                 .font(.system(size: 56, weight: .light))
                 .foregroundStyle(.limorMuted)
-            Text("אין עדיין תזכורות חוזרות")
+            Text(tr("אין עדיין תזכורות חוזרות", "No recurring reminders yet"))
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.limorInk)
-            Text("הוסף תזכורת חוזרת — לדוגמה, השכמה בכל יום שלישי בשעה 07:45.")
+            Text(tr("הוסף תזכורת חוזרת — לדוגמה, השכמה בכל יום שלישי בשעה 07:45.", "Add a recurring reminder — for example, a wake-up every Tuesday at 07:45."))
                 .font(.subheadline)
                 .foregroundStyle(.limorMuted)
                 .multilineTextAlignment(.center)
@@ -364,7 +364,7 @@ struct RecurringRemindersView: View {
             Button {
                 showingNew = true
             } label: {
-                Text("צור תזכורת חוזרת")
+                Text(tr("צור תזכורת חוזרת", "Create a recurring reminder"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 18).padding(.vertical, 12)
@@ -436,15 +436,15 @@ struct RecurringReminderEditor: View {
                     .padding(.bottom, 24)
                 }
             }
-            .navigationTitle(initial == nil ? "תזכורת חוזרת" : "ערוך תזכורת")
+            .navigationTitle(initial == nil ? tr("תזכורת חוזרת", "Recurring reminder") : tr("ערוך תזכורת", "Edit reminder"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("ביטול") { dismiss() }
+                    Button(tr("ביטול", "Cancel")) { dismiss() }
                         .foregroundStyle(.limorMuted)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("שמור") {
+                    Button(tr("שמור", "Save")) {
                         save()
                     }
                     .font(.headline.weight(.semibold))
@@ -462,10 +462,10 @@ struct RecurringReminderEditor: View {
     private var taskField: some View {
         GlassCard(padding: 16) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("מה להזכיר")
+                Text(tr("מה להזכיר", "What to remind"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.limorMuted)
-                TextField("השכמה לפילאטיס", text: $task, axis: .vertical)
+                TextField(tr("השכמה לפילאטיס", "Wake-up for Pilates"), text: $task, axis: .vertical)
                     .font(.body)
                     .lineLimit(1...3)
             }
@@ -475,7 +475,7 @@ struct RecurringReminderEditor: View {
     private var timeField: some View {
         GlassCard(padding: 16) {
             HStack {
-                Text("שעת ההתראה")
+                Text(tr("שעת ההתראה", "Alert time"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.limorInk)
                 Spacer()
@@ -488,7 +488,7 @@ struct RecurringReminderEditor: View {
     private var daysField: some View {
         GlassCard(padding: 16) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("ימים בשבוע")
+                Text(tr("ימים בשבוע", "Days of the week"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.limorInk)
                 // Hebrew weekday order — Sunday is the first column on the
@@ -499,9 +499,9 @@ struct RecurringReminderEditor: View {
                     }
                 }
                 HStack(spacing: 8) {
-                    quickPick(label: "כל יום", target: Set(1...7))
-                    quickPick(label: "ימי חול", target: [1, 2, 3, 4, 5])
-                    quickPick(label: "סופ״ש", target: [6, 7])
+                    quickPick(label: tr("כל יום", "Every day"), target: Set(1...7))
+                    quickPick(label: tr("ימי חול", "Weekdays"), target: [1, 2, 3, 4, 5])
+                    quickPick(label: tr("סופ״ש", "Weekend"), target: [6, 7])
                 }
             }
         }
@@ -544,16 +544,16 @@ struct RecurringReminderEditor: View {
     private var soundField: some View {
         GlassCard(padding: 16) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("צלצול")
+                Text(tr("צלצול", "Sound"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.limorInk)
                 VStack(spacing: 6) {
-                    soundRow(value: nil, label: "ברירת מחדל של iOS")
+                    soundRow(value: nil, label: tr("ברירת מחדל של iOS", "iOS default"))
                     ForEach(ReminderSound.allCases) { sound in
                         soundRow(value: sound, label: sound.displayName)
                     }
                 }
-                Text("הקש על השם כדי לבחור. סמל הניגון לצדו משמיע תצוגה מקדימה.")
+                Text(tr("הקש על השם כדי לבחור. סמל הניגון לצדו משמיע תצוגה מקדימה.", "Tap a name to select it. The play icon beside it plays a preview."))
                     .font(.caption2)
                     .foregroundStyle(.limorMuted)
             }
@@ -626,7 +626,7 @@ struct RecurringReminderEditor: View {
         let timeText = formatter.string(from: time)
         return HStack(spacing: 6) {
             Image(systemName: "bell.badge").font(.caption)
-            Text("תקבל התראה ב-\(timeText), \(weekdayList(days))")
+            Text(tr("תקבל התראה ב-\(timeText), \(weekdayList(days))", "You'll get an alert at \(timeText), \(weekdayList(days))"))
                 .font(.caption)
         }
         .foregroundStyle(.limorIndigo)

@@ -63,9 +63,9 @@ struct OnboardingView: View {
             permissionPage(
                 icon: "sparkles",
                 tint: .limorIndigo,
-                title: "ברוך הבא ללימור",
-                body: "כדי שאוכל לעזור לך באמת — להזכיר, לתכנן, לחפש — אצטרך כמה הרשאות. נעבור עליהן יחד, אחת אחת. אתה תחליט מה לאשר.",
-                primary: ("נתחיל", { advance() }),
+                title: tr("ברוך הבא ללימור", "Welcome to Limor"),
+                body: tr("כדי שאוכל לעזור לך באמת — להזכיר, לתכנן, לחפש — אצטרך כמה הרשאות. נעבור עליהן יחד, אחת אחת. אתה תחליט מה לאשר.", "To truly help you — to remind, plan, and search — I'll need a few permissions. We'll go through them together, one at a time. You decide what to allow."),
+                primary: (tr("נתחיל", "Let's begin"), { advance() }),
                 secondary: nil,
                 step: s
             )
@@ -73,20 +73,20 @@ struct OnboardingView: View {
             permissionPage(
                 icon: "bell.fill",
                 tint: .limorCoral,
-                title: "התראות",
-                body: "כדי שאזכיר לך תזכורות בדיוק בזמן — גם כשהאפליקציה סגורה. בלי זה, התזכורות לא יקפצו אליך.",
-                primary: ("אפשר התראות", { Task { await requestNotifications() } }),
-                secondary: ("אולי אחר כך", { advance() }),
+                title: tr("התראות", "Notifications"),
+                body: tr("כדי שאזכיר לך תזכורות בדיוק בזמן — גם כשהאפליקציה סגורה. בלי זה, התזכורות לא יקפצו אליך.", "So I can remind you right on time — even when the app is closed. Without this, reminders won't pop up for you."),
+                primary: (tr("אפשר התראות", "Allow notifications"), { Task { await requestNotifications() } }),
+                secondary: (tr("אולי אחר כך", "Maybe later"), { advance() }),
                 step: s
             )
         case .location:
             permissionPage(
                 icon: "location.fill",
                 tint: .limorMint,
-                title: "מיקום",
-                body: "כדי להראות לך מזג אוויר מדויק לאזור שלך, ולעזור עם המלצות מקומיות. אני לא שומרת מיקום היסטורי.",
-                primary: ("אפשר מיקום", { Task { await requestLocation() } }),
-                secondary: ("אולי אחר כך", { advance() }),
+                title: tr("מיקום", "Location"),
+                body: tr("כדי להראות לך מזג אוויר מדויק לאזור שלך, ולעזור עם המלצות מקומיות. אני לא שומרת מיקום היסטורי.", "So I can show you accurate weather for your area and help with local recommendations. I don't store any location history."),
+                primary: (tr("אפשר מיקום", "Allow location"), { Task { await requestLocation() } }),
+                secondary: (tr("אולי אחר כך", "Maybe later"), { advance() }),
                 step: s
             )
         case .calendar:
@@ -97,29 +97,29 @@ struct OnboardingView: View {
             permissionPage(
                 icon: "person.2.fill",
                 tint: .limorIndigo,
-                title: "אנשי קשר",
-                body: "כדי לחפש אנשים בשם בעברית או באנגלית כשאתה מבקש ממני 'שלחי לרני'. השמות נשמרים אצלך — אצלי רק אינדקס לחיפוש.",
-                primary: ("אפשר גישה לאנשי קשר", { Task { await requestContacts() } }),
-                secondary: ("אולי אחר כך", { advance() }),
+                title: tr("אנשי קשר", "Contacts"),
+                body: tr("כדי לחפש אנשים בשם בעברית או באנגלית כשאתה מבקש ממני 'שלחי לרני'. השמות נשמרים אצלך — אצלי רק אינדקס לחיפוש.", "So I can find people by name in Hebrew or English when you ask me to 'text Rani.' The names stay on your device — I only keep a search index."),
+                primary: (tr("אפשר גישה לאנשי קשר", "Allow contacts access"), { Task { await requestContacts() } }),
+                secondary: (tr("אולי אחר כך", "Maybe later"), { advance() }),
                 step: s
             )
         case .health:
             permissionPage(
                 icon: "heart.fill",
                 tint: .limorPink,
-                title: "בריאות",
-                body: "כדי לתת לך טיפים אישיים — אם ישנת מספיק, כמה זזת השבוע, מתי האימון האחרון. הכל קריאה בלבד מאפל הלת'.",
-                primary: ("אפשר גישה לבריאות", { Task { await requestHealth() } }),
-                secondary: ("אולי אחר כך", { advance() }),
+                title: tr("בריאות", "Health"),
+                body: tr("כדי לתת לך טיפים אישיים — אם ישנת מספיק, כמה זזת השבוע, מתי האימון האחרון. הכל קריאה בלבד מאפל הלת'.", "So I can give you personal tips — whether you slept enough, how active you were this week, when your last workout was. It's all read-only from Apple Health."),
+                primary: (tr("אפשר גישה לבריאות", "Allow health access"), { Task { await requestHealth() } }),
+                secondary: (tr("אולי אחר כך", "Maybe later"), { advance() }),
                 step: s
             )
         case .done:
             permissionPage(
                 icon: "checkmark.circle.fill",
                 tint: .limorMint,
-                title: "הכל מוכן 🎉",
-                body: "אפשר לשנות הרשאות בכל זמן בהגדרות → הרשאות. בוא נתחיל.",
-                primary: ("בוא נתחיל", { finish() }),
+                title: tr("הכל מוכן 🎉", "All set 🎉"),
+                body: tr("אפשר לשנות הרשאות בכל זמן בהגדרות → הרשאות. בוא נתחיל.", "You can change permissions anytime in Settings → Permissions. Let's get started."),
+                primary: (tr("בוא נתחיל", "Let's get started"), { finish() }),
                 secondary: nil,
                 step: s
             )
@@ -214,7 +214,7 @@ struct OnboardingView: View {
             case .granted:
                 HStack(spacing: 6) {
                     Image(systemName: "checkmark.circle.fill")
-                    Text("אושר")
+                    Text(tr("אושר", "Allowed"))
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.limorSuccess)
@@ -223,7 +223,7 @@ struct OnboardingView: View {
             case .denied:
                 HStack(spacing: 6) {
                     Image(systemName: "xmark.circle.fill")
-                    Text("לא אושר — אפשר להפעיל בהגדרות בהמשך")
+                    Text(tr("לא אושר — אפשר להפעיל בהגדרות בהמשך", "Not allowed — you can enable it in Settings later"))
                 }
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.limorMuted)
@@ -247,10 +247,10 @@ struct OnboardingView: View {
             Spacer(minLength: 0)
             iconHero(icon: "calendar", tint: tint)
             VStack(spacing: 12) {
-                Text("יומן")
+                Text(tr("יומן", "Calendar"))
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundStyle(.limorInk)
-                Text("כדי שאדע מה יש לך ביום, להציע זמנים פנויים ולהבין יום עמוס מראש. בחר מאיפה אקרא:")
+                Text(tr("כדי שאדע מה יש לך ביום, להציע זמנים פנויים ולהבין יום עמוס מראש. בחר מאיפה אקרא:", "So I know what's on your day, can suggest free time, and spot a busy day in advance. Choose where I should read from:"))
                     .font(.subheadline)
                     .foregroundStyle(.limorMuted)
                     .multilineTextAlignment(.center)
@@ -264,7 +264,7 @@ struct OnboardingView: View {
             Spacer(minLength: 0)
 
             VStack(spacing: 10) {
-                primaryButton("יומן של אפל", tint: tint, disabled: state == .working) {
+                primaryButton(tr("יומן של אפל", "Apple Calendar"), tint: tint, disabled: state == .working) {
                     Task { await requestAppleCalendar() }
                 }
                 primaryButton("Google Calendar", tint: .limorIndigo, disabled: state == .working) {
@@ -273,7 +273,7 @@ struct OnboardingView: View {
                 primaryButton("Outlook Calendar", tint: .limorMint, disabled: state == .working) {
                     Task { await requestOutlookCalendar() }
                 }
-                secondaryButton("אולי אחר כך") { advance() }
+                secondaryButton(tr("אולי אחר כך", "Maybe later")) { advance() }
             }
         }
     }
@@ -323,10 +323,10 @@ struct OnboardingView: View {
             Spacer(minLength: 0)
             iconHero(icon: "envelope.fill", tint: tint)
             VStack(spacing: 12) {
-                Text("מייל")
+                Text(tr("מייל", "Email"))
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundStyle(.limorInk)
-                Text("כדי לזהות אוטומטית טיסות, הזמנות ועדכונים חשובים בתיבה שלך. הקריאה היא מ-Gmail בלבד, ואני לא שולחת מיילים בלי אישור.")
+                Text(tr("כדי לזהות אוטומטית טיסות, הזמנות ועדכונים חשובים בתיבה שלך. הקריאה היא מ-Gmail בלבד, ואני לא שולחת מיילים בלי אישור.", "So I can automatically spot flights, bookings, and important updates in your inbox. I only read from Gmail, and I never send emails without your approval."))
                     .font(.subheadline)
                     .foregroundStyle(.limorMuted)
                     .multilineTextAlignment(.center)
@@ -340,13 +340,13 @@ struct OnboardingView: View {
             Spacer(minLength: 0)
 
             VStack(spacing: 10) {
-                primaryButton("חבר את Gmail", tint: tint, disabled: state == .working) {
+                primaryButton(tr("חבר את Gmail", "Connect Gmail"), tint: tint, disabled: state == .working) {
                     Task { await requestGmail() }
                 }
-                primaryButton("חבר את Outlook", tint: .limorIndigo, disabled: state == .working) {
+                primaryButton(tr("חבר את Outlook", "Connect Outlook"), tint: .limorIndigo, disabled: state == .working) {
                     Task { await requestOutlookMail() }
                 }
-                secondaryButton("אני לא משתמש במייל") { advance() }
+                secondaryButton(tr("אני לא משתמש במייל", "I don't use email")) { advance() }
             }
         }
     }

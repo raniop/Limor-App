@@ -113,14 +113,14 @@ struct PhotoCropSheet: View {
                 )
             }
             .background(Color.black.ignoresSafeArea())
-            .navigationTitle("מקם את התמונה")
+            .navigationTitle(tr("מקם את התמונה", "Position photo"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("בטל") { onCancel() }.foregroundStyle(.white)
+                    Button(tr("בטל", "Cancel")) { onCancel() }.foregroundStyle(.white)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("שמור") { onConfirm(render()) }
+                    Button(tr("שמור", "Save")) { onConfirm(render()) }
                         .fontWeight(.bold)
                         .foregroundStyle(.white)
                 }

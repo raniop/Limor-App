@@ -50,7 +50,7 @@ struct RelationshipsView: View {
                 .padding(.vertical, 18)
             }
         }
-        .navigationTitle("המשפחה שלי")
+        .navigationTitle(tr("המשפחה שלי", "My Family"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -69,15 +69,15 @@ struct RelationshipsView: View {
             sheet(for: flow)
                 .environment(\.layoutDirection, .rightToLeft)
         }
-        .alert("למחוק את הקשר?", isPresented: .init(
+        .alert(tr("למחוק את הקשר?", "Delete this relationship?"), isPresented: .init(
             get: { deleting != nil },
             set: { if !$0 { deleting = nil } }
         )) {
-            Button("מחק", role: .destructive) {
+            Button(tr("מחק", "Delete"), role: .destructive) {
                 if let r = deleting { Task { await delete(id: r.id) } }
                 deleting = nil
             }
-            Button("בטל", role: .cancel) { deleting = nil }
+            Button(tr("בטל", "Cancel"), role: .cancel) { deleting = nil }
         } message: {
             if let r = deleting {
                 Text("\(r.relation_label): \(r.contact_name)")
@@ -89,10 +89,10 @@ struct RelationshipsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("\(relationships.count) קשרים")
+            Text(tr("\(relationships.count) קשרים", "\(relationships.count) relationships"))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.limorIndigo)
-            Text("קשר אנשים מאנשי הקשר שלך לתפקיד שלהם בחיים שלך, ולימור תזהה אותם בצ'אט (\"התקשר לבת זוגי\", \"מה הטלפון של אבא?\").")
+            Text(tr("קשר אנשים מאנשי הקשר שלך לתפקיד שלהם בחיים שלך, ולימור תזהה אותם בצ'אט (\"התקשר לבת זוגי\", \"מה הטלפון של אבא?\").", "Link people from your contacts to their role in your life, and Limor will recognize them in chat (\"call my partner\", \"what's Dad's number?\")."))
                 .font(.caption)
                 .foregroundStyle(.limorMuted)
         }
@@ -128,7 +128,7 @@ struct RelationshipsView: View {
                 Button(role: .destructive) {
                     deleting = rel
                 } label: {
-                    Label("הסר", systemImage: "trash")
+                    Label(tr("הסר", "Remove"), systemImage: "trash")
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -172,10 +172,10 @@ struct RelationshipsView: View {
             Image(systemName: "person.2.crop.square.stack")
                 .font(.title2)
                 .foregroundStyle(.limorMuted)
-            Text("עדיין לא קישרת אף אחד.")
+            Text(tr("עדיין לא קישרת אף אחד.", "You haven't linked anyone yet."))
                 .font(.subheadline)
                 .foregroundStyle(.limorMuted)
-            Text("לחץ על + כדי להוסיף קשר.")
+            Text(tr("לחץ על + כדי להוסיף קשר.", "Tap + to add a relationship."))
                 .font(.caption)
                 .foregroundStyle(.limorMuted)
         }
@@ -240,11 +240,11 @@ struct RelationshipsView: View {
                     .padding(20)
                 }
             }
-            .navigationTitle("איזה סוג קשר?")
+            .navigationTitle(tr("איזה סוג קשר?", "What kind of relationship?"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("בטל") { addingFlow = nil }
+                    Button(tr("בטל", "Cancel")) { addingFlow = nil }
                 }
             }
         }
@@ -335,11 +335,11 @@ private struct ConfirmRelationshipSheet: View {
                     .padding(20)
                 }
             }
-            .navigationTitle("אישור קשר")
+            .navigationTitle(tr("אישור קשר", "Confirm Relationship"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("בטל") { onCancel() }
+                    Button(tr("בטל", "Cancel")) { onCancel() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -350,7 +350,7 @@ private struct ConfirmRelationshipSheet: View {
                         }
                     } label: {
                         if saving { ProgressView() }
-                        else { Text("שמור").font(.body.weight(.semibold)) }
+                        else { Text(tr("שמור", "Save")).font(.body.weight(.semibold)) }
                     }
                     .disabled(saving || label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
@@ -396,17 +396,17 @@ private struct ConfirmRelationshipSheet: View {
 
     private var labelField: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("איך לקרוא לקשר?")
+            Text(tr("איך לקרוא לקשר?", "What should we call this relationship?"))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.limorMuted)
-            TextField("לדוגמה: בת זוגי, אבא, אחותי הגדולה", text: $label)
+            TextField(tr("לדוגמה: בת זוגי, אבא, אחותי הגדולה", "e.g. my partner, Dad, my older sister"), text: $label)
                 .focused($labelFocused)
                 .padding(14)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
                         .fill(.regularMaterial)
                 )
-            Text("לימור תשתמש בתווית הזאת כדי לזהות את הקשר בצ'אט.")
+            Text(tr("לימור תשתמש בתווית הזאת כדי לזהות את הקשר בצ'אט.", "Limor will use this label to recognize the relationship in chat."))
                 .font(.caption2)
                 .foregroundStyle(.limorMuted)
         }

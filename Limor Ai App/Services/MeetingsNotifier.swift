@@ -114,7 +114,7 @@ enum MeetingsNotifier {
     ) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         let label = dayLabel(for: day, calendar: cal)
-        content.title = "📅 הפגישות שלך \(label)"
+        content.title = tr("📅 הפגישות שלך \(label)", "📅 Your meetings \(label)")
 
         let lines = events.prefix(5).map { ev -> String in
             if ev.is_all_day {
@@ -125,7 +125,7 @@ enum MeetingsNotifier {
         }
         var body = lines.joined(separator: "\n")
         if events.count > 5 {
-            body += "\n+ ועוד \(events.count - 5)"
+            body += tr("\n+ ועוד \(events.count - 5)", "\n+ \(events.count - 5) more")
         }
         content.body = body
         content.sound = .limorChosen
@@ -133,11 +133,11 @@ enum MeetingsNotifier {
     }
 
     private static func dayLabel(for date: Date, calendar cal: Calendar) -> String {
-        if cal.isDateInTomorrow(date) { return "מחר" }
+        if cal.isDateInTomorrow(date) { return tr("מחר", "tomorrow") }
         let f = DateFormatter()
         f.locale = Locale(identifier: "he_IL")
         f.dateFormat = "EEEE"
-        return "ב" + f.string(from: date)
+        return tr("ב" + f.string(from: date), "on \(f.string(from: date))")
     }
 
     private static func formatTime(_ date: Date) -> String {

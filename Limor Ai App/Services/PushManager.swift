@@ -140,12 +140,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
     private func registerNotificationCategories() {
         let complete = UNNotificationAction(
             identifier: Self.reminderCompleteActionId,
-            title: "סמן כטופל",
+            title: tr("סמן כטופל", "Mark Done"),
             options: [.authenticationRequired]
         )
         let snooze = UNNotificationAction(
             identifier: Self.reminderSnoozeActionId,
-            title: "נודניק 10 דק'",
+            title: tr("נודניק 10 דק'", "Snooze 10 min"),
             options: []
         )
         let category = UNNotificationCategory(
@@ -158,7 +158,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
         // "2 hours before" heads-up: one-tap re-nudge an hour later.
         let snooze1h = UNNotificationAction(
             identifier: Self.leadSnooze1hActionId,
-            title: "תזכיר לי עוד שעה",
+            title: tr("תזכיר לי עוד שעה", "Remind me in an hour"),
             options: []
         )
         let leadMeeting = UNNotificationCategory(
@@ -268,16 +268,22 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
                 // we create the EKEvent on-device (mirrors `shopping_add`).
                 let title = (userInfo["title"] as? String) ?? ""
                 let startStr = userInfo["start_at"] as? String
-                if !title.isEmpty, let startStr,
+                // event_id ties this push to the Firestore outbox entry so the
+                // foreground drain won't create the same event a second time.
+                let eventId = (userInfo["event_id"] as? String) ?? ""
+                if !title.isEmpty, !eventId.isEmpty, let startStr,
                    let start = ISO8601DateFormatter.limor.date(from: startStr) ?? ISO8601DateFormatter().date(from: startStr) {
                     let end = (userInfo["end_at"] as? String)
                         .flatMap { ISO8601DateFormatter.limor.date(from: $0) ?? ISO8601DateFormatter().date(from: $0) }
                         ?? start.addingTimeInterval(60 * 60)
                     let location = userInfo["location"] as? String
-                    let ok = await CalendarManager.shared.createEvent(title: title, start: start, end: end, location: location)
+                    let ok = await CalendarManager.shared.createTrackedEvent(eventId: eventId, title: title, start: start, end: end, location: location)
+                    // Created on this device — clear it from the outbox so the
+                    // drain doesn't revisit it.
+                    if ok { try? await APIClient.shared.ackPendingCalendarEvents([eventId]) }
                     print("[push] create_event('\(title)') → \(ok)")
                 } else {
-                    print("[push] create_event: missing/invalid title or start_at")
+                    print("[push] create_event: missing/invalid title/start_at/event_id")
                 }
                 completionHandler(.newData)
             case "reminder":
@@ -294,6 +300,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
                 print("[push] reminder push received — refreshing Live Activity")
                 await ActivityController.endIfOverdue()
                 await ActivityController.refresh()
+                completionHandler(.newData)
+            case "briefing_ready", "briefing_failed":
+                // The background CEO-briefing generation finished. Broadcast so
+                // an open BriefingView re-fetches; iOS shows the visible banner
+                // itself, so the user is notified even when backgrounded.
+                print("[push] briefing \(kind)")
+                NotificationCenter.default.post(name: .limorBriefingReady, object: nil)
                 completionHandler(.newData)
             default:
                 print("[push] unknown kind, ignoring")
@@ -391,11 +404,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
     /// reminder we re-attach the reminder category + id so the follow-up
     /// still offers "mark done"; meetings get a plain banner.
     nonisolated private func scheduleOneHourSnooze(from userInfo: [AnyHashable: Any], reminderId: String?) {
-        let title = (userInfo["lead_title"] as? String) ?? "תזכורת"
+        let title = (userInfo["lead_title"] as? String) ?? tr("תזכורת", "Reminder")
         let isReminder = (userInfo["lead_kind"] as? String) == "reminder"
 
         let content = UNMutableNotificationContent()
-        content.title = "בעוד שעה: \(title)"
+        content.title = tr("בעוד שעה: \(title)", "In an hour: \(title)")
         content.sound = .default
         if isReminder, let reminderId {
             content.categoryIdentifier = AppDelegate.reminderCategoryId

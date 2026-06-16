@@ -11,7 +11,7 @@ enum BiometricGate {
 
         var errorDescription: String? {
             switch self {
-            case .canceled:      return "האימות בוטל."
+            case .canceled:      return tr("האימות בוטל.", "Authentication canceled.")
             case .failed(let m): return m
             }
         }
@@ -21,12 +21,12 @@ enum BiometricGate {
     /// throws on cancel or failure.
     static func authenticate(reason: String) async throws {
         let ctx = LAContext()
-        ctx.localizedFallbackTitle = "השתמש בקוד מסך"
+        ctx.localizedFallbackTitle = tr("השתמש בקוד מסך", "Use Passcode")
         var err: NSError?
         // .deviceOwnerAuthentication = biometrics if available, otherwise
         // passcode. Always something — never just refuses outright.
         guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else {
-            throw AuthError.failed(err?.localizedDescription ?? "אימות לא זמין במכשיר.")
+            throw AuthError.failed(err?.localizedDescription ?? tr("אימות לא זמין במכשיר.", "Authentication is not available on this device."))
         }
         do {
             try await ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)

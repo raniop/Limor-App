@@ -79,11 +79,11 @@ struct NotificationPrefsOnboardingView: View {
                 onCompleted()
             }
         }
-        .alert("שגיאה", isPresented: .init(
+        .alert(tr("שגיאה", "Error"), isPresented: .init(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
-            Button("אוקיי", role: .cancel) {}
+            Button(tr("אוקיי", "OK"), role: .cancel) {}
         } message: {
             Text(errorMessage ?? "")
         }
@@ -106,10 +106,10 @@ struct NotificationPrefsOnboardingView: View {
                         .foregroundStyle(.white)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("איזה התראות תרצה לקבל?")
+                    Text(tr("איזה התראות תרצה לקבל?", "Which notifications would you like?"))
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.limorInk)
-                    Text("בחר עכשיו, תוכל לשנות מתי שתרצה.")
+                    Text(tr("בחר עכשיו, תוכל לשנות מתי שתרצה.", "Pick now — you can change this anytime."))
                         .font(.subheadline)
                         .foregroundStyle(.limorMuted)
                 }
@@ -168,7 +168,7 @@ struct NotificationPrefsOnboardingView: View {
     }
 
     private var footerText: some View {
-        Text("את השעות והפעלה/כיבוי תוכל לכוון בכל זמן ב-הגדרות → התראות יומיות.")
+        Text(tr("את השעות והפעלה/כיבוי תוכל לכוון בכל זמן ב-הגדרות → התראות יומיות.", "You can adjust times and turn these on or off anytime in Settings → Daily notifications."))
             .font(.caption2)
             .foregroundStyle(.limorMuted)
             .multilineTextAlignment(.leading)
@@ -181,7 +181,7 @@ struct NotificationPrefsOnboardingView: View {
         } label: {
             HStack(spacing: 8) {
                 if saving { ProgressView().tint(.white).scaleEffect(0.8) }
-                Text("המשך")
+                Text(tr("המשך", "Continue"))
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.white)
             }
@@ -211,22 +211,22 @@ struct NotificationPrefsOnboardingView: View {
         switch kind {
         case .morning_brief:
             return DisplayStyle(
-                title: "בוקר טוב",
-                subtitle: "מה ביומן היום ותזכורות פתוחות",
+                title: tr("בוקר טוב", "Good morning"),
+                subtitle: tr("מה ביומן היום ותזכורות פתוחות", "Today's calendar and open reminders"),
                 icon: "sun.max.fill",
                 tint: .limorWarning
             )
         case .evening_recap:
             return DisplayStyle(
-                title: "סיכום ערב",
-                subtitle: "צעדים, יומן מחר ותזכורות פתוחות",
+                title: tr("סיכום ערב", "Evening recap"),
+                subtitle: tr("צעדים, יומן מחר ותזכורות פתוחות", "Steps, tomorrow's calendar, and open reminders"),
                 icon: "moon.fill",
                 tint: .limorViolet
             )
         case .feed_digest:
             return DisplayStyle(
-                title: "חדשות הבוקר",
-                subtitle: "הכותרות העיקריות מהפיד שלך",
+                title: tr("חדשות הבוקר", "Morning news"),
+                subtitle: tr("הכותרות העיקריות מהפיד שלך", "The top headlines from your feed"),
                 icon: "newspaper.fill",
                 tint: .limorIndigo
             )

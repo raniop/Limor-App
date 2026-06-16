@@ -17,6 +17,11 @@ final class SyncManager: ObservableObject {
     /// Updated after `/api/email/actions/refresh` returns (server-side 24h
     /// cooldown). The executive email report card observes this to re-fetch.
     @Published private(set) var lastEmailActionsRefresh: Date?
+    /// Bumped after the GLOBAL card bundles (World Cup, war index) were
+    /// refreshed server-side by a home full-refresh. The cards observe this
+    /// and re-fetch — their state lives inside the card views, not NowView.
+    @Published private(set) var lastGlobalCardsRefresh: Date?
+    func markGlobalCardsRefresh() { lastGlobalCardsRefresh = Date() }
     @Published private(set) var isSyncing = false
 
     // MARK: - Background activity status (home-screen "Limor is working" chip)
@@ -30,12 +35,12 @@ final class SyncManager: ObservableObject {
         /// Present-tense label shown while the activity runs ("לימור …").
         var working: String {
             switch self {
-            case .email:        return "סורקת את המייל שלך"
-            case .insights:     return "מחפשת טיסות ותובנות"
-            case .emailActions: return "עוברת על המשימות מהמייל"
-            case .feed:         return "מעדכנת לך חדשות"
-            case .calendar:     return "מסנכרנת את היומן"
-            case .fullRefresh:  return "מרעננת לך הכל"
+            case .email:        return tr("סורקת את המייל שלך", "Scanning your email")
+            case .insights:     return tr("מחפשת טיסות ותובנות", "Looking for flights and insights")
+            case .emailActions: return tr("עוברת על המשימות מהמייל", "Reviewing tasks from your email")
+            case .feed:         return tr("מעדכנת לך חדשות", "Updating your news")
+            case .calendar:     return tr("מסנכרנת את היומן", "Syncing your calendar")
+            case .fullRefresh:  return tr("מרעננת לך הכל", "Refreshing everything")
             }
         }
 
@@ -76,7 +81,7 @@ final class SyncManager: ObservableObject {
         let f = DateFormatter()
         f.locale = Locale(identifier: "he_IL")
         f.dateFormat = "HH:mm"
-        return "היום \(f.string(from: Date()))"
+        return tr("היום \(f.string(from: Date()))", "Today \(f.string(from: Date()))")
     }
 
     /// What the home-screen chip shows. A SINGLE source of truth so the chip
@@ -148,21 +153,26 @@ final class SyncManager: ObservableObject {
         // line (instead of whichever sub-step finished last).
         if fullRefreshActive {
             fullRefreshActive = false
-            return "רעננתי לך הכל ✨ · \(timestampNow())"
+            return tr("רעננתי לך הכל ✨ · \(timestampNow())", "Refreshed everything for you ✨ · \(timestampNow())")
         }
-        if ran.contains(.insights) || ran.contains(.emailActions) {
-            return "עברתי על המייל ועדכנתי הכול ✨"
+        // The email report runs only on an explicit refresh — name it exactly.
+        if ran.contains(.emailActions) {
+            return tr("עדכנתי לך את מוקד המייל ✨", "Updated your email focus ✨")
+        }
+        // Insights = the AI scan that pulls flights / hotels / expenses + tip.
+        if ran.contains(.insights) {
+            return tr("עברתי על המייל ועדכנתי תובנות (טיסות, הוצאות) ✨", "Went through your email and updated insights (flights, expenses) ✨")
         }
         if ran.contains(.email) {
-            return "סיימתי לסרוק את המייל ✨"
+            return tr("סנכרנתי לך את המייל ✨", "Synced your email ✨")
         }
         if ran.contains(.feed) {
-            return "עדכנתי לך את החדשות ✨"
+            return tr("עדכנתי לך את החדשות ✨", "Updated your news ✨")
         }
         if ran.contains(.calendar) {
-            return "סנכרנתי את היומן ✨"
+            return tr("סנכרנתי את היומן ✨", "Synced your calendar ✨")
         }
-        return "הכול מעודכן ✨"
+        return tr("הכול מעודכן ✨", "Everything's up to date ✨")
     }
 
     /// Per-type throttle. Email/insights are the most "fresh data" sensitive,
@@ -221,6 +231,15 @@ final class SyncManager: ObservableObject {
         }
     }
 
+    /// Stamp a fetched email with which account it came from, so the backend
+    /// action extractor can attribute each item back to a Gmail/Outlook account.
+    private func tag(_ email: EmailDTO, provider: String, account: String?) -> EmailDTO {
+        var e = email
+        e.provider = provider
+        e.account_email = account
+        return e
+    }
+
     func syncEmail(force: Bool = false) async {
         let sources = SharedStore.emailSources
         guard !sources.isEmpty else {
@@ -242,7 +261,10 @@ final class SyncManager: ObservableObject {
                 let granted = GoogleAPIs.grantedScopes()
                 print("[sync] email: starting Gmail fetch. Granted Google scopes: \(granted)")
                 do {
-                    emails.append(contentsOf: try await GoogleAPIs.fetchRecentEmails(daysBack: 14, limit: 60))
+                    let acct = GoogleAPIs.accountEmail()
+                    let batch = try await GoogleAPIs.fetchRecentEmails(daysBack: 14, limit: 300)
+                        .map { tag($0, provider: "google", account: acct) }
+                    emails.append(contentsOf: batch)
                 } catch {
                     print("[sync] gmail fetch failed: \(error.localizedDescription)")
                 }
@@ -251,7 +273,10 @@ final class SyncManager: ObservableObject {
                 let granted = MicrosoftAPIs.grantedScopes()
                 print("[sync] email: starting Outlook fetch. Granted MS scopes: \(granted)")
                 do {
-                    emails.append(contentsOf: try await MicrosoftAPIs.fetchRecentEmails(daysBack: 14, limit: 60))
+                    let acct = MicrosoftAPIs.accountEmail()
+                    let batch = try await MicrosoftAPIs.fetchRecentEmails(daysBack: 14, limit: 300)
+                        .map { tag($0, provider: "microsoft", account: acct) }
+                    emails.append(contentsOf: batch)
                 } catch {
                     print("[sync] outlook fetch failed: \(error.localizedDescription)")
                 }
@@ -268,7 +293,9 @@ final class SyncManager: ObservableObject {
             // downstream passes — begin them BEFORE ending email so the chip
             // never blinks to "done" in the gap.
             beginActivity(.insights)
-            beginActivity(.emailActions)
+            // The email report is on-demand now — only light its activity when
+            // the user explicitly refreshed (force), not on background syncs.
+            if force { beginActivity(.emailActions) }
             endActivity(.email)
             // Once emails land, kick off the insights extractor — Claude scans
             // the snapshot for flights / travel info and saves a bundle.
@@ -284,17 +311,20 @@ final class SyncManager: ObservableObject {
                     print("[sync] insights refresh failed: \(error.localizedDescription)")
                 }
             }
-            // Executive email action report — server enforces a 24h cooldown,
-            // so this cheap call no-ops most of the time and only burns Sonnet
-            // once a day. Bumps `lastEmailActionsRefresh` so the card re-fetches.
-            Task { @MainActor in
-                defer { endActivity(.emailActions) }
-                do {
-                    _ = try await APIClient.shared.refreshEmailActions(force: false)
-                    lastEmailActionsRefresh = Date()
-                    print("[sync] email actions refreshed")
-                } catch {
-                    print("[sync] email actions refresh failed: \(error.localizedDescription)")
+            // Executive email action report is ON-DEMAND: it regenerates ONLY
+            // on an explicit user refresh (the מוקד-המייל button or "רענן הכל"),
+            // never on a background sync. Background syncs just leave the last
+            // cached report in place (the card fetches it via GET on appear).
+            if force {
+                Task { @MainActor in
+                    defer { endActivity(.emailActions) }
+                    do {
+                        _ = try await APIClient.shared.refreshEmailActions(force: true)
+                        lastEmailActionsRefresh = Date()
+                        print("[sync] email actions refreshed (on-demand)")
+                    } catch {
+                        print("[sync] email actions refresh failed: \(error.localizedDescription)")
+                    }
                 }
             }
         } catch {
@@ -339,6 +369,10 @@ final class SyncManager: ObservableObject {
         isSyncing = true
         defer { isSyncing = false }
         await syncCalendar(force: force)
+        // Drain Limor's create_event outbox — writes any events whose silent
+        // push iOS never delivered. Dedup-guarded, so it never duplicates an
+        // event the push already created.
+        await CalendarManager.shared.drainPendingEvents()
         await syncContacts(force: force)
         await syncHealth(force: force)
         await syncEmail(force: force)

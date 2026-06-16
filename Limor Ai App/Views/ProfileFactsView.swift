@@ -32,7 +32,7 @@ struct ProfileFactsView: View {
                 .padding(.vertical, 18)
             }
         }
-        .navigationTitle("מה לימור יודעת")
+        .navigationTitle(tr("מה לימור יודעת", "What Limor Knows"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -59,15 +59,15 @@ struct ProfileFactsView: View {
             }
             .environment(\.layoutDirection, .rightToLeft)
         }
-        .alert("למחוק את העובדה?", isPresented: .init(
+        .alert(tr("למחוק את העובדה?", "Delete this fact?"), isPresented: .init(
             get: { deleting != nil },
             set: { if !$0 { deleting = nil } }
         )) {
-            Button("מחק", role: .destructive) {
+            Button(tr("מחק", "Delete"), role: .destructive) {
                 if let f = deleting { Task { await delete(id: f.id) } }
                 deleting = nil
             }
-            Button("בטל", role: .cancel) { deleting = nil }
+            Button(tr("בטל", "Cancel"), role: .cancel) { deleting = nil }
         } message: {
             if let f = deleting {
                 Text("\(f.label): \(f.value)")
@@ -79,10 +79,10 @@ struct ProfileFactsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("\(facts.count) פרטים")
+            Text(tr("\(facts.count) פרטים", "\(facts.count) facts"))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.limorIndigo)
-            Text("לימור משתמשת במידע הזה כדי לדבר איתך אישית. אפשר לערוך או להסיר בכל עת.")
+            Text(tr("לימור משתמשת במידע הזה כדי לדבר איתך אישית. אפשר לערוך או להסיר בכל עת.", "Limor uses this to talk to you personally. You can edit or remove anything anytime."))
                 .font(.caption)
                 .foregroundStyle(.limorMuted)
         }
@@ -110,12 +110,12 @@ struct ProfileFactsView: View {
                 Button {
                     editing = fact
                 } label: {
-                    Label("ערוך", systemImage: "pencil")
+                    Label(tr("ערוך", "Edit"), systemImage: "pencil")
                 }
                 Button(role: .destructive) {
                     deleting = fact
                 } label: {
-                    Label("מחק", systemImage: "trash")
+                    Label(tr("מחק", "Delete"), systemImage: "trash")
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -141,9 +141,9 @@ struct ProfileFactsView: View {
     private func sourceBadge(_ source: ProfileFact.Source) -> some View {
         let label: String = {
             switch source {
-            case .intro: return "מההיכרות"
-            case .chat:  return "מהשיחה"
-            case .manual: return "ידני"
+            case .intro: return tr("מההיכרות", "From intro")
+            case .chat:  return tr("מהשיחה", "From chat")
+            case .manual: return tr("ידני", "Manual")
             }
         }()
         Text(label)
@@ -174,7 +174,7 @@ struct ProfileFactsView: View {
             Image(systemName: "brain.head.profile")
                 .font(.title2)
                 .foregroundStyle(.limorMuted)
-            Text("עוד אין מידע שמור.")
+            Text(tr("עוד אין מידע שמור.", "Nothing saved yet."))
                 .font(.subheadline)
                 .foregroundStyle(.limorMuted)
         }
@@ -246,10 +246,10 @@ private struct FactEditor: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("קטגוריה")
+                            Text(tr("קטגוריה", "Category"))
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.limorMuted)
-                            TextField("לדוגמה: תחביב, משפחה, יום הולדת", text: $label)
+                            TextField(tr("לדוגמה: תחביב, משפחה, יום הולדת", "e.g. hobby, family, birthday"), text: $label)
                                 .focused($labelFocused)
                                 .padding(14)
                                 .background(
@@ -259,10 +259,10 @@ private struct FactEditor: View {
                         }
 
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("פרט")
+                            Text(tr("פרט", "Detail"))
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.limorMuted)
-                            TextField("מה לימור צריכה לזכור?", text: $value, axis: .vertical)
+                            TextField(tr("מה לימור צריכה לזכור?", "What should Limor remember?"), text: $value, axis: .vertical)
                                 .lineLimit(2...6)
                                 .padding(14)
                                 .background(
@@ -274,11 +274,11 @@ private struct FactEditor: View {
                     .padding(20)
                 }
             }
-            .navigationTitle(initial == nil ? "הוסף פרט" : "ערוך פרט")
+            .navigationTitle(initial == nil ? tr("הוסף פרט", "Add Fact") : tr("ערוך פרט", "Edit Fact"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("בטל") { dismiss() }
+                    Button(tr("בטל", "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -287,7 +287,7 @@ private struct FactEditor: View {
                         if saving {
                             ProgressView()
                         } else {
-                            Text("שמור").font(.body.weight(.semibold))
+                            Text(tr("שמור", "Save")).font(.body.weight(.semibold))
                         }
                     }
                     .disabled(!canSave)

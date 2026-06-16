@@ -36,11 +36,11 @@ final class SharedShoppingStore: ObservableObject {
                 list = joined
                 return true
             }
-            errorMessage = "קוד לא תקין"
+            errorMessage = tr("קוד לא תקין", "Invalid code")
             return false
         } catch {
             // 404 → invalid code; surface a friendly message.
-            errorMessage = "קוד לא תקין או שגיאה בחיבור"
+            errorMessage = tr("קוד לא תקין או שגיאה בחיבור", "Invalid code or connection error")
             return false
         }
     }

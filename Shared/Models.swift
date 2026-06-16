@@ -351,6 +351,40 @@ struct FlightInsight: Codable, Identifiable, Hashable {
     }
 }
 
+/// A hotel / lodging booking extracted from email, optionally matched to the
+/// flight whose destination + dates it lines up with (`matched_flight_id` ==
+/// the `FlightInsight.id` of that flight).
+struct HotelInsight: Codable, Identifiable, Hashable {
+    var id: String {
+        "\(hotel_name)-\(check_in_date_iso)"
+    }
+    let hotel_name: String
+    let city: String?
+    let address: String?
+    let check_in_date_iso: String
+    let check_out_date_iso: String?
+    let guest_name: String?
+    let booking_reference: String?
+    let source_email_id: String?
+    let matched_flight_id: String?
+
+    private func parseDate(_ s: String?) -> Date? {
+        guard let s else { return nil }
+        if let d = ISO8601DateFormatter.limor.date(from: s) { return d }
+        if let d = ISO8601DateFormatter().date(from: s) { return d }
+        let dt = DateFormatter()
+        dt.locale = Locale(identifier: "en_US_POSIX")
+        dt.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        if let d = dt.date(from: s) { return d }
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = "yyyy-MM-dd"
+        return df.date(from: s)
+    }
+    var checkInDate: Date? { parseDate(check_in_date_iso) }
+    var checkOutDate: Date? { parseDate(check_out_date_iso) }
+}
+
 struct Recommendation: Codable, Identifiable, Hashable {
     let id: String
     let kind: String          // movement | sleep | recovery | nutrition | calendar | mindfulness | celebration | general
@@ -361,9 +395,116 @@ struct Recommendation: Codable, Identifiable, Hashable {
     let generated_at: String?
 }
 
+/// One purchase/charge extracted from a receipt or invoice email. Powers the
+/// "monthly expenses" home card — summed per calendar month, grouped by
+/// category. The backend keeps a rolling ~3-month window.
+struct ReceiptInsight: Codable, Identifiable, Hashable {
+    var id: String {
+        source_email_id ?? "\(vendor)-\(amount)-\(transaction_date_iso)"
+    }
+    let vendor: String
+    let amount: Double
+    let currency: String      // ISO code: "ILS", "USD", "EUR"…
+    let amount_ils: Double?   // server-side FX conversion; null when unavailable
+    let category: String      // groceries | dining | transport | shopping | utilities | subscriptions | travel | health | entertainment | other
+    let transaction_date_iso: String
+    let description: String?
+    let source_email_id: String?
+
+    /// The shekel value used for all totals — native amount for ILS receipts,
+    /// the server's conversion otherwise. nil = couldn't convert (shown
+    /// separately in the original currency).
+    var ilsValue: Double? {
+        let cur = currency.uppercased()
+        if cur == "ILS" || cur == "NIS" { return amount }
+        return amount_ils
+    }
+
+    var transactionDate: Date? {
+        if let d = ISO8601DateFormatter.limor.date(from: transaction_date_iso) { return d }
+        if let d = ISO8601DateFormatter().date(from: transaction_date_iso) { return d }
+        let dt = DateFormatter()
+        dt.locale = Locale(identifier: "en_US_POSIX")
+        dt.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        if let d = dt.date(from: transaction_date_iso) { return d }
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = "yyyy-MM-dd"
+        return df.date(from: transaction_date_iso)
+    }
+
+    /// "₪149.90" / "$12" — symbol for the common currencies, code prefix otherwise.
+    var amountDisplay: String {
+        let symbol: String
+        switch currency.uppercased() {
+        case "ILS", "NIS": symbol = "₪"
+        case "USD":        symbol = "$"
+        case "EUR":        symbol = "€"
+        case "GBP":        symbol = "£"
+        default:           symbol = "\(currency) "
+        }
+        let value = amount == amount.rounded()
+            ? String(format: "%.0f", amount)
+            : String(format: "%.2f", amount)
+        return "\(symbol)\(value)"
+    }
+}
+
 struct InsightsBundle: Codable {
     let flights: [FlightInsight]
+    let hotels: [HotelInsight]?
+    let receipts: [ReceiptInsight]?
     let recommendations: [Recommendation]?
+    let generated_at: String?
+}
+
+// MARK: - CEO Executive Briefing (deep, on-demand)
+
+/// Investor-grade Executive Business Update produced on demand by the backend
+/// (Sonnet over ~14 days of mail). A single formatted HTML email the app
+/// renders and can send via the mail composer with formatting intact.
+struct CeoBriefing: Codable, Hashable {
+    let subject: String?
+    let html_body: String?
+    let lang: String?          // "he" | "en"
+    let timeframe_days: Int?
+    let email_count: Int?
+    let generated_at: String?
+    let status: String?        // generating | ready | error
+
+    var hasData: Bool { (html_body?.isEmpty == false) }
+    var isGenerating: Bool { status == "generating" }
+}
+
+// MARK: - World Cup 2026
+
+/// One World Cup fixture/result from the backend's global bundle. Team names
+/// arrive in Hebrew, flags as emoji, kickoff in UTC ISO.
+struct WorldCupMatch: Codable, Identifiable, Hashable {
+    let id: String
+    let stage: String
+    let group: String?
+    let home_team: String
+    let away_team: String
+    let home_flag: String?
+    let away_flag: String?
+    let kickoff_iso: String
+    let venue: String?
+    let status: String        // scheduled | live | finished
+    let home_score: Int?
+    let away_score: Int?
+
+    var kickoffDate: Date? {
+        if let d = ISO8601DateFormatter.limor.date(from: kickoff_iso) { return d }
+        return ISO8601DateFormatter().date(from: kickoff_iso)
+    }
+
+    var isLive: Bool { status == "live" }
+    var isFinished: Bool { status == "finished" }
+}
+
+struct WorldCupBundle: Codable {
+    let matches: [WorldCupMatch]
     let generated_at: String?
 }
 
@@ -433,11 +574,11 @@ enum ReminderSound: String, CaseIterable, Identifiable {
     var fileName: String { "\(rawValue).caf" }
     var displayName: String {
         switch self {
-        case .bell:    return "פעמון"
-        case .chime:   return "מנגינה"
-        case .digital: return "דיגיטלי"
-        case .classic: return "קלאסי"
-        case .morning: return "בוקר"
+        case .bell:    return tr("פעמון", "Bell")
+        case .chime:   return tr("מנגינה", "Chime")
+        case .digital: return tr("דיגיטלי", "Digital")
+        case .classic: return tr("קלאסי", "Classic")
+        case .morning: return tr("בוקר", "Morning")
         }
     }
 }
@@ -567,6 +708,18 @@ struct CalendarEventDTO: Codable, Identifiable, Hashable {
     let calendar_name: String?
 }
 
+/// An event Limor's `create_event` tool produced, waiting in the backend
+/// outbox for the device to write it to EventKit. `event_id` is the dedup key
+/// shared with the silent push so the event is created exactly once.
+struct PendingCalendarEvent: Codable, Identifiable, Hashable {
+    var id: String { event_id }
+    let event_id: String
+    let title: String
+    let start_at: String       // ISO
+    let end_at: String?
+    let location: String?
+}
+
 struct EmailDTO: Codable, Identifiable, Hashable {
     var id: String { message_id }
     let message_id: String
@@ -588,6 +741,11 @@ struct EmailDTO: Codable, Identifiable, Hashable {
     /// "in" = received by the user, "out" = sent by the user. Drives
     /// missed-follow-up detection ("they asked, I never replied").
     var direction: String? = nil
+    /// Which connected account this email came from ("google" / "microsoft"),
+    /// stamped at sync time so action items can be attributed to an account.
+    var provider: String? = nil
+    /// The address of that account, e.g. "rani@gmail.com".
+    var account_email: String? = nil
 }
 
 // MARK: - Executive email action report
@@ -626,6 +784,10 @@ struct EmailActionItem: Codable, Identifiable, Hashable {
     let importance: Int            // 1…10
     let source_email_id: String?
     let needs_review: Bool
+    /// Which account this email arrived in — "google" / "microsoft" / nil.
+    let provider: String?
+    /// The account address, e.g. "rani@gmail.com". nil if unknown.
+    let account_email: String?
 
     /// Stable identity for "handled" dismissal — survives the daily report
     /// regeneration (whose `id` is a fresh UUID each time). Prefers the
@@ -642,6 +804,8 @@ struct EmailFollowUp: Codable, Identifiable, Hashable {
     let person: String
     let reason: String
     let source_email_id: String?
+    let provider: String?
+    let account_email: String?
 
     /// Stable identity for "handled" dismissal (see `EmailActionItem.dismissKey`).
     var dismissKey: String {
@@ -778,12 +942,12 @@ struct Relationship: Codable, Identifiable, Hashable {
         /// Suggested Hebrew label per kind — the user can override per row.
         var defaultLabel: String {
             switch self {
-            case .spouse:  return "בן/בת זוג"
-            case .child:   return "ילד/ה"
-            case .parent:  return "הורה"
-            case .sibling: return "אח/ות"
-            case .friend:  return "חבר/ה"
-            case .other:   return "אחר"
+            case .spouse:  return tr("בן/בת זוג", "Spouse")
+            case .child:   return tr("ילד/ה", "Child")
+            case .parent:  return tr("הורה", "Parent")
+            case .sibling: return tr("אח/ות", "Sibling")
+            case .friend:  return tr("חבר/ה", "Friend")
+            case .other:   return tr("אחר", "Other")
             }
         }
 

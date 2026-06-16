@@ -59,11 +59,11 @@ struct VoiceModeView: View {
             voice.cancelVoiceModeListening()
             voice.stopSpeaking()
         }
-        .alert("שגיאה", isPresented: .init(
+        .alert(tr("שגיאה", "Error"), isPresented: .init(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
-            Button("אוקיי", role: .cancel) { dismiss() }
+            Button(tr("אוקיי", "OK"), role: .cancel) { dismiss() }
         } message: {
             Text(errorMessage ?? "")
         }
@@ -86,7 +86,7 @@ struct VoiceModeView: View {
 
     private var statusLabel: some View {
         VStack(spacing: 4) {
-            Text("שיחה עם לימור")
+            Text(tr("שיחה עם לימור", "Call with Limor"))
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.6))
             Text(phaseLabel)
@@ -99,10 +99,10 @@ struct VoiceModeView: View {
 
     private var phaseLabel: String {
         switch phase {
-        case .idle:      return "מתכוננים…"
-        case .listening: return voice.transcript.isEmpty ? "תדבר אליי" : "מקשיב…"
-        case .thinking:  return "חושבת…"
-        case .speaking:  return "לימור עונה"
+        case .idle:      return tr("מתכוננים…", "Getting ready…")
+        case .listening: return voice.transcript.isEmpty ? tr("תדבר אליי", "Talk to me") : tr("מקשיב…", "Listening…")
+        case .thinking:  return tr("חושבת…", "Thinking…")
+        case .speaking:  return tr("לימור עונה", "Limor is answering")
         }
     }
 
@@ -201,7 +201,7 @@ struct VoiceModeView: View {
                 // mystery behind "she answered something else": the user
                 // never saw what was actually heard.
                 if voice.transcript.isEmpty {
-                    Text("תדבר אליי, אני שומעת אותך")
+                    Text(tr("תדבר אליי, אני שומעת אותך", "Talk to me, I'm listening"))
                         .font(.title3.weight(.medium))
                         .foregroundStyle(.white.opacity(0.55))
                         .multilineTextAlignment(.center)
@@ -218,7 +218,7 @@ struct VoiceModeView: View {
                 // misrecognitions before/while Limor replies.
                 if !userTranscript.isEmpty {
                     VStack(spacing: 4) {
-                        Text("שלחתי ללימור:")
+                        Text(tr("שלחתי ללימור:", "Sent to Limor:"))
                             .font(.caption)
                             .foregroundStyle(.white.opacity(0.55))
                         Text(userTranscript)
@@ -258,7 +258,7 @@ struct VoiceModeView: View {
                     .frame(width: 56, height: 56)
                     .background(Circle().fill(.white.opacity(0.18)))
             }
-            .accessibilityLabel("סגור")
+            .accessibilityLabel(tr("סגור", "Close"))
 
             Button {
                 handleOrbTap()
@@ -284,10 +284,10 @@ struct VoiceModeView: View {
 
     private var orbActionLabel: String {
         switch phase {
-        case .listening: return "סיים תור"
-        case .speaking:  return "השתק"
-        case .thinking:  return "ממתין"
-        case .idle:      return "התחל"
+        case .listening: return tr("סיים תור", "End turn")
+        case .speaking:  return tr("השתק", "Mute")
+        case .thinking:  return tr("ממתין", "Waiting")
+        case .idle:      return tr("התחל", "Start")
         }
     }
 
@@ -299,7 +299,7 @@ struct VoiceModeView: View {
         guard phase == .idle else { return }
         let granted = await voice.requestPermissions()
         if !granted {
-            errorMessage = voice.errorMessage ?? "צריך לאשר גישה למיקרופון וזיהוי דיבור."
+            errorMessage = voice.errorMessage ?? tr("צריך לאשר גישה למיקרופון וזיהוי דיבור.", "Microphone and speech recognition access is required.")
             return
         }
         await startListening()

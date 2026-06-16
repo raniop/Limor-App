@@ -85,7 +85,7 @@ struct FeedCard: View {
                     colors: [Color.limorIndigo, Color.limorViolet],
                     startPoint: .leading, endPoint: .trailing
                 ))
-            Text("חדשות אחרונות")
+            Text(tr("חדשות אחרונות", "Latest news"))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.limorInk)
 
@@ -119,7 +119,7 @@ struct FeedCard: View {
                 Button {
                     showingTopicEditor = true
                 } label: {
-                    Label("ערוך נושאים", systemImage: "slider.horizontal.3")
+                    Label(tr("ערוך נושאים", "Edit topics"), systemImage: "slider.horizontal.3")
                 }
                 Button {
                     Task {
@@ -128,7 +128,7 @@ struct FeedCard: View {
                         refreshing = false
                     }
                 } label: {
-                    Label("רענן עכשיו", systemImage: "arrow.clockwise")
+                    Label(tr("רענן עכשיו", "Refresh now"), systemImage: "arrow.clockwise")
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -145,14 +145,14 @@ struct FeedCard: View {
             Image(systemName: "sparkles.rectangle.stack")
                 .font(.title2)
                 .foregroundStyle(.limorMuted)
-            Text("בחר עד 5 נושאים שיעניינו אותך\nולימור תעדכן אותך עליהם.")
+            Text(tr("בחר עד 5 נושאים שיעניינו אותך\nולימור תעדכן אותך עליהם.", "Pick up to 5 topics that interest you\nand Limor will keep you posted."))
                 .font(.subheadline)
                 .foregroundStyle(.limorMuted)
                 .multilineTextAlignment(.center)
             Button {
                 showingTopicEditor = true
             } label: {
-                Text("בחר נושאים")
+                Text(tr("בחר נושאים", "Pick topics"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 18).padding(.vertical, 10)
@@ -218,7 +218,7 @@ private struct FeedTopicRow: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 } else {
-                    Text("עוד אין עדכון — נסה לרענן")
+                    Text(tr("עוד אין עדכון — נסה לרענן", "No update yet — try refreshing"))
                         .font(.caption)
                         .foregroundStyle(.limorMuted)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -260,18 +260,18 @@ private struct FeedTopicEditor: View {
     var body: some View {
         NavigationStack {
             FeedBrowseList(
-                title: "בחר נושאים",
-                subtitle: "טאפ על קטגוריה כדי לדפדף, או חפש בעצמך",
+                title: tr("בחר נושאים", "Pick topics"),
+                subtitle: tr("טאפ על קטגוריה כדי לדפדף, או חפש בעצמך", "Tap a category to browse, or search yourself"),
                 nodes: FeedNode.root,
                 draft: $draft,
                 isRoot: true
             )
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("בטל") { dismiss() }
+                    Button(tr("בטל", "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("שמור") {
+                    Button(tr("שמור", "Save")) {
                         onSave(draft)
                         dismiss()
                     }
@@ -380,7 +380,7 @@ private struct FeedBrowseList: View {
                     .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundStyle(atLimit ? .red : .limorIndigo)
                 Spacer(minLength: 16)
-                Button("נקה הכל") { draft.removeAll() }
+                Button(tr("נקה הכל", "Clear all")) { draft.removeAll() }
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.limorMuted)
             }
@@ -390,7 +390,7 @@ private struct FeedBrowseList: View {
             .frame(maxWidth: .infinity)
 
             if atLimit, let rootId = contextualRootId {
-                Text("הגעת למקסימום של \(Self.perRootLimit) ב\(Self.rootCategoryLabel(for: rootId)) — הסר נושא כדי להוסיף עוד")
+                Text(tr("הגעת למקסימום של \(Self.perRootLimit) ב\(Self.rootCategoryLabel(for: rootId)) — הסר נושא כדי להוסיף עוד", "You've reached the maximum of \(Self.perRootLimit) in \(Self.rootCategoryLabel(for: rootId)) — remove a topic to add more"))
                     .font(.caption2)
                     .foregroundStyle(.red.opacity(0.85))
             }
@@ -401,9 +401,9 @@ private struct FeedBrowseList: View {
 
     private var counterText: String {
         if let rootId = contextualRootId {
-            return "\(contextualRootCount) מתוך \(Self.perRootLimit) ב\(Self.rootCategoryLabel(for: rootId))"
+            return tr("\(contextualRootCount) מתוך \(Self.perRootLimit) ב\(Self.rootCategoryLabel(for: rootId))", "\(contextualRootCount) of \(Self.perRootLimit) in \(Self.rootCategoryLabel(for: rootId))")
         }
-        return "\(draft.count) נבחרו · עד \(Self.perRootLimit) לכל קטגוריה"
+        return tr("\(draft.count) נבחרו · עד \(Self.perRootLimit) לכל קטגוריה", "\(draft.count) selected · up to \(Self.perRootLimit) per category")
     }
 
     private var selectedPills: some View {
@@ -435,7 +435,7 @@ private struct FeedBrowseList: View {
     // MARK: - Search bar (root only)
 
     private var searchPlaceholder: String {
-        isRoot ? "חפש כל נושא — הפועל, אפל, מלחמה…" : "חפש ב\(title)"
+        isRoot ? tr("חפש כל נושא — הפועל, אפל, מלחמה…", "Search any topic — Hapoel, Apple, war…") : tr("חפש ב\(title)", "Search in \(title)")
     }
 
     private var searchBar: some View {
@@ -487,13 +487,13 @@ private struct FeedBrowseList: View {
             if searching {
                 ForEach(0..<3, id: \.self) { _ in skeletonRow }
             } else if liveResults.isEmpty {
-                Text("לא נמצאו וריאציות. נסה ניסוח אחר או דפדף בקטגוריות.")
+                Text(tr("לא נמצאו וריאציות. נסה ניסוח אחר או דפדף בקטגוריות.", "No matches found. Try a different wording or browse the categories."))
                     .font(.subheadline)
                     .foregroundStyle(.limorMuted)
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
             } else {
-                Text("הצעות לפי החיפוש שלך")
+                Text(tr("הצעות לפי החיפוש שלך", "Suggestions based on your search"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.limorMuted)
                     .padding(.horizontal, 20)
@@ -511,13 +511,13 @@ private struct FeedBrowseList: View {
         let matches = filteredLocalLeaves(trimmedSearch)
         VStack(alignment: .leading, spacing: 10) {
             if matches.isEmpty {
-                Text("לא נמצא ב\(title). נסה ניסוח אחר או חזור וחפש מהראשי.")
+                Text(tr("לא נמצא ב\(title). נסה ניסוח אחר או חזור וחפש מהראשי.", "Nothing found in \(title). Try a different wording or go back and search from the top."))
                     .font(.subheadline)
                     .foregroundStyle(.limorMuted)
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
             } else {
-                Text("\(matches.count) תוצאות ב\(title)")
+                Text(tr("\(matches.count) תוצאות ב\(title)", "\(matches.count) results in \(title)"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.limorMuted)
                     .padding(.horizontal, 20)

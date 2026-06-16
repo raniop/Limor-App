@@ -26,6 +26,7 @@ enum SharedStore {
         static let cachedTasks = "limor.cachedTasksJSON"
         static let cachedMeetings = "limor.cachedMeetingsJSON"
         static let photoB64 = "limor.photoB64"
+        static let appLang = "limor.appLang"
         /// Legacy single-value keys — read once during migration to the new
         /// multi-source sets, then ignored. Kept around so we can recover the
         /// user's choice on first launch after the upgrade.
@@ -66,11 +67,26 @@ enum SharedStore {
         static let hideBirthdayEvents = "limor.hideBirthdayEvents"
         static let dismissedFlightIds = "limor.dismissedFlightIds"
         static let dismissedEmailActionKeys = "limor.dismissedEmailActionKeys"
+        // event_id's of create_event outbox items already written to EventKit —
+        // the dedup guard shared by the silent push + the outbox drain.
+        static let createdCalendarEventIds = "limor.createdCalendarEventIds"
     }
 
     static var bearer: String? {
         get { defaults.string(forKey: Keys.bearer) }
         set { defaults.set(newValue, forKey: Keys.bearer) }
+    }
+
+    /// Firebase refresh token + API key — let the Share extension mint a fresh
+    /// 1h id token on its own (via the Secure Token API) when the cached
+    /// `bearer` has expired, instead of failing and forcing an app open.
+    static var firebaseRefreshToken: String? {
+        get { defaults.string(forKey: "limor.fbRefreshToken") }
+        set { defaults.set(newValue, forKey: "limor.fbRefreshToken") }
+    }
+    static var firebaseApiKey: String? {
+        get { defaults.string(forKey: "limor.fbApiKey") }
+        set { defaults.set(newValue, forKey: "limor.fbApiKey") }
     }
 
     static var baseURL: URL {
@@ -176,6 +192,14 @@ enum SharedStore {
     static var photoB64: String? {
         get { defaults.string(forKey: Keys.photoB64) }
         set { defaults.set(newValue, forKey: Keys.photoB64) }
+    }
+
+    /// UI language ("he" / "en"). Lives in the App Group so the widget, share
+    /// extension, and on-device notification builders all render in the same
+    /// language the user picked in the app. Defaults to Hebrew.
+    static var appLang: String {
+        get { defaults.string(forKey: Keys.appLang) ?? "he" }
+        set { defaults.set(newValue, forKey: Keys.appLang) }
     }
 
     /// Where Limor reads calendar events from. Multi-select — if more than
@@ -296,6 +320,13 @@ enum SharedStore {
     static var homeCardHidden: [String] {
         get { defaults.stringArray(forKey: Keys.homeCardHidden) ?? [] }
         set { defaults.set(newValue, forKey: Keys.homeCardHidden) }
+    }
+
+    /// Manual color overrides for task tags: tag name → "#RRGGBB". Tags without
+    /// an override fall back to a deterministic color derived from the name.
+    static var tagColorHex: [String: String] {
+        get { (defaults.dictionary(forKey: "limor.tagColors") as? [String: String]) ?? [:] }
+        set { defaults.set(newValue, forKey: "limor.tagColors") }
     }
 
     /// Local-only push notification listing tomorrow's meetings. Scheduled
@@ -490,6 +521,15 @@ enum SharedStore {
             defaults.set(arr, forKey: Keys.dismissedEmailActionKeys)
             iCloud?.set(arr, forKey: Keys.dismissedEmailActionKeys)
         }
+    }
+
+    /// event_id's of create_event outbox items already written to this device's
+    /// calendar. Both the silent-push handler and the outbox drain check this
+    /// before writing, so an event is never created twice. Local only — each
+    /// device tracks its own EventKit writes.
+    static var createdCalendarEventIds: Set<String> {
+        get { Set(defaults.stringArray(forKey: Keys.createdCalendarEventIds) ?? []) }
+        set { defaults.set(Array(newValue), forKey: Keys.createdCalendarEventIds) }
     }
 
     /// Hide events that iOS Calendar marks as birthdays (the auto-generated

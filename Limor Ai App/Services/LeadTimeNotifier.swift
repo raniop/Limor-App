@@ -93,8 +93,8 @@ enum LeadTimeNotifier {
             if SharedStore.isWithinQuietHours(fire) { continue } // night-quiet
 
             let content = UNMutableNotificationContent()
-            content.title = "בעוד שעתיים: \(ev.title)"
-            var body = "הפגישה מתחילה ב-\(formatTime(start))"
+            content.title = tr("בעוד שעתיים: \(ev.title)", "In two hours: \(ev.title)")
+            var body = tr("הפגישה מתחילה ב-\(formatTime(start))", "Meeting starts at \(formatTime(start))")
             if let loc = ev.location, !loc.isEmpty {
                 body += " · \(loc)"
             }
@@ -143,8 +143,8 @@ enum LeadTimeNotifier {
             // backend's at-due-time push covers this; no early nudge to give.
 
             let content = UNMutableNotificationContent()
-            content.title = "בעוד שעתיים: \(r.task)"
-            content.body = "מועד התזכורת: \(formatTime(r.dueDate))"
+            content.title = tr("בעוד שעתיים: \(r.task)", "In two hours: \(r.task)")
+            content.body = tr("מועד התזכורת: \(formatTime(r.dueDate))", "Reminder time: \(formatTime(r.dueDate))")
             content.sound = .limorChosen
             // Lead category = "תזכיר לי עוד שעה" + "סמן כטופל". lead_title /
             // reminder_id let the snooze handler re-arm and still complete.

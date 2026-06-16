@@ -39,7 +39,7 @@ struct WeatherDetailView: View {
             }
             .refreshable { await reload() }
         }
-        .navigationTitle(cityName ?? "מזג אוויר")
+        .navigationTitle(cityName ?? tr("מזג אוויר", "Weather"))
         .navigationBarTitleDisplayMode(.large)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await reload() }
@@ -125,7 +125,7 @@ struct WeatherDetailView: View {
             Text(current.condition)
                 .font(.title3.weight(.medium))
                 .foregroundStyle(.white.opacity(0.9))
-            Text("מורגש כמו \(Int(current.feels_like_c.rounded()))°")
+            Text(tr("מורגש כמו \(Int(current.feels_like_c.rounded()))°", "Feels like \(Int(current.feels_like_c.rounded()))°"))
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.75))
                 .padding(.bottom, 8)
@@ -137,7 +137,7 @@ struct WeatherDetailView: View {
     // MARK: - Hourly
 
     private func hourlyCard(_ hours: [WeatherDetail.HourlyForecast]) -> some View {
-        glassCard(title: "השעות הקרובות", icon: "clock.fill") {
+        glassCard(title: tr("השעות הקרובות", "Hourly forecast"), icon: "clock.fill") {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
                     ForEach(hours.prefix(24)) { h in
@@ -183,7 +183,7 @@ struct WeatherDetailView: View {
     // MARK: - Daily
 
     private func dailyCard(_ days: [WeatherDetail.DailyForecast]) -> some View {
-        glassCard(title: "תחזית 7 ימים", icon: "calendar") {
+        glassCard(title: tr("תחזית 7 ימים", "7-day forecast"), icon: "calendar") {
             VStack(spacing: 10) {
                 ForEach(days.prefix(7)) { d in
                     HStack {
@@ -222,8 +222,8 @@ struct WeatherDetailView: View {
         let inFmt = DateFormatter()
         inFmt.dateFormat = "yyyy-MM-dd"
         guard let date = inFmt.date(from: ymd) else { return ymd }
-        if Calendar.current.isDateInToday(date) { return "היום" }
-        if Calendar.current.isDateInTomorrow(date) { return "מחר" }
+        if Calendar.current.isDateInToday(date) { return tr("היום", "Today") }
+        if Calendar.current.isDateInTomorrow(date) { return tr("מחר", "Tomorrow") }
         let f = DateFormatter()
         f.locale = Locale(identifier: "he_IL")
         f.dateFormat = "EEEE d.M"
@@ -234,16 +234,16 @@ struct WeatherDetailView: View {
 
     private func metricsCard(current: WeatherDetail.CurrentWeather,
                               todaySunrise: String?, todaySunset: String?) -> some View {
-        glassCard(title: "פרטים נוספים", icon: "info.circle.fill") {
+        glassCard(title: tr("פרטים נוספים", "More details"), icon: "info.circle.fill") {
             LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
                 if let h = current.humidity_percent {
-                    metric(icon: "humidity.fill", label: "לחות", value: "\(h)%")
+                    metric(icon: "humidity.fill", label: tr("לחות", "Humidity"), value: "\(h)%")
                 }
                 if let w = current.wind_speed_kmh {
                     metric(
                         icon: "wind",
-                        label: "רוח",
-                        value: String(format: "%.0f קמ\"ש %@", w, windDirection(current.wind_direction_deg))
+                        label: tr("רוח", "Wind"),
+                        value: String(format: tr("%.0f קמ\"ש %@", "%.0f km/h %@"), w, windDirection(current.wind_direction_deg))
                     )
                 }
                 if let uv = current.uv_index {
@@ -251,19 +251,19 @@ struct WeatherDetailView: View {
                            value: "\(Int(uv.rounded())) (\(uvLabel(uv)))")
                 }
                 if let v = current.visibility_km {
-                    metric(icon: "eye.fill", label: "ראות",
-                           value: String(format: "%.0f ק\"מ", v))
+                    metric(icon: "eye.fill", label: tr("ראות", "Visibility"),
+                           value: String(format: tr("%.0f ק\"מ", "%.0f km"), v))
                 }
                 if let p = current.precipitation_mm {
-                    metric(icon: "drop.fill", label: "משקעים",
-                           value: String(format: "%.1f מ\"מ", p))
+                    metric(icon: "drop.fill", label: tr("משקעים", "Precipitation"),
+                           value: String(format: tr("%.1f מ\"מ", "%.1f mm"), p))
                 }
                 if let sunrise = todaySunrise {
-                    metric(icon: "sunrise.fill", label: "זריחה",
+                    metric(icon: "sunrise.fill", label: tr("זריחה", "Sunrise"),
                            value: formatTimeOfDay(sunrise))
                 }
                 if let sunset = todaySunset {
-                    metric(icon: "sunset.fill", label: "שקיעה",
+                    metric(icon: "sunset.fill", label: tr("שקיעה", "Sunset"),
                            value: formatTimeOfDay(sunset))
                 }
             }
@@ -286,18 +286,18 @@ struct WeatherDetailView: View {
 
     private func windDirection(_ deg: Double?) -> String {
         guard let deg else { return "" }
-        let dirs = ["צפון", "צ-מז", "מזרח", "ד-מז", "דרום", "ד-מע", "מערב", "צ-מע"]
+        let dirs = [tr("צפון", "N"), tr("צ-מז", "NE"), tr("מזרח", "E"), tr("ד-מז", "SE"), tr("דרום", "S"), tr("ד-מע", "SW"), tr("מערב", "W"), tr("צ-מע", "NW")]
         let idx = Int((deg / 45).rounded()) % 8
         return dirs[(idx + 8) % 8]
     }
 
     private func uvLabel(_ uv: Double) -> String {
         switch uv {
-        case ..<3: return "נמוך"
-        case 3..<6: return "בינוני"
-        case 6..<8: return "גבוה"
-        case 8..<11: return "גבוה מאוד"
-        default: return "קיצוני"
+        case ..<3: return tr("נמוך", "Low")
+        case 3..<6: return tr("בינוני", "Moderate")
+        case 6..<8: return tr("גבוה", "High")
+        case 8..<11: return tr("גבוה מאוד", "Very high")
+        default: return tr("קיצוני", "Extreme")
         }
     }
 

@@ -31,11 +31,11 @@ struct CustomizeHomeSheet: View {
                         order.move(fromOffsets: indices, toOffset: newOffset)
                     }
                 } header: {
-                    Text("גרור לסידור מחדש, ולחץ על העין כדי להסתיר או להציג")
+                    Text(tr("גרור לסידור מחדש, ולחץ על העין כדי להסתיר או להציג", "Drag to reorder, and tap the eye to hide or show"))
                         .font(.caption)
                         .foregroundStyle(.limorMuted)
                 } footer: {
-                    Text("כרטיסיות שאין להן מידע (כמו טיסה כשאין הזמנה) יוסתרו אוטומטית, אבל המיקום יישמר אם יחזור מידע.")
+                    Text(tr("כרטיסיות שאין להן מידע (כמו טיסה כשאין הזמנה) יוסתרו אוטומטית, אבל המיקום יישמר אם יחזור מידע.", "Cards with no data (like a flight with no booking) are hidden automatically, but their position is kept if data returns."))
                         .font(.caption2)
                         .foregroundStyle(.limorMuted)
                 }
@@ -44,18 +44,18 @@ struct CustomizeHomeSheet: View {
             .scrollContentBackground(.hidden)
             .background(LiquidBackdrop())
             .environment(\.editMode, .constant(.active))
-            .navigationTitle("סדר את המסך הראשי")
+            .navigationTitle(tr("סדר את המסך הראשי", "Arrange Home Screen"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("בטל") { dismiss() }
+                    Button(tr("בטל", "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         onSave(order, hidden)
                         dismiss()
                     } label: {
-                        Text("שמור").font(.body.weight(.semibold))
+                        Text(tr("שמור", "Save")).font(.body.weight(.semibold))
                     }
                 }
             }

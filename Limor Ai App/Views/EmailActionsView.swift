@@ -1,14 +1,15 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Urgency display helpers
 
 extension EmailUrgency {
     var label: String {
         switch self {
-        case .critical: return "קריטי"
-        case .high:     return "גבוה"
-        case .medium:   return "השבוע"
-        case .low:      return "לא דחוף"
+        case .critical: return tr("קריטי", "Critical")
+        case .high:     return tr("גבוה", "High")
+        case .medium:   return tr("השבוע", "This week")
+        case .low:      return tr("לא דחוף", "Not urgent")
         }
     }
 
@@ -69,7 +70,7 @@ struct EmailActionsCard: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        SectionLabel(icon: "tray.full.fill", title: "מוקד המייל", tint: .limorViolet)
+                        SectionLabel(icon: "tray.full.fill", title: tr("מוקד המייל", "Email hub"), tint: .limorViolet)
                         Spacer()
                         if totalActions > 0 {
                             Text("\(totalActions)")
@@ -84,7 +85,10 @@ struct EmailActionsCard: View {
                     }
 
                     if report != nil {
-                        if nothingToShow {
+                        if report?.generated_at == nil {
+                            // On-demand: nothing generated yet — invite a tap.
+                            tapToGenerateRow
+                        } else if nothingToShow {
                             emptyRow
                         } else {
                             VStack(spacing: 6) {
@@ -97,7 +101,7 @@ struct EmailActionsCard: View {
                             }
                         }
                     } else if loadedOnce {
-                        emptyRow
+                        tapToGenerateRow
                     } else {
                         loadingRow
                     }
@@ -117,10 +121,10 @@ struct EmailActionsCard: View {
     private func footerHint(followUps: Int, risks: Int) -> some View {
         HStack(spacing: 12) {
             if followUps > 0 {
-                Label("\(followUps) פולואפים", systemImage: "arrowshape.turn.up.left.fill")
+                Label(tr("\(followUps) פולואפים", "\(followUps) follow-ups"), systemImage: "arrowshape.turn.up.left.fill")
             }
             if risks > 0 {
-                Label("\(risks) סיכונים", systemImage: "exclamationmark.triangle.fill")
+                Label(tr("\(risks) סיכונים", "\(risks) risks"), systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.limorWarning)
             }
             Spacer()
@@ -133,14 +137,23 @@ struct EmailActionsCard: View {
     private var emptyRow: some View {
         HStack(spacing: 8) {
             Image(systemName: "checkmark.circle").font(.caption).foregroundStyle(.limorSuccess)
-            Text("הכול תחת שליטה — אין מיילים שדורשים טיפול").font(.caption).foregroundStyle(.secondary)
+            Text(tr("הכול תחת שליטה — אין מיילים שדורשים טיפול", "All under control — no emails need handling")).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    /// On-demand: prompt the user to open + generate the report.
+    private var tapToGenerateRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "sparkles").font(.caption).foregroundStyle(.limorViolet)
+            Text(tr("הקש כדי שלימור תעבור על המייל ותכין לך את מוקד המשימות", "Tap and Limor will go through your inbox and prepare your action hub")).font(.caption).foregroundStyle(.secondary)
+            Spacer(minLength: 0)
         }
     }
 
     private var loadingRow: some View {
         HStack(spacing: 8) {
             ProgressView().tint(.limorViolet).scaleEffect(0.7)
-            Text("סורק את המייל…").font(.caption).foregroundStyle(.secondary)
+            Text(tr("סורק את המייל…", "Scanning your inbox…")).font(.caption).foregroundStyle(.secondary)
         }
     }
 }
@@ -166,6 +179,98 @@ private struct CompactActionRow: View {
     }
 }
 
+// MARK: - Account attribution
+
+/// A connected email account referenced by the report's items.
+struct AccountRef: Hashable {
+    let email: String
+    let provider: String?
+}
+
+/// Brand-ish tint per provider so Gmail vs Outlook read at a glance.
+func providerTint(_ provider: String?) -> Color {
+    switch provider {
+    case "google":    return .red
+    case "microsoft": return .blue
+    default:          return .limorViolet
+    }
+}
+
+/// Small chip on each item showing which account the email arrived in
+/// (icon + address). Renders nothing when no account is known.
+struct AccountBadge: View {
+    let provider: String?
+    let account: String?
+
+    private var label: String? {
+        if let account, !account.isEmpty { return account }
+        switch provider {
+        case "google":    return "Gmail"
+        case "microsoft": return "Outlook"
+        default:          return nil
+        }
+    }
+
+    var body: some View {
+        if let label {
+            HStack(spacing: 4) {
+                Image(systemName: "envelope.fill").font(.system(size: 9))
+                Text(label).font(.caption2.weight(.medium)).lineLimit(1)
+            }
+            .foregroundStyle(providerTint(provider))
+            .padding(.horizontal, 7).padding(.vertical, 3)
+            .background(Capsule().fill(providerTint(provider).opacity(0.12)))
+        }
+    }
+}
+
+/// Limor's suggested reply, with a one-tap copy button (and manual text
+/// selection). Lets the user lift the drafted response straight into their
+/// mail/WhatsApp without retyping.
+struct SuggestedReplyBox: View {
+    let text: String
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "text.bubble").font(.caption2).foregroundStyle(.limorViolet)
+                Text(tr("תשובה מוצעת", "Suggested reply"))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.limorViolet)
+                Spacer()
+                Button {
+                    UIPasteboard.general.string = text
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    withAnimation(.easeInOut(duration: 0.15)) { copied = true }
+                    Task {
+                        try? await Task.sleep(for: .seconds(2))
+                        withAnimation(.easeInOut(duration: 0.15)) { copied = false }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        Text(copied ? tr("הועתק", "Copied") : tr("העתק", "Copy"))
+                    }
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(copied ? .limorSuccess : .limorViolet)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(Capsule().fill((copied ? Color.limorSuccess : Color.limorViolet).opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+            }
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.limorInk)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.limorViolet.opacity(0.08)))
+    }
+}
+
 // MARK: - Full report screen
 
 struct EmailActionsView: View {
@@ -175,20 +280,43 @@ struct EmailActionsView: View {
     @State private var addedReminderItemIds: Set<String> = []
     @State private var errorMessage: String?
     @State private var dismissed: Set<String> = SharedStore.dismissedEmailActionKeys
+    // Active account filter (nil = all accounts). Only surfaces when the user
+    // has items from more than one connected account.
+    @State private var accountFilter: String? = nil
     // Refresh progress (Sonnet over the inbox takes ~30–60s, so we show a
     // smoothly-creeping bar that snaps to 100% the moment it's ready).
     @State private var progress: Double = 0
     @State private var showProgressBar = false
 
-    // Items the user marked "handled" are filtered out everywhere.
+    // Items the user marked "handled" are filtered out everywhere. When an
+    // account filter is active, only items from that account remain.
+    private func matchesFilter(_ email: String?) -> Bool {
+        guard let accountFilter else { return true }
+        return email == accountFilter
+    }
     private var visibleTop: [EmailActionItem] {
-        (report?.top_items ?? []).filter { !dismissed.contains($0.dismissKey) }
+        (report?.top_items ?? []).filter { !dismissed.contains($0.dismissKey) && matchesFilter($0.account_email) }
     }
     private var visibleAdditional: [EmailActionItem] {
-        (report?.additional_items ?? []).filter { !dismissed.contains($0.dismissKey) }
+        (report?.additional_items ?? []).filter { !dismissed.contains($0.dismissKey) && matchesFilter($0.account_email) }
     }
     private var visibleFollowUps: [EmailFollowUp] {
-        (report?.follow_ups ?? []).filter { !dismissed.contains($0.dismissKey) }
+        (report?.follow_ups ?? []).filter { !dismissed.contains($0.dismissKey) && matchesFilter($0.account_email) }
+    }
+
+    /// Distinct connected accounts that appear in this report, for the filter
+    /// chips. Computed from the full report so chips stay stable as items are
+    /// dismissed or filtered.
+    private var presentAccounts: [AccountRef] {
+        var seen: [String: AccountRef] = [:]
+        func add(_ provider: String?, _ email: String?) {
+            guard let email, !email.isEmpty, seen[email] == nil else { return }
+            seen[email] = AccountRef(email: email, provider: provider)
+        }
+        (report?.top_items ?? []).forEach { add($0.provider, $0.account_email) }
+        (report?.additional_items ?? []).forEach { add($0.provider, $0.account_email) }
+        (report?.follow_ups ?? []).forEach { add($0.provider, $0.account_email) }
+        return seen.values.sorted { $0.email < $1.email }
     }
     private var allHidden: Bool {
         visibleTop.isEmpty && visibleAdditional.isEmpty && visibleFollowUps.isEmpty
@@ -209,7 +337,7 @@ struct EmailActionsView: View {
             if showProgressBar { progressBanner }
         }
         .animation(.easeInOut(duration: 0.3), value: showProgressBar)
-        .navigationTitle("מוקד המייל")
+        .navigationTitle(tr("מוקד המייל", "Email hub"))
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -226,11 +354,11 @@ struct EmailActionsView: View {
             }
         }
         .task { await load() }
-        .alert("שגיאה", isPresented: .init(
+        .alert(tr("שגיאה", "Error"), isPresented: .init(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
-            Button("אוקיי", role: .cancel) {}
+            Button(tr("אוקיי", "OK"), role: .cancel) {}
         } message: { Text(errorMessage ?? "") }
     }
 
@@ -242,30 +370,33 @@ struct EmailActionsView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
+                        if presentAccounts.count > 1 {
+                            accountFilterBar
+                        }
                         if !visibleTop.isEmpty {
-                            section(title: "החשובים ביותר", icon: "star.fill", tint: .limorViolet) {
+                            section(title: tr("החשובים ביותר", "Most important"), icon: "star.fill", tint: .limorViolet) {
                                 ForEach(visibleTop) { item in actionCard(item) }
                             }
                         }
                         if !visibleAdditional.isEmpty {
-                            section(title: "פעולות נוספות", icon: "list.bullet", tint: .limorIndigo) {
+                            section(title: tr("פעולות נוספות", "More actions"), icon: "list.bullet", tint: .limorIndigo) {
                                 ForEach(visibleAdditional) { item in actionCard(item) }
                             }
                         }
                         if !visibleFollowUps.isEmpty {
-                            section(title: "פולואפים שכדאי לשלוח", icon: "arrowshape.turn.up.left.fill", tint: .limorMint) {
+                            section(title: tr("פולואפים שכדאי לשלוח", "Follow-ups worth sending"), icon: "arrowshape.turn.up.left.fill", tint: .limorMint) {
                                 ForEach(visibleFollowUps) { f in followUpCard(f) }
                             }
                         }
                         if !report.risks.isEmpty {
-                            section(title: "סיכונים ודברים שאולי מתפספסים", icon: "exclamationmark.triangle.fill", tint: .limorWarning) {
+                            section(title: tr("סיכונים ודברים שאולי מתפספסים", "Risks and things that might slip"), icon: "exclamationmark.triangle.fill", tint: .limorWarning) {
                                 ForEach(Array(report.risks.enumerated()), id: \.offset) { _, r in
                                     bulletRow(r, tint: .limorWarning)
                                 }
                             }
                         }
                         if !report.todo.isEmpty {
-                            section(title: "סדר העדיפויות שלך", icon: "checklist", tint: .limorIndigo) {
+                            section(title: tr("סדר העדיפויות שלך", "Your priority order"), icon: "checklist", tint: .limorIndigo) {
                                 ForEach(Array(report.todo.enumerated()), id: \.offset) { idx, t in
                                     numberedRow(index: idx + 1, text: t)
                                 }
@@ -293,6 +424,37 @@ struct EmailActionsView: View {
         }
     }
 
+    // MARK: Account filter
+
+    private var accountFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                filterChip(label: tr("הכול", "All"), icon: "tray.full.fill", provider: nil, value: nil)
+                ForEach(presentAccounts, id: \.email) { acct in
+                    filterChip(label: acct.email, icon: "envelope.fill", provider: acct.provider, value: acct.email)
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+
+    private func filterChip(label: String, icon: String, provider: String?, value: String?) -> some View {
+        let selected = accountFilter == value
+        let tint = providerTint(provider)
+        return Button {
+            withAnimation(.easeInOut(duration: 0.15)) { accountFilter = value }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: icon).font(.caption2)
+                Text(label).font(.caption.weight(.medium)).lineLimit(1)
+            }
+            .foregroundStyle(selected ? .white : tint)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Capsule().fill(selected ? tint : tint.opacity(0.12)))
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: Sections + rows
 
     @ViewBuilder
@@ -307,17 +469,18 @@ struct EmailActionsView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 UrgencyBadge(urgency: item.urgency)
-                Text("חשיבות \(item.importance)/10")
+                Text(tr("חשיבות \(item.importance)/10", "Importance \(item.importance)/10"))
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.limorMuted)
                 if item.needs_review {
-                    Text("לבדיקה")
+                    Text(tr("לבדיקה", "Review"))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.limorWarning)
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(Capsule().fill(Color.limorWarning.opacity(0.14)))
                 }
                 Spacer()
+                AccountBadge(provider: item.provider, account: item.account_email)
             }
 
             Text(item.required_action)
@@ -332,7 +495,7 @@ struct EmailActionsView: View {
             .foregroundStyle(.limorMuted)
 
             if !item.subject.isEmpty {
-                Text("נושא: \(item.subject)")
+                Text(tr("נושא: \(item.subject)", "Subject: \(item.subject)"))
                     .font(.caption)
                     .foregroundStyle(.limorMuted)
                     .lineLimit(2)
@@ -346,16 +509,7 @@ struct EmailActionsView: View {
             }
 
             if let suggestion = item.suggested_response, !suggestion.isEmpty {
-                HStack(alignment: .top, spacing: 6) {
-                    Image(systemName: "text.bubble").font(.caption2).foregroundStyle(.limorViolet)
-                    Text(suggestion)
-                        .font(.caption)
-                        .foregroundStyle(.limorInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.limorViolet.opacity(0.08)))
+                SuggestedReplyBox(text: suggestion)
             }
 
             HStack(spacing: 8) {
@@ -382,7 +536,7 @@ struct EmailActionsView: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: added ? "checkmark.circle.fill" : "bell.badge.fill")
-                Text(added ? "נוספה תזכורת" : "צור תזכורת")
+                Text(added ? tr("נוספה תזכורת", "Reminder added") : tr("צור תזכורת", "Create reminder"))
             }
             .font(.caption.weight(.semibold))
             .foregroundStyle(added ? .limorSuccess : .white)
@@ -404,7 +558,7 @@ struct EmailActionsView: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "checkmark")
-                Text("טופל")
+                Text(tr("טופל", "Handled"))
             }
             .font(.caption.weight(.semibold))
             .foregroundStyle(.limorMuted)
@@ -425,6 +579,8 @@ struct EmailActionsView: View {
                 Text(f.person).font(.subheadline.weight(.semibold)).foregroundStyle(.limorInk)
                 Text(f.reason).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                AccountBadge(provider: f.provider, account: f.account_email)
+                    .padding(.top, 1)
             }
             Spacer(minLength: 0)
             Button {
@@ -471,10 +627,10 @@ struct EmailActionsView: View {
             Image(systemName: "tray.full")
                 .font(.system(size: 56, weight: .light))
                 .foregroundStyle(.limorMuted)
-            Text("הכול תחת שליטה")
+            Text(tr("הכול תחת שליטה", "All under control"))
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.limorInk)
-            Text("אין כרגע מיילים שדורשים פעולה, החלטה או פולואפ.")
+            Text(tr("אין כרגע מיילים שדורשים פעולה, החלטה או פולואפ.", "No emails right now that need an action, a decision, or a follow-up."))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -495,7 +651,7 @@ struct EmailActionsView: View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: "sparkles").foregroundStyle(.limorViolet)
-                Text(progress >= 1 ? "מוכן ✨" : "לימור עוברת על המייל…")
+                Text(progress >= 1 ? tr("מוכן ✨", "Ready ✨") : tr("לימור עוברת על המייל…", "Limor is going through your inbox…"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.limorInk)
                 Spacer()
@@ -578,7 +734,7 @@ struct EmailActionsView: View {
         let f = DateFormatter()
         f.locale = Locale(identifier: "he_IL")
         f.dateFormat = "d.M HH:mm"
-        return "עודכן \(f.string(from: date))"
+        return tr("עודכן \(f.string(from: date))", "Updated \(f.string(from: date))")
     }
 }
 

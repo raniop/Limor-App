@@ -46,13 +46,13 @@ struct CRMConnectView: View {
                 .padding(.vertical, 18)
             }
         }
-        .navigationTitle("חיבור ל-CRM")
+        .navigationTitle(tr("חיבור ל-CRM", "Connect to CRM"))
         .navigationBarTitleDisplayMode(.inline)
-        .alert("שגיאה", isPresented: .init(
+        .alert(tr("שגיאה", "Error"), isPresented: .init(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
-            Button("אוקיי", role: .cancel) {}
+            Button(tr("אוקיי", "OK"), role: .cancel) {}
         } message: {
             Text(errorMessage ?? "")
         }
@@ -66,11 +66,11 @@ struct CRMConnectView: View {
                 Image(systemName: "lock.shield.fill")
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(.limorIndigo)
-                Text("חיבור מאובטח")
+                Text(tr("חיבור מאובטח", "Secure connection"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.limorInk)
             }
-            Text("הקשר ל-BituhOfir עובר דרך השרת של לימור. הטוקנים לא נשמרים במכשיר.")
+            Text(tr("הקשר ל-BituhOfir עובר דרך השרת של לימור. הטוקנים לא נשמרים במכשיר.", "The connection to BituhOfir goes through Limor's server. Tokens aren't stored on your device."))
                 .font(.caption)
                 .foregroundStyle(.limorMuted)
         }
@@ -78,10 +78,10 @@ struct CRMConnectView: View {
 
     private var phoneForm: some View {
         VStack(alignment: .leading, spacing: 14) {
-            field(title: "תעודת זהות", text: $personId, keyboard: .numberPad, placeholder: "9 ספרות")
-            field(title: "טלפון נייד", text: $phoneNumber, keyboard: .phonePad, placeholder: "05X-XXXXXXX")
+            field(title: tr("תעודת זהות", "ID number"), text: $personId, keyboard: .numberPad, placeholder: tr("9 ספרות", "9 digits"))
+            field(title: tr("טלפון נייד", "Mobile phone"), text: $phoneNumber, keyboard: .phonePad, placeholder: "05X-XXXXXXX")
 
-            actionButton(title: "שלח קוד SMS") {
+            actionButton(title: tr("שלח קוד SMS", "Send SMS code")) {
                 Task { await sendOtp() }
             }
             .disabled(!canSendOtp)
@@ -91,27 +91,27 @@ struct CRMConnectView: View {
     private var otpForm: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("שלחנו קוד ל-\(phoneNumber)")
+                Text(tr("שלחנו קוד ל-\(phoneNumber)", "We sent a code to \(phoneNumber)"))
                     .font(.subheadline)
                     .foregroundStyle(.limorInk)
-                Text("ת.ז.: \(personId)")
+                Text(tr("ת.ז.: \(personId)", "ID: \(personId)"))
                     .font(.caption)
                     .foregroundStyle(.limorMuted)
             }
 
             field(
-                title: "קוד OTP",
+                title: tr("קוד OTP", "OTP code"),
                 text: $otpCode,
                 keyboard: .numberPad,
-                placeholder: "6 ספרות"
+                placeholder: tr("6 ספרות", "6 digits")
             )
 
-            actionButton(title: "אמת ושמור חיבור") {
+            actionButton(title: tr("אמת ושמור חיבור", "Verify and save connection")) {
                 Task { await verifyOtp() }
             }
             .disabled(otpCode.count < 4 || working)
 
-            Button("חזור — שינוי מספר") {
+            Button(tr("חזור — שינוי מספר", "Back — change number")) {
                 step = .enterPhone
                 otpCode = ""
             }
@@ -127,18 +127,18 @@ struct CRMConnectView: View {
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.limorMint)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("מחובר ל-CRM")
+                    Text(tr("מחובר ל-CRM", "Connected to CRM"))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.limorInk)
                     if let phone = status.phone_number, !phone.isEmpty {
-                        Text("טלפון: \(phone)")
+                        Text(tr("טלפון: \(phone)", "Phone: \(phone)"))
                             .font(.caption)
                             .foregroundStyle(.limorMuted)
                     }
                 }
             }
 
-            Text("ניתוק מסיר את הטוקן מהשרת. תוכל להתחבר מחדש בכל עת.")
+            Text(tr("ניתוק מסיר את הטוקן מהשרת. תוכל להתחבר מחדש בכל עת.", "Disconnecting removes the token from the server. You can reconnect anytime."))
                 .font(.caption)
                 .foregroundStyle(.limorMuted)
 
@@ -151,7 +151,7 @@ struct CRMConnectView: View {
                     } else {
                         Image(systemName: "xmark.circle")
                     }
-                    Text("נתק חיבור")
+                    Text(tr("נתק חיבור", "Disconnect"))
                         .font(.body.weight(.semibold))
                 }
                 .frame(maxWidth: .infinity)

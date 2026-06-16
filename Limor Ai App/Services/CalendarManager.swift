@@ -43,7 +43,7 @@ final class CalendarManager: ObservableObject {
             if hideBirthdays, Self.isBirthdayEvent(event) { return nil }
             return CalendarEventDTO(
                 event_id: identifier,
-                title: event.title?.isEmpty == false ? event.title : "(ללא כותרת)",
+                title: event.title?.isEmpty == false ? event.title : tr("(ללא כותרת)", "(Untitled)"),
                 notes: event.notes?.isEmpty == false ? event.notes : nil,
                 location: event.location?.isEmpty == false ? event.location : nil,
                 start_at: formatter.string(from: event.startDate),
@@ -108,7 +108,7 @@ final class CalendarManager: ObservableObject {
         event.calendar = calendar
         // Mark the event with a note so users (and future-us) can see why
         // a non-meeting entry is on the calendar.
-        event.notes = "נוצר על ידי לימור מתוך תזכורת."
+        event.notes = tr("נוצר על ידי לימור מתוך תזכורת.", "Created by Limor from a reminder.")
         do {
             try store.save(event, span: .thisEvent, commit: true)
             if let id = event.eventIdentifier {
@@ -139,7 +139,7 @@ final class CalendarManager: ObservableObject {
             event.location = location
         }
         event.calendar = calendar
-        event.notes = "נוצר על ידי לימור."
+        event.notes = tr("נוצר על ידי לימור.", "Created by Limor.")
         do {
             try store.save(event, span: .thisEvent, commit: true)
             print("[calendar-write] created event '\(title)' at \(start)")
@@ -147,6 +147,63 @@ final class CalendarManager: ObservableObject {
         } catch {
             print("[calendar-write] create event failed: \(error.localizedDescription)")
             return false
+        }
+    }
+
+    /// Create a create_event item guarding against duplicates by its stable
+    /// `eventId`. Safe to call from BOTH the silent push and the outbox drain —
+    /// the first call wins, the second is a no-op. Returns true if the event now
+    /// exists on the device (created just now OR already created earlier).
+    @MainActor @discardableResult
+    func createTrackedEvent(eventId: String, title: String, start: Date, end: Date, location: String?) async -> Bool {
+        if SharedStore.createdCalendarEventIds.contains(eventId) { return true }
+        // Reserve the id BEFORE the async write so a concurrent caller (push vs
+        // drain) can't pass the check and create a duplicate. This read-modify-
+        // write runs synchronously on the main actor, so it's atomic.
+        var ids = SharedStore.createdCalendarEventIds
+        ids.insert(eventId)
+        SharedStore.createdCalendarEventIds = ids
+
+        let ok = await createEvent(title: title, start: start, end: end, location: location)
+        if !ok {
+            // Write failed (e.g. access not yet granted) — release the
+            // reservation so a later drain retries.
+            var rollback = SharedStore.createdCalendarEventIds
+            rollback.remove(eventId)
+            SharedStore.createdCalendarEventIds = rollback
+        }
+        return ok
+    }
+
+    /// Drain the backend create_event outbox: write any not-yet-created events
+    /// to the calendar, then ack them so the backend drops them. Events already
+    /// created by the silent push are acked without re-creating (dedup guard).
+    /// This is the reliability net for silent pushes iOS may never deliver.
+    @MainActor
+    func drainPendingEvents() async {
+        let pending: [PendingCalendarEvent]
+        do { pending = try await APIClient.shared.getPendingCalendarEvents() }
+        catch { return }   // offline / not signed in — retry on next sync
+        guard !pending.isEmpty else { return }
+
+        var toAck: [String] = []
+        for p in pending {
+            guard let start = ISO8601DateFormatter.limor.date(from: p.start_at)
+                ?? ISO8601DateFormatter().date(from: p.start_at) else {
+                toAck.append(p.event_id)   // unparseable — drop, don't loop forever
+                continue
+            }
+            let end = p.end_at
+                .flatMap { ISO8601DateFormatter.limor.date(from: $0) ?? ISO8601DateFormatter().date(from: $0) }
+                ?? start.addingTimeInterval(60 * 60)
+            let ok = await createTrackedEvent(eventId: p.event_id, title: p.title, start: start, end: end, location: p.location)
+            if ok { toAck.append(p.event_id) }
+            // If !ok (e.g. calendar access not yet granted) leave it queued for
+            // the next drain.
+        }
+        if !toAck.isEmpty {
+            try? await APIClient.shared.ackPendingCalendarEvents(toAck)
+            print("[calendar-drain] handled \(toAck.count)/\(pending.count) pending events")
         }
     }
 

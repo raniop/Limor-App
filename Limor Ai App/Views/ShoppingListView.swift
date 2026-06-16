@@ -213,7 +213,7 @@ struct ShoppingListView: View {
                 }
             }
         }
-        .navigationTitle("רשימת קניות")
+        .navigationTitle(tr("רשימת קניות", "Shopping List"))
         .navigationBarTitleDisplayMode(.large)
         .task {
             // Wake iCloud + force a re-read the moment the user opens
@@ -254,7 +254,7 @@ struct ShoppingListView: View {
             }
             if store.items.contains(where: { $0.completed }) {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("נקה סומנו") {
+                    Button(tr("נקה סומנו", "Clear checked")) {
                         withAnimation { store.clearCompleted() }
                     }
                     .font(.subheadline.weight(.semibold))
@@ -269,12 +269,12 @@ struct ShoppingListView: View {
             Image(systemName: "plus.circle.fill")
                 .font(.title2)
                 .foregroundStyle(.limorIndigo)
-            TextField("הוסף פריט (למשל: חלב)", text: $newItemDraft)
+            TextField(tr("הוסף פריט (למשל: חלב)", "Add an item (e.g. Milk)"), text: $newItemDraft)
                 .submitLabel(.done)
                 .focused($inputFocused)
                 .onSubmit(addDraft)
             if !newItemDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Button("הוסף", action: addDraft)
+                Button(tr("הוסף", "Add"), action: addDraft)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 14).padding(.vertical, 8)
@@ -360,17 +360,17 @@ struct ShoppingListView: View {
             Image(systemName: "cart")
                 .font(.system(size: 56, weight: .light))
                 .foregroundStyle(.limorMuted)
-            Text("הרשימה ריקה")
+            Text(tr("הרשימה ריקה", "Your list is empty"))
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.limorInk)
-            Text("הוסף פריט למעלה, או פשוט אמור לי מילה אחת בצ'אט (לדוגמה: \"חלב\") ואני אוסיף אותה.")
+            Text(tr("הוסף פריט למעלה, או פשוט אמור לי מילה אחת בצ'אט (לדוגמה: \"חלב\") ואני אוסיף אותה.", "Add an item above, or just say a single word in chat (for example: \"Milk\") and I'll add it for you."))
                 .font(.subheadline)
                 .foregroundStyle(.limorMuted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
             if !store.archive.isEmpty {
                 NavigationLink(destination: ShoppingArchiveView()) {
-                    Label("הרשימות הקודמות (\(store.archive.count))", systemImage: "tray.full")
+                    Label(tr("הרשימות הקודמות (\(store.archive.count))", "Previous lists (\(store.archive.count))"), systemImage: "tray.full")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.limorIndigo)
                         .padding(.horizontal, 16).padding(.vertical, 10)
@@ -410,7 +410,7 @@ struct ShoppingArchiveView: View {
                 }
             }
         }
-        .navigationTitle("רשימות קודמות")
+        .navigationTitle(tr("רשימות קודמות", "Previous Lists"))
         .navigationBarTitleDisplayMode(.large)
     }
 
@@ -431,7 +431,7 @@ struct ShoppingArchiveView: View {
                             Text(group.summaryTitle)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.limorInk)
-                            Text("\(group.items.count) פריטים")
+                            Text(tr("\(group.items.count) פריטים", "\(group.items.count) items"))
                                 .font(.caption)
                                 .foregroundStyle(.limorMuted)
                         }
@@ -462,7 +462,7 @@ struct ShoppingArchiveView: View {
                         Button {
                             withAnimation { store.restoreFromArchive(group.id) }
                         } label: {
-                            Label("שכפל לרשימה הפעילה", systemImage: "doc.on.doc.fill")
+                            Label(tr("שכפל לרשימה הפעילה", "Copy to active list"), systemImage: "doc.on.doc.fill")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 12).padding(.vertical, 7)
@@ -489,10 +489,10 @@ struct ShoppingArchiveView: View {
             Image(systemName: "tray")
                 .font(.system(size: 56, weight: .light))
                 .foregroundStyle(.limorMuted)
-            Text("אין רשימות קודמות עדיין")
+            Text(tr("אין רשימות קודמות עדיין", "No previous lists yet"))
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.limorInk)
-            Text("ברגע שכל הפריטים ברשימה הפעילה מסומנים, הרשימה עוברת אוטומטית לכאן ונפתחת רשימה חדשה.")
+            Text(tr("ברגע שכל הפריטים ברשימה הפעילה מסומנים, הרשימה עוברת אוטומטית לכאן ונפתחת רשימה חדשה.", "Once every item on the active list is checked off, the list moves here automatically and a fresh one opens."))
                 .font(.subheadline)
                 .foregroundStyle(.limorMuted)
                 .multilineTextAlignment(.center)
@@ -514,7 +514,7 @@ struct ShoppingListCard: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        SectionLabel(icon: "cart.fill", title: "רשימת קניות")
+                        SectionLabel(icon: "cart.fill", title: tr("רשימת קניות", "Shopping List"))
                         Spacer()
                         if openCount > 0 {
                             Text("\(openCount)")
@@ -529,7 +529,7 @@ struct ShoppingListCard: View {
                     }
 
                     if store.items.isEmpty {
-                        Text("ריק בינתיים — אמור לי מילה אחת בצ'אט (\"חלב\") ואוסיף אותה")
+                        Text(tr("ריק בינתיים — אמור לי מילה אחת בצ'אט (\"חלב\") ואוסיף אותה", "Empty for now — say a single word in chat (\"Milk\") and I'll add it"))
                             .font(.subheadline)
                             .foregroundStyle(.limorMuted)
                             .multilineTextAlignment(.leading)
@@ -548,7 +548,7 @@ struct ShoppingListCard: View {
                                 }
                             }
                             if store.items.count > displayLimit {
-                                Text("ועוד \(store.items.count - displayLimit)…")
+                                Text(tr("ועוד \(store.items.count - displayLimit)…", "\(store.items.count - displayLimit) more…"))
                                     .font(.caption)
                                     .foregroundStyle(.limorMuted)
                             }

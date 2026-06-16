@@ -46,14 +46,14 @@ struct LimorIntroChatView: View {
     private static let steps: [Step] = [
         Step(
             factLabel: "שם",
-            texts: [.male: "איך תרצה/י שאקרא לך?"],
-            placeholder: "לדוגמה: רני",
+            texts: [.male: tr("איך תרצה/י שאקרא לך?", "What would you like me to call you?")],
+            placeholder: tr("לדוגמה: רני", "For example: Rani"),
             prefill: { auth in auth.displayName },
             kind: .text
         ),
         Step(
             factLabel: "מגדר",
-            texts: [.male: "כדי שאדע לפנות אליך נכון — איזה גוף בעברית מתאים?"],
+            texts: [.male: tr("כדי שאדע לפנות אליך נכון — איזה גוף בעברית מתאים?", "So I address you correctly — which grammatical form in Hebrew fits?")],
             placeholder: "",
             prefill: nil,
             kind: .genderSelect
@@ -61,22 +61,22 @@ struct LimorIntroChatView: View {
         Step(
             factLabel: "גיל",
             texts: [
-                .male:   "בן כמה אתה?",
-                .female: "בת כמה את?",
-                .other:  "בן/בת כמה את/ה?",
+                .male:   tr("בן כמה אתה?", "How old are you?"),
+                .female: tr("בת כמה את?", "How old are you?"),
+                .other:  tr("בן/בת כמה את/ה?", "How old are you?"),
             ],
-            placeholder: "לדוגמה: 37",
+            placeholder: tr("לדוגמה: 37", "For example: 37"),
             prefill: nil,
             kind: .text
         ),
         Step(
             factLabel: "עיסוק",
             texts: [
-                .male:   "במה אתה עוסק ביום-יום?",
-                .female: "במה את עוסקת ביום-יום?",
-                .other:  "במה את/ה עוסק/ת ביום-יום?",
+                .male:   tr("במה אתה עוסק ביום-יום?", "What do you do day to day?"),
+                .female: tr("במה את עוסקת ביום-יום?", "What do you do day to day?"),
+                .other:  tr("במה את/ה עוסק/ת ביום-יום?", "What do you do day to day?"),
             ],
-            placeholder: "לדוגמה: סוכן ביטוח, מורה, בפנסיה",
+            placeholder: tr("לדוגמה: סוכן ביטוח, מורה, בפנסיה", "For example: insurance agent, teacher, retired"),
             prefill: nil,
             kind: .text
         ),
@@ -87,11 +87,11 @@ struct LimorIntroChatView: View {
         Step(
             factLabel: "היכרות כללית",
             texts: [
-                .male:   "ספר לי קצת על עצמך — תחביבים, מה חשוב לך, או כל דבר שכדאי שאדע כדי לעזור טוב יותר.",
-                .female: "ספרי לי קצת על עצמך — תחביבים, מה חשוב לך, או כל דבר שכדאי שאדע כדי לעזור טוב יותר.",
-                .other:  "ספר/י לי קצת על עצמך — תחביבים, מה חשוב לך, או כל דבר שכדאי שאדע כדי לעזור טוב יותר.",
+                .male:   tr("ספר לי קצת על עצמך — תחביבים, מה חשוב לך, או כל דבר שכדאי שאדע כדי לעזור טוב יותר.", "Tell me a bit about yourself — hobbies, what matters to you, or anything I should know to help you better."),
+                .female: tr("ספרי לי קצת על עצמך — תחביבים, מה חשוב לך, או כל דבר שכדאי שאדע כדי לעזור טוב יותר.", "Tell me a bit about yourself — hobbies, what matters to you, or anything I should know to help you better."),
+                .other:  tr("ספר/י לי קצת על עצמך — תחביבים, מה חשוב לך, או כל דבר שכדאי שאדע כדי לעזור טוב יותר.", "Tell me a bit about yourself — hobbies, what matters to you, or anything I should know to help you better."),
             ],
-            placeholder: "טקסט חופשי",
+            placeholder: tr("טקסט חופשי", "Free text"),
             prefill: nil,
             kind: .text
         ),
@@ -165,11 +165,11 @@ struct LimorIntroChatView: View {
                 inputFocused = true
             }
         }
-        .alert("שגיאה", isPresented: .init(
+        .alert(tr("שגיאה", "Error"), isPresented: .init(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
-            Button("אוקיי", role: .cancel) {}
+            Button(tr("אוקיי", "OK"), role: .cancel) {}
         } message: {
             Text(errorMessage ?? "")
         }
@@ -182,10 +182,10 @@ struct LimorIntroChatView: View {
             HStack(alignment: .top, spacing: 10) {
                 LimorAvatar(size: 36)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("שלום, אני לימור")
+                    Text(tr("שלום, אני לימור", "Hi, I'm Limor"))
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.limorInk)
-                    Text("לפני שנתחיל, כמה שאלות קצרות שיעזרו לי להכיר אותך. זה לוקח דקה.")
+                    Text(tr("לפני שנתחיל, כמה שאלות קצרות שיעזרו לי להכיר אותך. זה לוקח דקה.", "Before we begin, a few quick questions to help me get to know you. It takes a minute."))
                         .font(.subheadline)
                         .foregroundStyle(.limorMuted)
                         .multilineTextAlignment(.leading)
@@ -370,19 +370,19 @@ struct LimorIntroChatView: View {
     private func ackForAnswer(at i: Int) -> String {
         // Step 0 (name) — warm-greet using the name they just gave.
         if i == 0, let name = answers.first?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
-            return "נעים מאוד, \(name)!"
+            return tr("נעים מאוד, \(name)!", "Nice to meet you, \(name)!")
         }
         // Step 1 (gender) — short, since it was a one-tap selection rather
         // than a sentence worth riffing on.
-        if i == 1 { return "מעולה." }
+        if i == 1 { return tr("מעולה.", "Great.") }
         // Everything else — a small rotating set so the chat doesn't sound
         // robotic.
         let acks = [
-            "כיף לשמוע.",
-            "הבנתי.",
-            "מצוין.",
-            "תודה ששיתפת.",
-            "סבבה, רושמת.",
+            tr("כיף לשמוע.", "Nice to hear."),
+            tr("הבנתי.", "Got it."),
+            tr("מצוין.", "Excellent."),
+            tr("תודה ששיתפת.", "Thanks for sharing."),
+            tr("סבבה, רושמת.", "Cool, noting it down."),
         ]
         return acks[(i - 2) % acks.count]
     }

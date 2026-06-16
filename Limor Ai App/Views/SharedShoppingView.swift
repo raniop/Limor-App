@@ -38,7 +38,7 @@ struct SharedShoppingView: View {
                 setup
             }
         }
-        .navigationTitle("רשימה משותפת")
+        .navigationTitle(tr("רשימה משותפת", "Shared list"))
         .navigationBarTitleDisplayMode(.large)
         .task {
             await store.load()
@@ -53,15 +53,15 @@ struct SharedShoppingView: View {
                 }
             }
         }
-        .confirmationDialog("לצאת מהרשימה המשותפת?", isPresented: $confirmLeave, titleVisibility: .visible) {
-            Button("צא מהרשימה", role: .destructive) { Task { await store.leave() } }
-            Button("ביטול", role: .cancel) {}
+        .confirmationDialog(tr("לצאת מהרשימה המשותפת?", "Leave the shared list?"), isPresented: $confirmLeave, titleVisibility: .visible) {
+            Button(tr("צא מהרשימה", "Leave list"), role: .destructive) { Task { await store.leave() } }
+            Button(tr("ביטול", "Cancel"), role: .cancel) {}
         } message: {
-            Text("הרשימה תיעלם מהמכשיר שלך. אם אתה האחרון שיוצא — היא תימחק לכולם.")
+            Text(tr("הרשימה תיעלם מהמכשיר שלך. אם אתה האחרון שיוצא — היא תימחק לכולם.", "The list will disappear from your device. If you're the last one to leave, it'll be deleted for everyone."))
         }
-        .alert("שגיאה", isPresented: .init(
+        .alert(tr("שגיאה", "Error"), isPresented: .init(
             get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } }
-        )) { Button("אוקיי", role: .cancel) {} } message: { Text(store.errorMessage ?? "") }
+        )) { Button(tr("אוקיי", "OK"), role: .cancel) {} } message: { Text(store.errorMessage ?? "") }
         .sheet(isPresented: $showingInvite) {
             if let list = store.list { inviteSheet(list) }
         }
@@ -71,10 +71,10 @@ struct SharedShoppingView: View {
 
     private func inviteSheet(_ list: SharedShoppingList) -> some View {
         VStack(spacing: 20) {
-            Text("הזמנה לרשימה המשותפת")
+            Text(tr("הזמנה לרשימה המשותפת", "Invite to the shared list"))
                 .font(.title3.weight(.bold)).foregroundStyle(.limorInk)
                 .padding(.top, 24)
-            Text("סרקו את ה‑QR עם המצלמה, או הזינו את הקוד ידנית באפליקציה.")
+            Text(tr("סרקו את ה‑QR עם המצלמה, או הזינו את הקוד ידנית באפליקציה.", "Scan the QR code with the camera, or enter the code manually in the app."))
                 .font(.subheadline).foregroundStyle(.limorMuted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 30)
@@ -88,7 +88,7 @@ struct SharedShoppingView: View {
             }
 
             VStack(spacing: 4) {
-                Text("קוד שיתוף").font(.caption).foregroundStyle(.limorMuted)
+                Text(tr("קוד שיתוף", "Share code")).font(.caption).foregroundStyle(.limorMuted)
                 Text(list.code)
                     .font(.system(size: 34, weight: .bold, design: .monospaced))
                     .foregroundStyle(.limorInk)
@@ -96,8 +96,8 @@ struct SharedShoppingView: View {
             }
 
             ShareLink(item: URL(string: joinURL(list.code)) ?? URL(string: "https://limor.app")!,
-                      message: Text("הצטרף לרשימת הקניות המשותפת שלי בלימור עם הקוד \(list.code)")) {
-                HStack { Image(systemName: "square.and.arrow.up"); Text("שתף קישור") }
+                      message: Text(tr("הצטרף לרשימת הקניות המשותפת שלי בלימור עם הקוד \(list.code)", "Join my shared shopping list on Limor with code \(list.code)"))) {
+                HStack { Image(systemName: "square.and.arrow.up"); Text(tr("שתף קישור", "Share link")) }
                     .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
                     .padding(.horizontal, 22).padding(.vertical, 12)
                     .background(Capsule().fill(LimorGradient.brand))
@@ -116,23 +116,23 @@ struct SharedShoppingView: View {
             VStack(spacing: 18) {
                 LimorEmptyState(
                     icon: "person.2.fill",
-                    title: "רשימה משותפת",
-                    subtitle: "רשימת קניות אחת שאתה ובן/בת הזוג רואים ועורכים יחד.",
+                    title: tr("רשימה משותפת", "Shared list"),
+                    subtitle: tr("רשימת קניות אחת שאתה ובן/בת הזוג רואים ועורכים יחד.", "One shopping list you and your partner see and edit together."),
                     iconGradient: LimorGradient.brand
                 )
                 .padding(.top, 20)
 
                 GlassCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("צור רשימה משותפת")
+                        Text(tr("צור רשימה משותפת", "Create a shared list"))
                             .font(.headline).foregroundStyle(.limorInk)
-                        Text("תקבל קוד קצר לשתף עם מי שתרצה.")
+                        Text(tr("תקבל קוד קצר לשתף עם מי שתרצה.", "You'll get a short code to share with anyone you like."))
                             .font(.caption).foregroundStyle(.limorMuted)
                         Button {
                             Task { busy = true; await store.create(); busy = false }
                         } label: {
                             HStack { Spacer()
-                                Text(busy ? "יוצר…" : "צור רשימה")
+                                Text(busy ? tr("יוצר…", "Creating…") : tr("צור רשימה", "Create list"))
                                     .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
                                 Spacer() }
                             .padding(.vertical, 11)
@@ -145,12 +145,12 @@ struct SharedShoppingView: View {
 
                 GlassCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("הצטרף עם קוד")
+                        Text(tr("הצטרף עם קוד", "Join with a code"))
                             .font(.headline).foregroundStyle(.limorInk)
-                        Text("קיבלת קוד ממישהו? הזן אותו כאן.")
+                        Text(tr("קיבלת קוד ממישהו? הזן אותו כאן.", "Got a code from someone? Enter it here."))
                             .font(.caption).foregroundStyle(.limorMuted)
                         HStack(spacing: 10) {
-                            TextField("קוד שיתוף", text: $joinCode)
+                            TextField(tr("קוד שיתוף", "Share code"), text: $joinCode)
                                 .textInputAutocapitalization(.characters)
                                 .autocorrectionDisabled()
                                 .font(.body.weight(.semibold).monospaced())
@@ -163,7 +163,7 @@ struct SharedShoppingView: View {
                                     busy = false
                                 }
                             } label: {
-                                Text("הצטרף").font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                                Text(tr("הצטרף", "Join")).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
                                     .padding(.horizontal, 16).padding(.vertical, 10)
                                     .background(Capsule().fill(LimorGradient.brand))
                             }
@@ -189,8 +189,8 @@ struct SharedShoppingView: View {
                 Spacer()
                 LimorEmptyState(
                     icon: "cart",
-                    title: "הרשימה ריקה",
-                    subtitle: "הוסיפו פריטים — שניכם תראו אותם מיד.",
+                    title: tr("הרשימה ריקה", "The list is empty"),
+                    subtitle: tr("הוסיפו פריטים — שניכם תראו אותם מיד.", "Add items — you'll both see them right away."),
                     iconGradient: LimorGradient.brand
                 )
                 Spacer()
@@ -200,9 +200,9 @@ struct SharedShoppingView: View {
                         ForEach(store.openItems) { row($0) }
                         if !store.doneItems.isEmpty {
                             HStack {
-                                Text("סומנו").font(.caption.weight(.bold)).foregroundStyle(.limorMuted)
+                                Text(tr("סומנו", "Marked")).font(.caption.weight(.bold)).foregroundStyle(.limorMuted)
                                 Spacer()
-                                Button("נקה סומנו") { Task { await store.clearCompleted() } }
+                                Button(tr("נקה סומנו", "Clear marked")) { Task { await store.clearCompleted() } }
                                     .font(.caption.weight(.semibold)).foregroundStyle(.limorIndigo)
                             }
                             .padding(.horizontal, 4).padding(.top, 6)
@@ -220,11 +220,11 @@ struct SharedShoppingView: View {
         HStack(spacing: 10) {
             Image(systemName: "person.2.fill").foregroundStyle(.limorIndigo)
             VStack(alignment: .leading, spacing: 1) {
-                Text("קוד שיתוף").font(.caption2).foregroundStyle(.limorMuted)
+                Text(tr("קוד שיתוף", "Share code")).font(.caption2).foregroundStyle(.limorMuted)
                 Text(list.code).font(.headline.monospaced().weight(.bold)).foregroundStyle(.limorInk)
             }
             Spacer()
-            Text("\(list.members.count) חברים")
+            Text(tr("\(list.members.count) חברים", "\(list.members.count) members"))
                 .font(.caption2.weight(.semibold)).foregroundStyle(.limorMuted)
             Button { showingInvite = true } label: {
                 Image(systemName: "qrcode")
@@ -241,12 +241,12 @@ struct SharedShoppingView: View {
     private var addBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(.limorIndigo)
-            TextField("הוסף פריט (למשל: חלב)", text: $draft)
+            TextField(tr("הוסף פריט (למשל: חלב)", "Add an item (e.g. milk)"), text: $draft)
                 .submitLabel(.done)
                 .focused($addFocused)
                 .onSubmit(add)
             if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Button("הוסף", action: add)
+                Button(tr("הוסף", "Add"), action: add)
                     .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
                     .padding(.horizontal, 14).padding(.vertical, 8)
                     .background(Capsule().fill(LimorGradient.brand))

@@ -21,11 +21,11 @@ struct GoogleAPIs {
 
         var errorDescription: String? {
             switch self {
-            case .notSignedInWithGoogle: return "לא הצלחתי לפתוח את חלון ההתחברות של Google."
-            case .googleConfigMissing:   return "הגדרת Google חסרה. ודא שיש GoogleService-Info.plist."
-            case .missingScope(let s):   return "Google לא אישר את ההרשאה הנדרשת (\(s))."
-            case .http(let status, _):   return "Google API החזיר \(status)."
-            case .decodingFailed(let s): return "כשל בפענוח תשובה: \(s)"
+            case .notSignedInWithGoogle: return tr("לא הצלחתי לפתוח את חלון ההתחברות של Google.", "Couldn't open the Google sign-in window.")
+            case .googleConfigMissing:   return tr("הגדרת Google חסרה. ודא שיש GoogleService-Info.plist.", "Google configuration is missing. Make sure GoogleService-Info.plist exists.")
+            case .missingScope(let s):   return tr("Google לא אישר את ההרשאה הנדרשת (\(s)).", "Google didn't grant the required permission (\(s)).")
+            case .http(let status, _):   return tr("Google API החזיר \(status).", "The Google API returned \(status).")
+            case .decodingFailed(let s): return tr("כשל בפענוח תשובה: \(s)", "Failed to decode the response: \(s)")
             }
         }
     }
@@ -34,6 +34,12 @@ struct GoogleAPIs {
 
     static func grantedScopes() -> Set<String> {
         Set(GIDSignIn.sharedInstance.currentUser?.grantedScopes ?? [])
+    }
+
+    /// The connected Google account address, e.g. "rani@gmail.com". Used to
+    /// tag synced emails so the action report can attribute each item.
+    static func accountEmail() -> String? {
+        GIDSignIn.sharedInstance.currentUser?.profile?.email
     }
 
     /// Throw if any of the requested scopes is missing — but never present
@@ -134,7 +140,7 @@ struct GoogleAPIs {
             guard let start = item.start.normalized, let end = item.end.normalized else { return nil }
             return CalendarEventDTO(
                 event_id: item.id,
-                title: item.summary ?? "(ללא כותרת)",
+                title: item.summary ?? tr("(ללא כותרת)", "(No title)"),
                 notes: item.description,
                 location: item.location,
                 start_at: formatter.string(from: start.date),
@@ -189,15 +195,18 @@ struct GoogleAPIs {
         out.sort { $0.received_at > $1.received_at }
 
         // Step 2: fetch full bodies. The travel/flight extractor needs them
-        // for booking emails, and the executive action extractor needs the
-        // actual thread content (snippets lose the ask). So we pull bodies
-        // for every travel-likely email PLUS the most-recent N messages
-        // (covers active threads, inbound + sent), deduped and capped.
+        // for booking emails, the receipt extractor needs the charged amount
+        // (snippets often cut it off), and the executive action extractor
+        // needs the actual thread content (snippets lose the ask). So we pull
+        // bodies for every travel-likely email, the newest receipt-likely
+        // emails, PLUS the most-recent N messages (covers active threads,
+        // inbound + sent), deduped and capped.
         let travelIndices = out.indices.filter { isTravelLikely(out[$0]) }
+        let receiptIndices = Array(out.indices.filter { isReceiptLikely(out[$0]) }.prefix(40))
         let recentIndices = Array(out.indices.prefix(30))   // out is newest-first
         var bodyIndices: [Int] = []
         var seenIdx = Set<Int>()
-        for idx in travelIndices + recentIndices where seenIdx.insert(idx).inserted {
+        for idx in travelIndices + receiptIndices + recentIndices where seenIdx.insert(idx).inserted {
             bodyIndices.append(idx)
         }
 
@@ -229,6 +238,19 @@ struct GoogleAPIs {
             "airways", "airlines", "bluebird", "blue bird",
             "el al", "אל על", "easyjet", "ryanair", "wizz",
             "booking.com", "trip.com", "kiwi", "issta",
+        ]
+        return keys.contains { h.contains($0) }
+    }
+
+    /// Heuristic mirror of the backend's receipt prefilter — only decides
+    /// which emails get a full-body fetch; Claude does the real extraction.
+    private static func isReceiptLikely(_ e: EmailDTO) -> Bool {
+        let h = "\(e.subject) \(e.from_name ?? "") \(e.from) \(e.snippet)".lowercased()
+        let keys = [
+            "receipt", "invoice", "payment", "paid", "charged",
+            "your order", "order confirmation", "purchase", "transaction", "billing",
+            "קבלה", "חשבונית", "תשלום", "חיוב", "חויב", "שילמת",
+            "רכישה", "הזמנתך", "אישור תשלום", "מנוי",
         ]
         return keys.contains { h.contains($0) }
     }
@@ -303,7 +325,7 @@ struct GoogleAPIs {
         let msg = try decode(GmailMessage.self, from: data)
         let headers = msg.payload?.headers ?? []
         let from = headers.first { $0.name.lowercased() == "from" }?.value ?? ""
-        let subject = headers.first { $0.name.lowercased() == "subject" }?.value ?? "(ללא נושא)"
+        let subject = headers.first { $0.name.lowercased() == "subject" }?.value ?? tr("(ללא נושא)", "(No subject)")
         let dateHeader = headers.first { $0.name.lowercased() == "date" }?.value ?? ""
 
         let received: Date

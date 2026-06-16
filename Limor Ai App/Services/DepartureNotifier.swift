@@ -43,6 +43,9 @@ enum DepartureNotifier {
         let candidates = events.filter { ev in
             guard !ev.is_all_day else { return false }
             guard let loc = ev.location, !loc.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+            // "Time to leave" is only for places you physically travel to — not
+            // a match/show whose "location" is a TV channel or live stream.
+            guard !isBroadcastLocation(loc) else { return false }
             guard let start = MeetingsCard.parseIso(ev.start_at) else { return false }
             return start > now.addingTimeInterval(10 * 60) // ignore things basically now
         }.prefix(maxMeetings)
@@ -59,8 +62,8 @@ enum DepartureNotifier {
 
             let minutes = max(1, Int((travel / 60).rounded()))
             let content = UNMutableNotificationContent()
-            content.title = "זמן לצאת — \(ev.title)"
-            content.body = "כדי להגיע ב-\(timeString(start)) כדאי לצאת עכשיו. נסיעה של ~\(minutes) דק' ל\(shortAddress(address))."
+            content.title = tr("זמן לצאת — \(ev.title)", "Time to leave — \(ev.title)")
+            content.body = tr("כדי להגיע ב-\(timeString(start)) כדאי לצאת עכשיו. נסיעה של ~\(minutes) דק' ל\(shortAddress(address)).", "To arrive by \(timeString(start)) you should leave now. About a \(minutes) min drive to \(shortAddress(address)).")
             content.sound = .limorChosen
 
             let trigger = UNCalendarNotificationTrigger(
@@ -81,6 +84,21 @@ enum DepartureNotifier {
         let pending = await center.pendingNotificationRequests()
         let ids = pending.filter { $0.identifier.hasPrefix(prefix) }.map(\.identifier)
         center.removePendingNotificationRequests(withIdentifiers: ids)
+    }
+
+    /// True when an event's "location" is really a TV channel / broadcast /
+    /// stream (e.g. a World Cup match on כאן 11) rather than a place to drive
+    /// to. These should never get a "time to leave" alert.
+    private static func isBroadcastLocation(_ location: String) -> Bool {
+        let l = location.lowercased()
+        let keys = [
+            "כאן 11", "כאן11", "כאן 12", "כאן 13", "כאן ספורט", "כאן",
+            "ערוץ", "שידור", "צפייה", "טלוויז", "שידור חי", "בשידור",
+            "ספורט 1", "ספורט 2", "ספורט 3", "ספורט 4", "ספורט 5", "כאן ספורט",
+            "broadcast", "live stream", "livestream", "streaming",
+            "espn", "sport 1", "sport 2", "youtube", "twitch",
+        ]
+        return keys.contains { l.contains($0) }
     }
 
     // MARK: - Travel time

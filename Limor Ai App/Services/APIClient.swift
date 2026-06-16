@@ -1,4 +1,5 @@
 import FirebaseAuth
+import FirebaseCore
 import Foundation
 
 /// HTTP client for the Cloud Run backend. Pulls a fresh Firebase ID token before
@@ -57,6 +58,13 @@ struct APIClient {
             "/auth/profile",
             body: Body(display_name: displayName)
         )
+    }
+
+    /// Mirror the chosen UI language to the backend so server-generated
+    /// content (chat, news, briefings, notifications) follows it.
+    func setLanguage(_ language: String) async throws {
+        struct Body: Encodable { let language: String }
+        let _: EmptyResponse = try await post("/auth/profile", body: Body(language: language))
     }
 
     func updateProfile(displayName: String?, photoB64: String?) async throws {
@@ -163,6 +171,13 @@ struct APIClient {
 
     func deleteTask(id: String) async throws {
         let _: EmptyResponse = try await deleteReq("/api/tasks/\(id)")
+    }
+
+    /// Persist a drag-to-reorder: `ids` is the full open-task list in the
+    /// user's new top-to-bottom order.
+    func reorderTasks(ids: [String]) async throws {
+        struct Body: Encodable { let ids: [String] }
+        let _: EmptyResponse = try await post("/api/tasks/reorder", body: Body(ids: ids))
     }
 
     /// Patch task text and/or due time on an existing reminder. Either
@@ -324,6 +339,25 @@ struct APIClient {
         }
     }
 
+    // MARK: - Pending calendar events (create_event outbox)
+
+    /// Events Limor queued via `create_event` that haven't been written to this
+    /// device's calendar yet. Drained on foreground so an event still lands even
+    /// if the silent push was dropped.
+    func getPendingCalendarEvents() async throws -> [PendingCalendarEvent] {
+        struct Resp: Decodable { let events: [PendingCalendarEvent] }
+        let resp: Resp = try await get("/api/calendar/pending")
+        return resp.events
+    }
+
+    /// Tell the backend these outbox events were created locally, so they're
+    /// removed and never re-drained.
+    func ackPendingCalendarEvents(_ ids: [String]) async throws {
+        guard !ids.isEmpty else { return }
+        struct Body: Encodable { let event_ids: [String] }
+        let _: EmptyResponse = try await post("/api/calendar/pending/ack", body: Body(event_ids: ids))
+    }
+
     // MARK: - Insights
 
     func getInsights() async throws -> InsightsBundle {
@@ -333,6 +367,199 @@ struct APIClient {
     func refreshInsights() async throws -> InsightsBundle {
         struct Empty: Encodable {}
         return try await post("/api/insights/refresh", body: Empty())
+    }
+
+    // MARK: - Receipt corrections (expenses card)
+
+    /// Persist a user edit to an extracted receipt. The server stores it as
+    /// an override that survives re-extraction, applies it to the cached
+    /// bundle and returns the updated bundle.
+    func updateReceipt(
+        id: String,
+        vendor: String? = nil,
+        amount: Double? = nil,
+        currency: String? = nil,
+        category: String? = nil,
+        description: String? = nil
+    ) async throws -> InsightsBundle {
+        struct Patch: Encodable {
+            let vendor: String?
+            let amount: Double?
+            let currency: String?
+            let category: String?
+            let description: String?
+        }
+        struct Body: Encodable {
+            let id: String
+            let patch: Patch
+        }
+        let body = Body(id: id, patch: Patch(
+            vendor: vendor, amount: amount, currency: currency,
+            category: category, description: description
+        ))
+        return try await post("/api/insights/receipts/update", body: body)
+    }
+
+    /// Delete a receipt (tombstoned server-side, so re-extraction can't
+    /// bring it back). Returns the updated bundle.
+    func deleteReceipt(id: String) async throws -> InsightsBundle {
+        struct Body: Encodable { let id: String }
+        return try await post("/api/insights/receipts/delete", body: Body(id: id))
+    }
+
+    // MARK: - Organization (B2B license)
+
+    struct OrgInfo: Codable, Hashable { let id: String; let name: String }
+
+    /// The caller's current organization, or nil if they belong to none.
+    func getMyOrg() async throws -> OrgInfo? {
+        struct Resp: Decodable { let org: OrgInfo? }
+        let resp: Resp = try await get("/api/orgs/me")
+        return resp.org
+    }
+
+    /// Attach the caller to the org that owns this license code.
+    func joinOrg(licenseCode: String) async throws -> OrgInfo {
+        struct Body: Encodable { let license_code: String }
+        struct Resp: Decodable { let org: OrgInfo }
+        let resp: Resp = try await post("/api/orgs/join", body: Body(license_code: licenseCode))
+        return resp.org
+    }
+
+    /// Detach the caller from any org.
+    func leaveOrg() async throws {
+        struct Empty: Encodable {}
+        let _: EmptyResponse = try await post("/api/orgs/leave", body: Empty())
+    }
+
+    // MARK: Admin (owner only)
+
+    struct OrgFull: Codable, Identifiable, Hashable {
+        let id: String
+        let name: String
+        let license_code: String
+        var price_multiplier: Double?
+        var admin_email: String?
+        var users: Int?
+        var raw_cost_usd: Double?
+        var charge_usd: Double?
+    }
+
+    // MARK: Company manager (a customer who manages their own company)
+
+    struct CompanyBilling: Codable, Hashable {
+        struct UserCharge: Codable, Identifiable, Hashable {
+            var id: String { email ?? UUID().uuidString }
+            let email: String?
+            let charge_usd: Double
+        }
+        let id: String
+        let name: String
+        let month: String
+        let total_charge_usd: Double
+        let users: [UserCharge]
+    }
+
+    /// The company the caller manages (nil if none). Read-only billing.
+    func getMyCompany(month: String? = nil) async throws -> CompanyBilling? {
+        struct Resp: Decodable { let company: CompanyBilling? }
+        let path = month.map { "/api/orgs/my-company?month=\($0)" } ?? "/api/orgs/my-company"
+        let resp: Resp = try await get(path)
+        return resp.company
+    }
+
+    /// Owner sets a company's manager email (empty clears).
+    func adminSetCompanyManager(orgId: String, email: String) async throws {
+        struct Body: Encodable { let org_id: String; let admin_email: String }
+        let _: EmptyResponse = try await post("/api/orgs/admin/set-manager",
+                                              body: Body(org_id: orgId, admin_email: email))
+    }
+
+    struct AdminOverview: Codable {
+        let month: String
+        let orgs: [OrgFull]
+        let total_charge_usd: Double
+    }
+
+    /// Create a company; the server auto-generates its license code.
+    func adminCreateOrg(name: String) async throws -> OrgFull {
+        struct Body: Encodable { let name: String }
+        struct Resp: Decodable { let org: OrgFull }
+        let resp: Resp = try await post("/api/orgs/admin/create", body: Body(name: name))
+        return resp.org
+    }
+
+    /// Every company with its license code and this month's charge.
+    func adminOverview(month: String? = nil) async throws -> AdminOverview {
+        let path = month.map { "/api/orgs/admin/overview?month=\($0)" } ?? "/api/orgs/admin/overview"
+        return try await get(path)
+    }
+
+    struct AdminUser: Codable, Identifiable, Hashable {
+        var id: String { user_id }
+        let user_id: String
+        let email: String?
+        let org_id: String?
+        let org_name: String?
+        let allowed: Bool          // individually approved
+        let has_access: Bool       // effective access
+        let cost_usd: Double
+    }
+
+    /// Every user with access state + this month's spend.
+    func adminUsers(month: String? = nil) async throws -> [AdminUser] {
+        struct Resp: Decodable { let users: [AdminUser] }
+        let path = month.map { "/api/orgs/admin/users?month=\($0)" } ?? "/api/orgs/admin/users"
+        let resp: Resp = try await get(path)
+        return resp.users
+    }
+
+    /// Approve or revoke an individual user's access.
+    func adminSetUserAccess(userId: String, allowed: Bool) async throws {
+        struct Body: Encodable { let user_id: String; let allowed: Bool }
+        let _: EmptyResponse = try await post("/api/orgs/admin/user-access",
+                                              body: Body(user_id: userId, allowed: allowed))
+    }
+
+    /// Delete a company (detaches its members).
+    func adminDeleteOrg(orgId: String) async throws {
+        struct Body: Encodable { let org_id: String }
+        let _: EmptyResponse = try await post("/api/orgs/admin/delete", body: Body(org_id: orgId))
+    }
+
+    /// Assign a user to a company (nil detaches).
+    func adminSetUserOrg(userId: String, orgId: String?) async throws {
+        struct Body: Encodable { let user_id: String; let org_id: String? }
+        let _: EmptyResponse = try await post("/api/orgs/admin/user-org",
+                                              body: Body(user_id: userId, org_id: orgId))
+    }
+
+    // MARK: - CEO Executive Briefing
+
+    func getBriefing() async throws -> CeoBriefing {
+        try await get("/api/briefing")
+    }
+
+    /// Generate a fresh briefing in the given language ("he"/"en"). Heavy
+    /// Sonnet pass — can take a minute, so always uses the long session.
+    func refreshBriefing(lang: String = "en") async throws -> CeoBriefing {
+        struct Empty: Encodable {}
+        return try await post("/api/briefing/refresh?lang=\(lang)", body: Empty(), longRunning: true)
+    }
+
+    // MARK: - World Cup 2026
+
+    func getWorldCup() async throws -> WorldCupBundle {
+        try await get("/api/worldcup")
+    }
+
+    /// Regenerate the global fixtures bundle (Claude + web_search on the
+    /// server). `force: true` = pull-to-refresh, still floor-limited
+    /// server-side. Generation can take ~30s — use the long session.
+    func refreshWorldCup(force: Bool = false) async throws -> WorldCupBundle {
+        struct Empty: Encodable {}
+        let path = force ? "/api/worldcup/refresh?force=1" : "/api/worldcup/refresh"
+        return try await post(path, body: Empty(), longRunning: true)
     }
 
     // MARK: - Executive email action report
@@ -534,10 +761,14 @@ struct APIClient {
             let user_lat: Double?
             let user_lng: Double?
             let attachment: ChatAttachment?
+            let language: String
         }
         return try await post(
             "/api/chat",
-            body: Body(message: message, user_lat: lat, user_lng: lng, attachment: attachment)
+            body: Body(
+                message: message, user_lat: lat, user_lng: lng,
+                attachment: attachment, language: SharedStore.appLang
+            )
         )
     }
 
@@ -576,6 +807,16 @@ struct APIClient {
                 // overwrites this with a newer one before the old expires.
                 if let token, !token.isEmpty {
                     SharedStore.bearer = token
+                    // Also stash the refresh token + Firebase API key so the
+                    // Share extension can mint a FRESH id token on its own when
+                    // the 1h bearer above has expired — instead of failing with
+                    // "ההתחברות פגה" and forcing the user to open the app.
+                    if let rt = user.refreshToken, !rt.isEmpty {
+                        SharedStore.firebaseRefreshToken = rt
+                    }
+                    if let apiKey = FirebaseApp.app()?.options.apiKey, !apiKey.isEmpty {
+                        SharedStore.firebaseApiKey = apiKey
+                    }
                 }
                 cont.resume(returning: token)
             }
@@ -648,6 +889,13 @@ struct APIClient {
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
             let code = (try? decoder.decode(ServerError.self, from: data))?.error ?? "http_\(http.statusCode)"
+            // The AI gate rejected this account — surface a single global
+            // "no access" prompt instead of silent failures everywhere.
+            if http.statusCode == 403, code == "no_access" {
+                await MainActor.run {
+                    NotificationCenter.default.post(name: .limorNoAccess, object: nil)
+                }
+            }
             throw APIError.server(status: http.statusCode, code: code)
         }
         if T.self == EmptyResponse.self { return EmptyResponse() as! T }
@@ -657,14 +905,20 @@ struct APIClient {
 
 struct EmptyResponse: Decodable {}
 
+extension Notification.Name {
+    /// Posted when the backend returns 403 `no_access` — the account isn't
+    /// connected to a company and wasn't approved by the owner.
+    static let limorNoAccess = Notification.Name("limorNoAccess")
+}
+
 enum APIError: LocalizedError {
     case invalidResponse
     case server(status: Int, code: String)
 
     var errorDescription: String? {
         switch self {
-        case .invalidResponse: return "תגובה לא תקינה מהשרת."
-        case .server(let status, let code): return "שגיאה (\(status)): \(code)"
+        case .invalidResponse: return tr("תגובה לא תקינה מהשרת.", "Invalid response from the server.")
+        case .server(let status, let code): return tr("שגיאה (\(status)): \(code)", "Error (\(status)): \(code)")
         }
     }
 }

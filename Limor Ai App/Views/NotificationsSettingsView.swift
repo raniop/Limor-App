@@ -67,14 +67,14 @@ struct NotificationsSettingsView: View {
                 ProgressView().scaleEffect(1.2)
             }
         }
-        .navigationTitle("התראות יומיות")
+        .navigationTitle(tr("התראות יומיות", "Daily Notifications"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
-        .alert("שגיאה", isPresented: .init(
+        .alert(tr("שגיאה", "Error"), isPresented: .init(
             get: { loadError != nil },
             set: { if !$0 { loadError = nil } }
         )) {
-            Button("אוקיי", role: .cancel) {}
+            Button(tr("אוקיי", "OK"), role: .cancel) {}
         } message: {
             Text(loadError ?? "")
         }
@@ -93,10 +93,10 @@ struct NotificationsSettingsView: View {
                     .foregroundStyle(.limorIndigo)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text("התראות פעילות")
+                Text(tr("התראות פעילות", "Notifications on"))
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.limorInk)
-                Text(doc.master_enabled ? "הקבלת התראות יומיות מופעלת" : "כל ההתראות מושתקות")
+                Text(doc.master_enabled ? tr("הקבלת התראות יומיות מופעלת", "Daily notifications are enabled") : tr("כל ההתראות מושתקות", "All notifications are muted"))
                     .font(.caption)
                     .foregroundStyle(.limorMuted)
             }
@@ -160,7 +160,7 @@ struct NotificationsSettingsView: View {
             if pref.enabled {
                 Divider().opacity(0.4)
                 HStack {
-                    Text("שעת שליחה")
+                    Text(tr("שעת שליחה", "Send time"))
                         .font(.subheadline)
                         .foregroundStyle(.limorInk)
                     Spacer()
@@ -197,7 +197,7 @@ struct NotificationsSettingsView: View {
 
     private var localSectionHeader: some View {
         HStack {
-            Text("התראות מקומיות")
+            Text(tr("התראות מקומיות", "Local notifications"))
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.limorMuted)
             Spacer()
@@ -218,10 +218,10 @@ struct NotificationsSettingsView: View {
                         .foregroundStyle(.limorIndigo)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("הפגישות של מחר")
+                    Text(tr("הפגישות של מחר", "Tomorrow's meetings"))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.limorInk)
-                    Text("התראה אחת בערב עם הפגישות שלך ליום הבא")
+                    Text(tr("התראה אחת בערב עם הפגישות שלך ליום הבא", "One evening notification with your meetings for the next day"))
                         .font(.caption)
                         .foregroundStyle(.limorMuted)
                         .lineLimit(2)
@@ -250,7 +250,7 @@ struct NotificationsSettingsView: View {
             if meetingsNotifEnabled {
                 Divider().opacity(0.4)
                 HStack {
-                    Text("שעת שליחה")
+                    Text(tr("שעת שליחה", "Send time"))
                         .font(.subheadline)
                         .foregroundStyle(.limorInk)
                     Spacer()
@@ -297,10 +297,10 @@ struct NotificationsSettingsView: View {
                         .foregroundStyle(.limorIndigo)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("שעתיים לפני")
+                    Text(tr("שעתיים לפני", "Two hours before"))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.limorInk)
-                    Text("התראה שעתיים לפני כל פגישה ותזכורת · אפשר לדחות בשעה")
+                    Text(tr("התראה שעתיים לפני כל פגישה ותזכורת · אפשר לדחות בשעה", "A heads-up two hours before every meeting and reminder · snooze for an hour"))
                         .font(.caption)
                         .foregroundStyle(.limorMuted)
                         .lineLimit(2)
@@ -348,10 +348,10 @@ struct NotificationsSettingsView: View {
                         .foregroundStyle(.limorIndigo)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("זמן לצאת")
+                    Text(tr("זמן לצאת", "Time to leave"))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.limorInk)
-                    Text("לפגישה עם כתובת — התראה מתי לצאת לפי זמן הנסיעה בפועל")
+                    Text(tr("לפגישה עם כתובת — התראה מתי לצאת לפי זמן הנסיעה בפועל", "For a meeting with an address — alerts when to leave based on real travel time"))
                         .font(.caption)
                         .foregroundStyle(.limorMuted)
                         .lineLimit(2)
@@ -397,10 +397,10 @@ struct NotificationsSettingsView: View {
                         .foregroundStyle(.limorViolet)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("שקט לילה")
+                    Text(tr("שקט לילה", "Night quiet"))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.limorInk)
-                    Text("לא לשלוח התראות אוטומטיות בשעות הלילה")
+                    Text(tr("לא לשלוח התראות אוטומטיות בשעות הלילה", "Don't send automatic notifications during night hours"))
                         .font(.caption)
                         .foregroundStyle(.limorMuted)
                         .lineLimit(2)
@@ -416,10 +416,10 @@ struct NotificationsSettingsView: View {
             if quietEnabled {
                 Divider().opacity(0.4)
                 HStack {
-                    Text("מ-").font(.subheadline).foregroundStyle(.limorInk)
+                    Text(tr("מ-", "From")).font(.subheadline).foregroundStyle(.limorInk)
                     hourPicker(selection: Binding(get: { quietStart }, set: { quietStart = $0; applyQuiet() }))
                     Spacer()
-                    Text("עד").font(.subheadline).foregroundStyle(.limorInk)
+                    Text(tr("עד", "To")).font(.subheadline).foregroundStyle(.limorInk)
                     hourPicker(selection: Binding(get: { quietEnd }, set: { quietEnd = $0; applyQuiet() }))
                 }
             }
@@ -467,10 +467,10 @@ struct NotificationsSettingsView: View {
                         .foregroundStyle(.limorIndigo)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("צליל ההתראות")
+                    Text(tr("צליל ההתראות", "Notification sound"))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.limorInk)
-                    Text("הצליל שיתנגן בכל ההתראות מלימור — תזכורות, פגישות והתראות יומיות")
+                    Text(tr("הצליל שיתנגן בכל ההתראות מלימור — תזכורות, פגישות והתראות יומיות", "The sound played for all of Limor's notifications — reminders, meetings, and daily alerts"))
                         .font(.caption)
                         .foregroundStyle(.limorMuted)
                         .lineLimit(2)
@@ -478,7 +478,7 @@ struct NotificationsSettingsView: View {
                 Spacer()
             }
             Divider().opacity(0.4)
-            soundOptionRow(sound: nil, label: "ברירת מחדל")
+            soundOptionRow(sound: nil, label: tr("ברירת מחדל", "Default"))
             ForEach(ReminderSound.allCases) { s in
                 soundOptionRow(sound: s, label: s.displayName)
             }
@@ -520,7 +520,7 @@ struct NotificationsSettingsView: View {
     }
 
     private var footerText: some View {
-        Text("שעות בעיתוי מקומי (Asia/Jerusalem). אם השרת לא היה זמין בשעה שנקבעה — ההתראה תישלח ברגע שניתן באותו יום.")
+        Text(tr("שעות בעיתוי מקומי (Asia/Jerusalem). אם השרת לא היה זמין בשעה שנקבעה — ההתראה תישלח ברגע שניתן באותו יום.", "Times are in local time (Asia/Jerusalem). If the server wasn't available at the scheduled time, the notification will be sent as soon as possible that same day."))
             .font(.caption2)
             .foregroundStyle(.limorMuted)
             .multilineTextAlignment(.leading)
@@ -548,22 +548,22 @@ struct NotificationsSettingsView: View {
         switch kind {
         case .morning_brief:
             return DisplayStyle(
-                title: "בוקר טוב",
-                subtitle: "מה ביומן היום ותזכורות פתוחות",
+                title: tr("בוקר טוב", "Good morning"),
+                subtitle: tr("מה ביומן היום ותזכורות פתוחות", "What's on your calendar today and open reminders"),
                 icon: "sun.max.fill",
                 tint: .limorWarning
             )
         case .evening_recap:
             return DisplayStyle(
-                title: "סיכום ערב",
-                subtitle: "צעדים, יומן מחר ותזכורות פתוחות",
+                title: tr("סיכום ערב", "Evening recap"),
+                subtitle: tr("צעדים, יומן מחר ותזכורות פתוחות", "Steps, tomorrow's calendar, and open reminders"),
                 icon: "moon.fill",
                 tint: .limorViolet
             )
         case .feed_digest:
             return DisplayStyle(
-                title: "חדשות הבוקר",
-                subtitle: "הכותרות העיקריות מהפיד שלך",
+                title: tr("חדשות הבוקר", "Morning news"),
+                subtitle: tr("הכותרות העיקריות מהפיד שלך", "The top headlines from your feed"),
                 icon: "newspaper.fill",
                 tint: .limorIndigo
             )

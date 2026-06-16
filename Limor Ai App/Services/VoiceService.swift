@@ -44,7 +44,7 @@ final class VoiceService: NSObject, ObservableObject {
         case english = "en-US"
 
         var id: String { rawValue }
-        var label: String { self == .hebrew ? "עברית" : "English" }
+        var label: String { self == .hebrew ? tr("עברית", "Hebrew") : "English" }
         var localeIdentifier: String { rawValue }
     }
 
@@ -113,14 +113,14 @@ final class VoiceService: NSObject, ObservableObject {
             SFSpeechRecognizer.requestAuthorization { status in cont.resume(returning: status) }
         }
         guard speechAuth == .authorized else {
-            errorMessage = "צריך לאשר זיהוי דיבור בהגדרות → לימור."
+            errorMessage = tr("צריך לאשר זיהוי דיבור בהגדרות → לימור.", "Speech recognition needs to be enabled in Settings → Limor.")
             return false
         }
         let micAuth = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             AVAudioApplication.requestRecordPermission { granted in cont.resume(returning: granted) }
         }
         guard micAuth else {
-            errorMessage = "צריך לאשר גישה למיקרופון בהגדרות → לימור."
+            errorMessage = tr("צריך לאשר גישה למיקרופון בהגדרות → לימור.", "Microphone access needs to be enabled in Settings → Limor.")
             return false
         }
         return true
@@ -129,7 +129,7 @@ final class VoiceService: NSObject, ObservableObject {
     func start(locale: SpeechLocale) async {
         guard !isRecording else { return }
         if isPhoneCallActive() {
-            errorMessage = "אי אפשר להקליט בזמן שיחת טלפון. סיימי את השיחה ונסי שוב."
+            errorMessage = tr("אי אפשר להקליט בזמן שיחת טלפון. סיימי את השיחה ונסי שוב.", "Can't record during a phone call. End the call and try again.")
             return
         }
         guard await requestPermissions() else { return }
@@ -138,7 +138,7 @@ final class VoiceService: NSObject, ObservableObject {
         // locale-scoped — switching between Hebrew/English requires a new one.
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: locale.localeIdentifier))
         guard let recognizer, recognizer.isAvailable else {
-            errorMessage = "זיהוי דיבור ל-\(locale.label) לא זמין כרגע."
+            errorMessage = tr("זיהוי דיבור ל-\(locale.label) לא זמין כרגע.", "Speech recognition for \(locale.label) isn't available right now.")
             return
         }
 
@@ -467,14 +467,14 @@ final class VoiceService: NSObject, ObservableObject {
         // the user sees a clear message instead of a "recording" UI
         // that produces silence.
         if isPhoneCallActive() {
-            errorMessage = "אי אפשר להקליט הודעה קולית בזמן שיחת טלפון. סיימי את השיחה ונסי שוב."
+            errorMessage = tr("אי אפשר להקליט הודעה קולית בזמן שיחת טלפון. סיימי את השיחה ונסי שוב.", "Can't record a voice message during a phone call. End the call and try again.")
             return false
         }
         let micAuth = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             AVAudioApplication.requestRecordPermission { granted in cont.resume(returning: granted) }
         }
         guard micAuth else {
-            errorMessage = "צריך לאשר גישה למיקרופון בהגדרות → לימור."
+            errorMessage = tr("צריך לאשר גישה למיקרופון בהגדרות → לימור.", "Microphone access needs to be enabled in Settings → Limor.")
             return false
         }
 
@@ -485,7 +485,7 @@ final class VoiceService: NSObject, ObservableObject {
             try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
-            errorMessage = "לא הצלחתי להפעיל אודיו: \(error.localizedDescription)"
+            errorMessage = tr("לא הצלחתי להפעיל אודיו: \(error.localizedDescription)", "Couldn't start audio: \(error.localizedDescription)")
             return false
         }
 
@@ -507,7 +507,7 @@ final class VoiceService: NSObject, ObservableObject {
             let recorder = try AVAudioRecorder(url: url, settings: settings)
             recorder.isMeteringEnabled = true
             guard recorder.record() else {
-                errorMessage = "לא הצלחתי להתחיל הקלטה."
+                errorMessage = tr("לא הצלחתי להתחיל הקלטה.", "Couldn't start recording.")
                 return false
             }
             voiceRecorder = recorder
@@ -538,7 +538,7 @@ final class VoiceService: NSObject, ObservableObject {
             }
             return true
         } catch {
-            errorMessage = "לא הצלחתי להתחיל הקלטה: \(error.localizedDescription)"
+            errorMessage = tr("לא הצלחתי להתחיל הקלטה: \(error.localizedDescription)", "Couldn't start recording: \(error.localizedDescription)")
             return false
         }
     }
@@ -636,13 +636,13 @@ final class VoiceService: NSObject, ObservableObject {
             let player = try AVAudioPlayer(contentsOf: url)
             player.delegate = self
             guard player.play() else {
-                errorMessage = "לא הצלחתי להפעיל את ההקלטה."
+                errorMessage = tr("לא הצלחתי להפעיל את ההקלטה.", "Couldn't play the recording.")
                 return
             }
             audioPlayer = player
             playingAudioURL = url
         } catch {
-            errorMessage = "לא הצלחתי להפעיל את ההקלטה: \(error.localizedDescription)"
+            errorMessage = tr("לא הצלחתי להפעיל את ההקלטה: \(error.localizedDescription)", "Couldn't play the recording: \(error.localizedDescription)")
         }
     }
 

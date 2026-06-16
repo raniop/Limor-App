@@ -22,7 +22,7 @@ struct MeetingsCard: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        SectionLabel(icon: "calendar.badge.clock", title: "הפגישות הבאות שלי")
+                        SectionLabel(icon: "calendar.badge.clock", title: tr("הפגישות הבאות שלי", "My upcoming meetings"))
                         Spacer()
                         if events.count > displayLimit {
                             Text("\(events.count)")
@@ -76,7 +76,7 @@ struct MeetingsCard: View {
     private var accessRow: some View {
         HStack(spacing: 8) {
             Image(systemName: "lock.fill").font(.caption).foregroundStyle(.limorMuted)
-            Text("צריך גישה ליומן — אפשר לאשר בהגדרות → הרשאות")
+            Text(tr("צריך גישה ליומן — אפשר לאשר בהגדרות → הרשאות", "Calendar access needed — you can allow it in Settings → Permissions"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -85,14 +85,14 @@ struct MeetingsCard: View {
     private var emptyRow: some View {
         HStack(spacing: 8) {
             Image(systemName: "checkmark.circle").font(.caption).foregroundStyle(.limorSuccess)
-            Text("אין פגישות ב-30 הימים הקרובים").font(.caption).foregroundStyle(.secondary)
+            Text(tr("אין פגישות ב-30 הימים הקרובים", "No meetings in the next 30 days")).font(.caption).foregroundStyle(.secondary)
         }
     }
 
     private var loadingRow: some View {
         HStack(spacing: 8) {
             ProgressView().tint(.limorIndigo).scaleEffect(0.7)
-            Text("טוען…").font(.caption).foregroundStyle(.secondary)
+            Text(tr("טוען…", "Loading…")).font(.caption).foregroundStyle(.secondary)
         }
     }
 }
@@ -148,8 +148,8 @@ struct DateChip: View {
 
     private var label: String {
         let cal = Calendar.current
-        if cal.isDateInToday(date) { return "היום" }
-        if cal.isDateInTomorrow(date) { return "מחר" }
+        if cal.isDateInToday(date) { return tr("היום", "Today") }
+        if cal.isDateInTomorrow(date) { return tr("מחר", "Tomorrow") }
         // Within the same week — show weekday name (e.g. "ה׳")
         let now = Date()
         if let days = cal.dateComponents([.day], from: now, to: date).day, days < 7 {
@@ -220,7 +220,7 @@ struct MeetingsListView: View {
                 }
             }
         }
-        .navigationTitle("הפגישות הבאות שלי")
+        .navigationTitle(tr("הפגישות הבאות שלי", "My upcoming meetings"))
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -234,7 +234,7 @@ struct MeetingsListView: View {
                         .frame(width: 36, height: 36)
                         .background(Circle().fill(Color.limorPink.opacity(hideBirthdays ? 0.05 : 0.18)))
                 }
-                .accessibilityLabel(hideBirthdays ? "הצג ימי הולדת" : "הסתר ימי הולדת")
+                .accessibilityLabel(hideBirthdays ? tr("הצג ימי הולדת", "Show birthdays") : tr("הסתר ימי הולדת", "Hide birthdays"))
             }
         }
         .task { await reload() }
@@ -269,11 +269,11 @@ struct MeetingsListView: View {
     }
 
     private func dayLabel(for date: Date, calendar cal: Calendar) -> String {
-        if cal.isDateInToday(date) { return "היום" }
-        if cal.isDateInTomorrow(date) { return "מחר" }
+        if cal.isDateInToday(date) { return tr("היום", "Today") }
+        if cal.isDateInTomorrow(date) { return tr("מחר", "Tomorrow") }
         let f = DateFormatter()
-        f.locale = Locale(identifier: "he_IL")
-        f.dateFormat = "EEEE, d בMMMM"
+        f.locale = AppLangBox.current.locale
+        f.dateFormat = tr("EEEE, d בMMMM", "EEEE, MMMM d")
         return f.string(from: date)
     }
 
@@ -282,7 +282,7 @@ struct MeetingsListView: View {
             Image(systemName: "calendar")
                 .font(.system(size: 56, weight: .light))
                 .foregroundStyle(.limorMuted)
-            Text("אין פגישות ב-60 הימים הקרובים")
+            Text(tr("אין פגישות ב-60 הימים הקרובים", "No meetings in the next 60 days"))
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.limorInk)
         }
@@ -322,7 +322,7 @@ private struct DetailedMeetingRow: View {
     }
 
     private var timeText: String {
-        if event.is_all_day { return "כל היום" }
+        if event.is_all_day { return tr("כל היום", "All day") }
         let start = MeetingsCard.parseIso(event.start_at) ?? Date()
         let end = MeetingsCard.parseIso(event.end_at) ?? start
         let f = DateFormatter()

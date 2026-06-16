@@ -39,7 +39,7 @@ struct RemindersView: View {
                     listColumn
                 }
             }
-            .navigationTitle("תזכורות")
+            .navigationTitle(tr("תזכורות", "Reminders"))
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -87,16 +87,16 @@ struct RemindersView: View {
                 }
                 .presentationDetents([.medium, .large])
             }
-            .alert("שגיאה", isPresented: .init(
+            .alert(tr("שגיאה", "Error"), isPresented: .init(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
             )) {
-                Button("אוקיי", role: .cancel) {}
+                Button(tr("אוקיי", "OK"), role: .cancel) {}
             } message: {
                 Text(errorMessage ?? "")
             }
             .confirmationDialog(
-                "לסמן כבוצע?",
+                tr("לסמן כבוצע?", "Mark as done?"),
                 isPresented: Binding(
                     get: { pendingComplete != nil },
                     set: { if !$0 { pendingComplete = nil } }
@@ -107,12 +107,12 @@ struct RemindersView: View {
                 // Skip `message:` — the reminder card the user just tapped
                 // is still on screen and a long task text was stretching
                 // the dialog way too tall.
-                Button("סמן כבוצע", role: .none) {
+                Button(tr("סמן כבוצע", "Mark as done"), role: .none) {
                     let target = r
                     pendingComplete = nil
                     Task { await complete(target) }
                 }
-                Button("ביטול", role: .cancel) {
+                Button(tr("ביטול", "Cancel"), role: .cancel) {
                     pendingComplete = nil
                 }
             }
@@ -126,8 +126,8 @@ struct RemindersView: View {
                     Spacer(minLength: 40)
                     LimorEmptyState(
                         icon: "bell.badge",
-                        title: "אין תזכורות פעילות",
-                        subtitle: "לחצי על + למעלה כדי להוסיף תזכורת חדשה, או בקשי מלימור בצ'אט.",
+                        title: tr("אין תזכורות פעילות", "No active reminders"),
+                        subtitle: tr("לחצי על + למעלה כדי להוסיף תזכורת חדשה, או בקשי מלימור בצ'אט.", "Tap + above to add a new reminder, or just ask Limor in chat."),
                         iconGradient: LimorGradient.brand
                     )
                 }
@@ -148,7 +148,7 @@ struct RemindersView: View {
                     if !completed.isEmpty {
                         ReminderSection(
                             section: .init(
-                                title: "הושלמו",
+                                title: tr("הושלמו", "Completed"),
                                 icon: "checkmark.seal.fill",
                                 tint: .limorSuccess,
                                 reminders: Array(completed.prefix(20))
@@ -189,7 +189,7 @@ struct RemindersView: View {
                     Image(systemName: "hand.point.up.left")
                         .font(.system(size: 44, weight: .light))
                         .foregroundStyle(.limorMuted)
-                    Text("בחר תזכורת כדי לצפות בפרטים")
+                    Text(tr("בחר תזכורת כדי לצפות בפרטים", "Select a reminder to view details"))
                         .font(.subheadline)
                         .foregroundStyle(.limorMuted)
                 }
@@ -238,11 +238,11 @@ struct RemindersView: View {
         let later = pending.filter { $0.dueDate > endOfWeek }
 
         return [
-            Section(title: "🔥 דחוף — באיחור", icon: "exclamationmark.triangle.fill", tint: .limorDanger, reminders: overdue),
-            Section(title: "⚡ ב־30 הדקות הקרובות", icon: "bolt.fill", tint: .limorWarning, reminders: next30),
-            Section(title: "📅 היום", icon: "calendar", tint: .limorIndigo, reminders: today),
-            Section(title: "🗓️ השבוע", icon: "calendar.badge.clock", tint: .limorViolet, reminders: thisWeek),
-            Section(title: "📦 בעתיד", icon: "tray", tint: .limorMuted, reminders: later),
+            Section(title: tr("🔥 דחוף — באיחור", "🔥 Urgent — overdue"), icon: "exclamationmark.triangle.fill", tint: .limorDanger, reminders: overdue),
+            Section(title: tr("⚡ ב־30 הדקות הקרובות", "⚡ In the next 30 minutes"), icon: "bolt.fill", tint: .limorWarning, reminders: next30),
+            Section(title: tr("📅 היום", "📅 Today"), icon: "calendar", tint: .limorIndigo, reminders: today),
+            Section(title: tr("🗓️ השבוע", "🗓️ This week"), icon: "calendar.badge.clock", tint: .limorViolet, reminders: thisWeek),
+            Section(title: tr("📦 בעתיד", "📦 Later"), icon: "tray", tint: .limorMuted, reminders: later),
         ].filter { !$0.reminders.isEmpty }
     }
 
@@ -485,7 +485,7 @@ private struct HeroCountdownCard: View {
 
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Label(reminder.isOverdue ? "באיחור" : "התזכורת הקרובה",
+                    Label(reminder.isOverdue ? tr("באיחור", "Overdue") : tr("התזכורת הקרובה", "Up next"),
                           systemImage: reminder.isOverdue ? "exclamationmark.triangle.fill" : "bell.fill")
                         .font(.subheadline.weight(.semibold))
                     Spacer()
@@ -645,30 +645,30 @@ private struct ReminderCard: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive) {
                 Task { await onDelete() }
-            } label: { Label("מחק", systemImage: "trash") }
+            } label: { Label(tr("מחק", "Delete"), systemImage: "trash") }
         }
         .contextMenu {
             if showActions {
                 Button { onEdit() } label: {
-                    Label("ערוך", systemImage: "pencil")
+                    Label(tr("ערוך", "Edit"), systemImage: "pencil")
                 }
                 Button {
                     onRequestComplete()
-                } label: { Label("סמן כבוצע", systemImage: "checkmark") }
+                } label: { Label(tr("סמן כבוצע", "Mark as done"), systemImage: "checkmark") }
                 Menu {
-                    Button("10 דקות") { Task { await onSnooze(10) } }
-                    Button("30 דקות") { Task { await onSnooze(30) } }
-                    Button("שעה") { Task { await onSnooze(60) } }
-                    Button("3 שעות") { Task { await onSnooze(180) } }
-                } label: { Label("דחה ל…", systemImage: "alarm") }
+                    Button(tr("10 דקות", "10 minutes")) { Task { await onSnooze(10) } }
+                    Button(tr("30 דקות", "30 minutes")) { Task { await onSnooze(30) } }
+                    Button(tr("שעה", "1 hour")) { Task { await onSnooze(60) } }
+                    Button(tr("3 שעות", "3 hours")) { Task { await onSnooze(180) } }
+                } label: { Label(tr("דחה ל…", "Snooze until…"), systemImage: "alarm") }
             } else if let onReactivate {
                 Button {
                     Task { await onReactivate() }
-                } label: { Label("החזר לפעיל", systemImage: "arrow.uturn.backward") }
+                } label: { Label(tr("החזר לפעיל", "Reactivate"), systemImage: "arrow.uturn.backward") }
             }
             Button(role: .destructive) {
                 Task { await onDelete() }
-            } label: { Label("מחק", systemImage: "trash") }
+            } label: { Label(tr("מחק", "Delete"), systemImage: "trash") }
         }
         // Single tap opens the edit sheet — bare scrolls still scroll
         // because the swipe action and context menu both intercept
@@ -707,8 +707,8 @@ private struct NewReminderSheet: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 18) {
                         VStack(alignment: .leading, spacing: 8) {
-                            SectionLabel(icon: "text.alignright", title: "מה לזכור?")
-                            TextField("לדוגמה: להתקשר לאמא", text: $task, axis: .vertical)
+                            SectionLabel(icon: "text.alignright", title: tr("מה לזכור?", "What to remember?"))
+                            TextField(tr("לדוגמה: להתקשר לאמא", "e.g. call Mom"), text: $task, axis: .vertical)
                                 .lineLimit(2...5)
                                 .padding(14)
                                 .background(
@@ -723,13 +723,13 @@ private struct NewReminderSheet: View {
                         }
 
                         VStack(alignment: .leading, spacing: 8) {
-                            SectionLabel(icon: "calendar.badge.clock", title: "מתי?")
+                            SectionLabel(icon: "calendar.badge.clock", title: tr("מתי?", "When?"))
 
                             HStack(spacing: 8) {
-                                QuickPick(label: "+10 דקות") { dueAt = Date().addingTimeInterval(10*60) }
-                                QuickPick(label: "+שעה") { dueAt = Date().addingTimeInterval(3600) }
-                                QuickPick(label: "+3 שעות") { dueAt = Date().addingTimeInterval(3*3600) }
-                                QuickPick(label: "מחר") {
+                                QuickPick(label: tr("+10 דקות", "+10 min")) { dueAt = Date().addingTimeInterval(10*60) }
+                                QuickPick(label: tr("+שעה", "+1 hour")) { dueAt = Date().addingTimeInterval(3600) }
+                                QuickPick(label: tr("+3 שעות", "+3 hours")) { dueAt = Date().addingTimeInterval(3*3600) }
+                                QuickPick(label: tr("מחר", "Tomorrow")) {
                                     var c = Calendar.current.dateComponents([.year, .month, .day], from: Date().addingTimeInterval(86400))
                                     c.hour = 9; c.minute = 0
                                     dueAt = Calendar.current.date(from: c) ?? Date().addingTimeInterval(86400)
@@ -759,7 +759,7 @@ private struct NewReminderSheet: View {
                         } label: {
                             HStack {
                                 Image(systemName: initial == nil ? "bell.badge.fill" : "checkmark.circle.fill")
-                                Text(initial == nil ? "שמור תזכורת" : "עדכן תזכורת")
+                                Text(initial == nil ? tr("שמור תזכורת", "Save reminder") : tr("עדכן תזכורת", "Update reminder"))
                             }
                         }
                         .buttonStyle(.limorPrimary)
@@ -769,11 +769,11 @@ private struct NewReminderSheet: View {
                     .padding(20)
                 }
             }
-            .navigationTitle(initial == nil ? "תזכורת חדשה" : "עריכת תזכורת")
+            .navigationTitle(initial == nil ? tr("תזכורת חדשה", "New reminder") : tr("עריכת תזכורת", "Edit reminder"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("ביטול") { dismiss() }
+                    Button(tr("ביטול", "Cancel")) { dismiss() }
                         .foregroundStyle(.limorMuted)
                 }
             }
@@ -809,8 +809,8 @@ private struct ReminderDetailPane: View {
 
     private var dueText: String {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "he_IL")
-        f.dateFormat = "EEEE, d בMMMM · HH:mm"
+        f.locale = AppLangBox.current.locale
+        f.dateFormat = tr("EEEE, d בMMMM · HH:mm", "EEEE, MMMM d · HH:mm")
         return f.string(from: reminder.dueDate)
     }
 
@@ -821,8 +821,8 @@ private struct ReminderDetailPane: View {
                 HStack(spacing: 6) {
                     Image(systemName: reminder.status == .completed ? "checkmark.seal.fill"
                           : (reminder.isOverdue ? "exclamationmark.triangle.fill" : "bell.fill"))
-                    Text(reminder.status == .completed ? "הושלמה"
-                         : (reminder.isOverdue ? "עבר הזמן" : "פעילה"))
+                    Text(reminder.status == .completed ? tr("הושלמה", "Completed")
+                         : (reminder.isOverdue ? tr("עבר הזמן", "Overdue") : tr("פעילה", "Active")))
                 }
                 .font(.caption.weight(.bold))
                 .foregroundStyle(reminder.status == .completed ? Color.limorSuccess
@@ -846,17 +846,17 @@ private struct ReminderDetailPane: View {
 
                 if reminder.status == .pending {
                     Button { onComplete() } label: {
-                        paneButton("סמן כבוצע", icon: "checkmark.circle.fill", filled: true)
+                        paneButton(tr("סמן כבוצע", "Mark as done"), icon: "checkmark.circle.fill", filled: true)
                     }
                     .buttonStyle(.plain)
 
                     Button { Task { await onSnooze() } } label: {
-                        paneButton("נודניק 10 דק'", icon: "alarm")
+                        paneButton(tr("נודניק 10 דק'", "Snooze 10 min"), icon: "alarm")
                     }
                     .buttonStyle(.plain)
 
                     Button { onEdit() } label: {
-                        paneButton("ערוך תזכורת", icon: "pencil")
+                        paneButton(tr("ערוך תזכורת", "Edit reminder"), icon: "pencil")
                     }
                     .buttonStyle(.plain)
                 }
@@ -864,7 +864,7 @@ private struct ReminderDetailPane: View {
                 Button(role: .destructive) { Task { await onDelete() } } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "trash")
-                        Text("מחק")
+                        Text(tr("מחק", "Delete"))
                     }
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.limorDanger)

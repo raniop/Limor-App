@@ -54,6 +54,8 @@ struct ChatView: View {
     /// inside the composer so suggestion buttons in `emptyState` (which
     /// live on the parent) can drive it.
     @State private var composerSeed: String?
+    /// True while the composer has text — drives hiding the mic (WhatsApp-style).
+    @State private var composerHasText = false
 
     // Attachment composer state
     @State private var photoItem: PhotosPickerItem?
@@ -68,10 +70,10 @@ struct ChatView: View {
 
 
     private let suggestions: [ChatSuggestion] = [
-        .init(icon: "bell.fill",          tint: .limorCoral,   text: "תזכירי לי בעוד שעה לבדוק דואר"),
-        .init(icon: "sun.max.fill",       tint: .limorWarning, text: "מה מזג האוויר עכשיו?"),
-        .init(icon: "list.bullet",        tint: .limorMint,    text: "אילו תזכורות יש לי היום?"),
-        .init(icon: "calendar.badge.plus",tint: .limorViolet,  text: "תוסיפי תזכורת ליום ראשון 10:00"),
+        .init(icon: "bell.fill",          tint: .limorCoral,   text: tr("תזכירי לי בעוד שעה לבדוק דואר", "Remind me to check email in an hour")),
+        .init(icon: "sun.max.fill",       tint: .limorWarning, text: tr("מה מזג האוויר עכשיו?", "What's the weather right now?")),
+        .init(icon: "list.bullet",        tint: .limorMint,    text: tr("אילו תזכורות יש לי היום?", "What reminders do I have today?")),
+        .init(icon: "calendar.badge.plus",tint: .limorViolet,  text: tr("תוסיפי תזכורת ליום ראשון 10:00", "Add a reminder for Sunday at 10:00")),
     ]
 
     var body: some View {
@@ -120,7 +122,7 @@ struct ChatView: View {
                                                 Button {
                                                     UIPasteboard.general.string = msg.content
                                                 } label: {
-                                                    Label("העתק", systemImage: "doc.on.doc")
+                                                    Label(tr("העתק", "Copy"), systemImage: "doc.on.doc")
                                                 }
                                             }
                                         }
@@ -175,10 +177,10 @@ struct ChatView: View {
                     HStack(spacing: 8) {
                         LimorAvatar(size: 28)
                         VStack(alignment: .leading, spacing: 0) {
-                            Text("לימור").font(.subheadline.weight(.bold))
+                            Text(tr("לימור", "Limor")).font(.subheadline.weight(.bold))
                             HStack(spacing: 4) {
                                 Circle().fill(Color.limorSuccess).frame(width: 6, height: 6)
-                                Text("מקוונת").font(.caption2).foregroundStyle(.secondary)
+                                Text(tr("מקוונת", "Online")).font(.caption2).foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -192,25 +194,21 @@ struct ChatView: View {
                         UsageBadge(usage: usage)
                     }
                 }
-                // Right-edge keyboard-dismiss button (RTL → leading == right
-                // visually). Shown only while the keyboard is up so it
-                // doesn't clutter the nav bar otherwise. Tapping it calls
-                // `resignFirstResponder` on the first responder chain —
-                // works regardless of which TextField inside the composer
-                // happens to be focused, no @FocusState plumbing needed.
+                // Right-edge "back to feed" button (RTL → leading == right
+                // visually). Dismisses the keyboard if up and returns the user
+                // to the main feed tab.
                 ToolbarItemGroup(placement: .topBarLeading) {
-                    if isKeyboardVisible {
-                        Button {
-                            UIApplication.shared.sendAction(
-                                #selector(UIResponder.resignFirstResponder),
-                                to: nil, from: nil, for: nil
-                            )
-                        } label: {
-                            Image(systemName: "keyboard.chevron.compact.down")
-                                .font(.body.weight(.semibold))
-                        }
-                        .accessibilityLabel("סגור מקלדת")
+                    Button {
+                        UIApplication.shared.sendAction(
+                            #selector(UIResponder.resignFirstResponder),
+                            to: nil, from: nil, for: nil
+                        )
+                        router.selectedTab = .now
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.body.weight(.semibold))
                     }
+                    .accessibilityLabel(tr("חזרה לפיד", "Back to feed"))
                 }
             }
             .onReceive(NotificationCenter.default.publisher(
@@ -267,11 +265,11 @@ struct ChatView: View {
             ) { result in
                 Task { await handleFileImport(result) }
             }
-            .alert("שגיאה", isPresented: .init(
+            .alert(tr("שגיאה", "Error"), isPresented: .init(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
             )) {
-                Button("אוקיי", role: .cancel) {}
+                Button(tr("אוקיי", "OK"), role: .cancel) {}
             } message: {
                 Text(errorMessage ?? "")
             }
@@ -287,7 +285,7 @@ struct ChatView: View {
                         // so the user sees what was actually saved.
                         let savedBubble = ChatMessage(
                             role: .assistant,
-                            content: "✅ תזכורת קבועה נשמרה: \(reminder.task) — \(formatRecurringSummary(reminder))",
+                            content: tr("✅ תזכורת קבועה נשמרה: \(reminder.task) — \(formatRecurringSummary(reminder))", "✅ Recurring reminder saved: \(reminder.task) — \(formatRecurringSummary(reminder))"),
                             created_at: ISO8601DateFormatter.limor.string(from: Date())
                         )
                         messages.append(savedBubble)
@@ -308,18 +306,19 @@ struct ChatView: View {
 
     private func formatRecurringSummary(_ r: RecurringReminder) -> String {
         let time = String(format: "%02d:%02d", r.hour, r.minute)
-        let weekdayShort = ["א", "ב", "ג", "ד", "ה", "ו", "ש"]
+        let weekdayShort = tr("א", "Su") + "," + tr("ב", "Mo") + "," + tr("ג", "Tu") + "," + tr("ד", "We") + "," + tr("ה", "Th") + "," + tr("ו", "Fr") + "," + tr("ש", "Sa")
+        let weekdayList = weekdayShort.components(separatedBy: ",")
         let dayLabel: String
         if r.daysOfWeek.count == 7 {
-            dayLabel = "כל יום"
+            dayLabel = tr("כל יום", "Every day")
         } else if r.daysOfWeek == [1, 2, 3, 4, 5] {
-            dayLabel = "ימי חול"
+            dayLabel = tr("ימי חול", "Weekdays")
         } else if r.daysOfWeek == [6, 7] {
-            dayLabel = "סופ״ש"
+            dayLabel = tr("סופ״ש", "Weekend")
         } else {
-            dayLabel = r.daysOfWeek.sorted().map { weekdayShort[$0 - 1] }.joined(separator: ", ")
+            dayLabel = r.daysOfWeek.sorted().map { weekdayList[$0 - 1] }.joined(separator: ", ")
         }
-        return "\(dayLabel) ב-\(time)"
+        return tr("\(dayLabel) ב-\(time)", "\(dayLabel) at \(time)")
     }
 
     // MARK: - Empty / suggestions
@@ -333,9 +332,9 @@ struct ChatView: View {
                 LimorAvatar(size: 76)
             }
             VStack(spacing: 4) {
-                Text("שלום! איך אפשר לעזור?")
+                Text(tr("שלום! איך אפשר לעזור?", "Hi! How can I help?"))
                     .font(.title3.weight(.semibold))
-                Text("תשאלי אותי כל דבר, או שתיי לי מסמך / תמונה לניתוח (כרטיס טיסה, ביטוח, חשבונית).")
+                Text(tr("תשאלי אותי כל דבר, או שתיי לי מסמך / תמונה לניתוח (כרטיס טיסה, ביטוח, חשבונית).", "Ask me anything, or send me a document / photo to analyze (boarding pass, insurance, invoice)."))
                     .font(.subheadline).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
@@ -366,40 +365,10 @@ struct ChatView: View {
             }
 
             HStack(alignment: .bottom, spacing: 10) {
-                // PhotosPicker placed *inside* a Menu silently fails to
-                // present and prints _UIReparentingView warnings — known
-                // SwiftUI issue. We trigger the picker via state from a
-                // plain Button instead, and attach the actual
-                // `.photosPicker` modifier at the view level below.
-                Menu {
-                    Button {
-                        showingPhotoPicker = true
-                    } label: {
-                        Label("תמונה מהאלבום", systemImage: "photo")
-                    }
-                    Button {
-                        showingFileImporter = true
-                    } label: {
-                        Label("מסמך / PDF", systemImage: "doc.fill")
-                    }
-                } label: {
-                    Image(systemName: "paperclip")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.limorIndigo)
-                        .frame(width: 38, height: 38)
-                        .background(Circle().fill(Color.limorIndigo.opacity(0.12)))
-                        // Outer 44pt frame matches the send button and the
-                        // TextField bubble, so all four composer elements
-                        // share a single visual baseline with `.bottom`
-                        // alignment. Visible circle stays 38pt, centered.
-                        .frame(width: 44, height: 44)
-                }
-                .disabled(preparingAttachment || isSending || voice.isRecordingVoiceMessage)
-
-                voiceModeButton
-
-                micButton
-
+                // Input (with the send button) FIRST → in RTL it occupies the
+                // right side, so send lands on the right. Accessory buttons
+                // (mic / voice / attach) follow on the left.
+                //
                 // TextField + send button live in their own sub-view so
                 // typing only invalidates THAT subview's body — not the
                 // entire ChatView (which would re-evaluate the message list
@@ -412,8 +381,41 @@ struct ChatView: View {
                     scrollProxy: scrollProxy,
                     onSend: { text in
                         Task { await send(text: text) }
-                    }
+                    },
+                    hasText: $composerHasText
                 )
+
+                // Mic hides while typing (WhatsApp-style) and returns when the
+                // field is empty again.
+                if !composerHasText {
+                    micButton
+                }
+
+                // PhotosPicker placed *inside* a Menu silently fails to
+                // present and prints _UIReparentingView warnings — known
+                // SwiftUI issue. We trigger the picker via state from a
+                // plain Button instead, and attach the actual
+                // `.photosPicker` modifier at the view level below.
+                Menu {
+                    Button {
+                        showingPhotoPicker = true
+                    } label: {
+                        Label(tr("תמונה מהאלבום", "Photo from library"), systemImage: "photo")
+                    }
+                    Button {
+                        showingFileImporter = true
+                    } label: {
+                        Label(tr("מסמך / PDF", "Document / PDF"), systemImage: "doc.fill")
+                    }
+                } label: {
+                    Image(systemName: "paperclip")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.limorIndigo)
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(Color.limorIndigo.opacity(0.12)))
+                        .frame(width: 44, height: 44)
+                }
+                .disabled(preparingAttachment || isSending || voice.isRecordingVoiceMessage)
             }
         }
         .padding(.horizontal, 14)
@@ -444,7 +446,7 @@ struct ChatView: View {
                 .frame(width: 44, height: 44)
         }
         .disabled(preparingAttachment || isSending || voice.isRecordingVoiceMessage)
-        .accessibilityLabel("שיחה קולית עם לימור")
+        .accessibilityLabel(tr("שיחה קולית עם לימור", "Voice conversation with Limor"))
     }
 
     /// Mic button that drives the voice-message gesture. Two modes:
@@ -481,7 +483,7 @@ struct ChatView: View {
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
             .gesture(voiceGesture)
-            .accessibilityLabel(locked ? "שלח הודעה קולית" : "הקלטת הודעה קולית")
+            .accessibilityLabel(locked ? tr("שלח הודעה קולית", "Send voice message") : tr("הקלטת הודעה קולית", "Record voice message"))
     }
 
     private var voiceGesture: some Gesture {
@@ -502,7 +504,7 @@ struct ChatView: View {
                     // audio. Surface a clear message and bail before
                     // touching the audio session.
                     if voice.isPhoneCallActive() {
-                        errorMessage = "אי אפשר להקליט הודעה קולית בזמן שיחת טלפון. סיימי את השיחה ונסי שוב."
+                        errorMessage = tr("אי אפשר להקליט הודעה קולית בזמן שיחת טלפון. סיימי את השיחה ונסי שוב.", "Can't record a voice message during a phone call. End the call and try again.")
                         return
                     }
                     Task { await voice.startVoiceMessage() }
@@ -571,7 +573,7 @@ struct ChatView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "trash.fill")
                             .font(.caption.weight(.bold))
-                        Text("ביטול")
+                        Text(tr("ביטול", "Cancel"))
                             .font(.caption.weight(.semibold))
                     }
                     .foregroundStyle(.limorDanger)
@@ -583,7 +585,7 @@ struct ChatView: View {
                 HStack(spacing: 6) {
                     Image(systemName: cancelling ? "trash.fill" : "chevron.left")
                         .font(.caption.weight(.bold))
-                    Text(cancelling ? "שחרר לביטול" : "החלק לבטל")
+                    Text(cancelling ? tr("שחרר לביטול", "Release to cancel") : tr("החלק לבטל", "Slide to cancel"))
                         .font(.caption.weight(.semibold))
                 }
                 .foregroundStyle(cancelling ? .limorDanger : .limorMuted)
@@ -609,7 +611,7 @@ struct ChatView: View {
         HStack(spacing: 10) {
             attachmentThumbnail
             VStack(alignment: .leading, spacing: 2) {
-                Text(attachmentFilename ?? "קובץ")
+                Text(attachmentFilename ?? tr("קובץ", "File"))
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
                 if let data = attachmentData {
@@ -684,17 +686,17 @@ struct ChatView: View {
         do {
             guard let data = try await item.loadTransferable(type: Data.self),
                   let uiImage = UIImage(data: data) else {
-                errorMessage = "לא הצלחתי לטעון את התמונה."
+                errorMessage = tr("לא הצלחתי לטעון את התמונה.", "Couldn't load the image.")
                 return
             }
             let normalized = uiImage.normalizedOrientationChat()
             let resized = normalized.resizedChat(toMaxDimension: 1600)
             guard let jpeg = resized.jpegData(compressionQuality: 0.7) else {
-                errorMessage = "לא הצלחתי לדחוס את התמונה."
+                errorMessage = tr("לא הצלחתי לדחוס את התמונה.", "Couldn't compress the image.")
                 return
             }
             if jpeg.count > 5_000_000 {
-                errorMessage = "התמונה גדולה מ-5MB."
+                errorMessage = tr("התמונה גדולה מ-5MB.", "The image is larger than 5MB.")
                 return
             }
             attachmentData = jpeg
@@ -717,7 +719,7 @@ struct ChatView: View {
             do {
                 let data = try Data(contentsOf: url)
                 if data.count > 5_000_000 {
-                    errorMessage = "הקובץ גדול מ-5MB. נסי קובץ קטן יותר."
+                    errorMessage = tr("הקובץ גדול מ-5MB. נסי קובץ קטן יותר.", "The file is larger than 5MB. Try a smaller file.")
                     return
                 }
                 let mime = mimeType(for: url)
@@ -860,7 +862,7 @@ struct ChatView: View {
             )
             let replyBubble = ChatMessage(
                 role: .assistant,
-                content: "⏰ פתחתי לך טופס לתזכורת קבועה. תאשרי או תערכי ושמרי — אני אזכיר בלי backend.",
+                content: tr("⏰ פתחתי לך טופס לתזכורת קבועה. תאשרי או תערכי ושמרי — אני אזכיר בלי backend.", "⏰ I opened a recurring-reminder form for you. Confirm or edit and save — I'll remind you without a backend."),
                 created_at: ISO8601DateFormatter.limor.string(from: Date())
             )
             messages.append(userBubble)
@@ -948,10 +950,10 @@ struct ChatView: View {
     }
 
     private func defaultPromptForAttachment() -> String {
-        guard let mime = attachmentMime else { return "תסתכלי על זה" }
-        if mime.hasPrefix("image/") { return "מה רואים בתמונה? תסכמי לי את הפרטים החשובים." }
-        if mime == "application/pdf" { return "תסכמי לי את המסמך — מה הפרטים החשובים?" }
-        return "מה זה?"
+        guard let mime = attachmentMime else { return tr("תסתכלי על זה", "Take a look at this") }
+        if mime.hasPrefix("image/") { return tr("מה רואים בתמונה? תסכמי לי את הפרטים החשובים.", "What's in the image? Summarize the key details for me.") }
+        if mime == "application/pdf" { return tr("תסכמי לי את המסמך — מה הפרטים החשובים?", "Summarize the document for me — what are the key details?") }
+        return tr("מה זה?", "What is this?")
     }
 
     /// Send a voice message: append an optimistic audio bubble immediately,
@@ -978,7 +980,7 @@ struct ChatView: View {
         // running the local recognizer.
         let transcript = await voice.transcribeAudioFile(url: audioURL, locale: .hebrew)
         let trimmedTranscript = transcript?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let messageText = trimmedTranscript.isEmpty ? "[הודעה קולית]" : trimmedTranscript
+        let messageText = trimmedTranscript.isEmpty ? tr("[הודעה קולית]", "[Voice message]") : trimmedTranscript
 
         // Load the M4A as base64. We don't fail the send if reading fails
         // — Limor can still respond to the transcript.
@@ -1040,6 +1042,10 @@ private struct ChatComposerInput: View {
     /// Fires when the user taps Send. Receives the trimmed draft text.
     /// Composer clears its draft immediately for instant feedback.
     let onSend: (String) -> Void
+    /// Mirrors "is there text" up to the parent so it can hide the mic while
+    /// typing (WhatsApp-style). Only flips on empty↔non-empty transitions, so
+    /// the parent doesn't re-render on every keystroke.
+    @Binding var hasText: Bool
 
     @State private var draft: String = ""
     @FocusState private var focused: Bool
@@ -1061,40 +1067,8 @@ private struct ChatComposerInput: View {
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 10) {
-            TextField("הודעה ללימור…", text: $draft, axis: .vertical)
-                .focused($focused)
-                // The "close keyboard" affordance lives in the chat nav
-                // bar (top-leading → right side in RTL), surfaced by
-                // ChatView whenever a UIResponder keyboardWillShow fires.
-                // The previous `.toolbar(placement: .keyboard)` approach
-                // never displayed on iPhones with a Hebrew keyboard
-                // because the QuickType suggestion row sat on top of it.
-                .lineLimit(1...5)
-                .font(.body)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                // Force single-line height to 44pt so the bubble matches
-                // the paperclip/mic/send 44pt circle frames in the
-                // parent's composer HStack — without this, vertical
-                // padding alone leaves the bubble shorter than the
-                // buttons and they read as misaligned with `.bottom`
-                // HStack alignment. Multi-line growth still works
-                // because lineLimit(1...5) allows the frame to grow
-                // past 44pt as the user types more.
-                .frame(minHeight: 44)
-                // Plain return key — pressing it inserts a newline rather
-                // than triggering Send, so the user can compose multi-line
-                // messages without accidentally firing.
-                .submitLabel(.return)
-                .background(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(.regularMaterial)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(.limorBubbleBorder, lineWidth: 0.5)
-                )
-
+            // Send button FIRST so in the RTL layout it sits on the right edge
+            // of the bar (the user found the left-side button confusing).
             Button {
                 let toSend = draft.trimmingCharacters(in: .whitespacesAndNewlines)
                 // Hard-guard against rapid double-taps. Without this the
@@ -1106,14 +1080,8 @@ private struct ChatComposerInput: View {
                 guard !localSending else { return }
                 guard !toSend.isEmpty || hasAttachment else { return }
                 localSending = true
-                // Clear immediately for instant visual feedback; parent
-                // may decide to substitute defaultPromptForAttachment if
-                // we passed empty text + an attachment.
                 draft = ""
                 onSend(toSend)
-                // Release the lock after a short cooldown so the button
-                // becomes tappable again for the *next* message even if
-                // the parent's isSending bookkeeping is somehow off.
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(700))
                     localSending = false
@@ -1135,12 +1103,31 @@ private struct ChatComposerInput: View {
             }
             .buttonStyle(.plain)
             .disabled(!canSend)
-            // Animation removed on the tappable button — the cross-fade
-            // between enabled/disabled was occasionally swallowing the
-            // first tap because SwiftUI's hit-test on a button mid-
-            // animation sometimes registers as no-op. Color swap is
-            // instant now; visual change is subtle enough that it
-            // doesn't read as jarring.
+
+            TextField(tr("הודעה ללימור…", "Message to Limor…"), text: $draft, axis: .vertical)
+                .focused($focused)
+                .lineLimit(1...5)
+                .font(.body)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 44)
+                .submitLabel(.return)
+                .background(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(.regularMaterial)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(.limorBubbleBorder, lineWidth: 0.5)
+                )
+        }
+        .onChange(of: draft) { _, newValue in
+            // Report empty↔non-empty to the parent (drives mic visibility).
+            // Setting the binding to the same value is a no-op in SwiftUI, so
+            // this only re-renders the parent on an actual transition.
+            let has = !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            if has != hasText { hasText = has }
         }
         .onChange(of: seed) { _, newValue in
             // Parent pushed text in (e.g. a suggestion). Apply it, focus,

@@ -368,30 +368,30 @@ final class HealthManager: ObservableObject {
 
     private func activityName(for type: HKWorkoutActivityType) -> (String, String) {
         switch type {
-        case .running:           return ("ריצה", "figure.run")
-        case .walking:           return ("הליכה", "figure.walk")
-        case .cycling:           return ("אופניים", "figure.outdoor.cycle")
-        case .swimming:          return ("שחייה", "figure.pool.swim")
-        case .hiking:            return ("טיול", "figure.hiking")
-        case .yoga:              return ("יוגה", "figure.yoga")
+        case .running:           return (tr("ריצה", "Running"), "figure.run")
+        case .walking:           return (tr("הליכה", "Walking"), "figure.walk")
+        case .cycling:           return (tr("אופניים", "Cycling"), "figure.outdoor.cycle")
+        case .swimming:          return (tr("שחייה", "Swimming"), "figure.pool.swim")
+        case .hiking:            return (tr("טיול", "Hiking"), "figure.hiking")
+        case .yoga:              return (tr("יוגה", "Yoga"), "figure.yoga")
         case .traditionalStrengthTraining,
-             .functionalStrengthTraining: return ("כושר", "figure.strengthtraining.traditional")
+             .functionalStrengthTraining: return (tr("כושר", "Strength training"), "figure.strengthtraining.traditional")
         case .crossTraining:     return ("Cross-Training", "figure.cross.training")
-        case .pilates:           return ("פילאטיס", "figure.pilates")
-        case .dance:             return ("ריקוד", "figure.dance")
+        case .pilates:           return (tr("פילאטיס", "Pilates"), "figure.pilates")
+        case .dance:             return (tr("ריקוד", "Dance"), "figure.dance")
         case .boxing,
              .martialArts,
-             .kickboxing:        return ("חבטות", "figure.boxing")
-        case .basketball:        return ("כדורסל", "figure.basketball")
-        case .soccer:            return ("כדורגל", "figure.soccer")
-        case .tennis:            return ("טניס", "figure.tennis")
-        case .rowing:            return ("חתירה", "figure.rower")
+             .kickboxing:        return (tr("חבטות", "Boxing"), "figure.boxing")
+        case .basketball:        return (tr("כדורסל", "Basketball"), "figure.basketball")
+        case .soccer:            return (tr("כדורגל", "Soccer"), "figure.soccer")
+        case .tennis:            return (tr("טניס", "Tennis"), "figure.tennis")
+        case .rowing:            return (tr("חתירה", "Rowing"), "figure.rower")
         case .stairs,
-             .stairClimbing:     return ("מדרגות", "figure.stairs")
-        case .elliptical:        return ("אליפטי", "figure.elliptical")
+             .stairClimbing:     return (tr("מדרגות", "Stairs"), "figure.stairs")
+        case .elliptical:        return (tr("אליפטי", "Elliptical"), "figure.elliptical")
         case .highIntensityIntervalTraining: return ("HIIT", "figure.highintensity.intervaltraining")
-        case .mindAndBody:       return ("מיינדפולנס", "brain.head.profile")
-        default:                 return ("אימון", "figure.mixed.cardio")
+        case .mindAndBody:       return (tr("מיינדפולנס", "Mindfulness"), "brain.head.profile")
+        default:                 return (tr("אימון", "Workout"), "figure.mixed.cardio")
         }
     }
 }

@@ -73,7 +73,7 @@ struct ContactPicker: UIViewControllerRepresentable {
         private func displayName(for contact: CNContact) -> String {
             let name = CNContactFormatter.string(from: contact, style: .fullName)
                 ?? [contact.givenName, contact.familyName].filter { !$0.isEmpty }.joined(separator: " ")
-            return name.isEmpty ? "(ללא שם)" : name
+            return name.isEmpty ? tr("(ללא שם)", "(No name)") : name
         }
     }
 }

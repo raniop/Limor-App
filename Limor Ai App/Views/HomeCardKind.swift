@@ -11,6 +11,9 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
     case emailActions    = "email_actions"
     case feed            = "feed"
     case nextFlight      = "flight"
+    case worldCup        = "worldcup"
+    case briefing        = "briefing"
+    case expenses        = "expenses"
     case weather         = "weather"
     case shopping        = "shopping"
     case health          = "health"
@@ -20,17 +23,20 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .nextReminder:    return "התזכורת הבאה"
-        case .recommendations: return "טיפ אישי"
-        case .meetings:        return "הפגישות הבאות"
-        case .tasks:           return "המשימות שלי"
-        case .emailActions:    return "מוקד המייל"
-        case .feed:            return "חדשות אחרונות"
-        case .nextFlight:      return "טיסה קרובה"
-        case .weather:         return "מזג אוויר"
-        case .shopping:        return "רשימת קניות"
-        case .health:          return "בריאות"
-        case .stats:           return "סטטיסטיקה"
+        case .nextReminder:    return tr("התזכורת הבאה", "Next reminder")
+        case .recommendations: return tr("טיפ אישי", "Personal tip")
+        case .meetings:        return tr("הפגישות הבאות", "Upcoming meetings")
+        case .tasks:           return tr("המשימות שלי", "My tasks")
+        case .emailActions:    return tr("מוקד המייל", "Email focus")
+        case .feed:            return tr("חדשות אחרונות", "Latest news")
+        case .nextFlight:      return tr("טיסה קרובה", "Upcoming flight")
+        case .worldCup:        return tr("מונדיאל 2026", "World Cup 2026")
+        case .briefing:        return tr("תקציר מנהלים", "Executive briefing")
+        case .expenses:        return tr("הוצאות החודש", "This month's expenses")
+        case .weather:         return tr("מזג אוויר", "Weather")
+        case .shopping:        return tr("רשימת קניות", "Shopping list")
+        case .health:          return tr("בריאות", "Health")
+        case .stats:           return tr("סטטיסטיקה", "Stats")
         }
     }
 
@@ -43,6 +49,9 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
         case .emailActions:    return "tray.full.fill"
         case .feed:            return "newspaper.fill"
         case .nextFlight:      return "airplane.departure"
+        case .worldCup:        return "soccerball"
+        case .briefing:        return "briefcase.fill"
+        case .expenses:        return "creditcard.fill"
         case .weather:         return "thermometer.medium"
         case .shopping:        return "cart.fill"
         case .health:          return "heart.fill"
@@ -59,6 +68,9 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
         case .emailActions:    return .limorViolet
         case .feed:            return .limorPink
         case .nextFlight:      return Color(red: 0.20, green: 0.66, blue: 0.62)
+        case .worldCup:        return Color(red: 0.16, green: 0.55, blue: 0.34)
+        case .briefing:        return Color(red: 0.27, green: 0.32, blue: 0.55)
+        case .expenses:        return Color(red: 0.93, green: 0.60, blue: 0.20)
         case .weather:         return .limorWarning
         case .shopping:        return .limorMint
         case .health:          return .limorCoral
@@ -73,13 +85,16 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
 enum HomeCardOrder {
     static let defaultOrder: [HomeCardKind] = [
         .nextReminder,
+        .worldCup,
         .meetings,
         .tasks,
         .emailActions,
         .recommendations,
         .shopping,
         .feed,
+        .briefing,
         .nextFlight,
+        .expenses,
         .weather,
         .health,
         .stats,

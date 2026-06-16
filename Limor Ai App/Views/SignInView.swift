@@ -28,7 +28,7 @@ struct SignInView: View {
                         .opacity(animateLogo ? 1 : 0)
                         .animation(.spring(response: 0.7, dampingFraction: 0.7), value: animateLogo)
 
-                    Text("לימור")
+                    Text(tr("לימור", "Limor"))
                         .font(.system(size: 64, weight: .heavy, design: .rounded))
                         .foregroundStyle(.limorInk)
                         .shadow(color: Color.limorIndigo.opacity(0.10), radius: 12, y: 4)
@@ -36,7 +36,7 @@ struct SignInView: View {
                         .offset(y: animateLogo ? 0 : 20)
                         .animation(.spring(response: 0.7, dampingFraction: 0.8).delay(0.1), value: animateLogo)
 
-                    Text("העוזרת האישית החכמה שלך")
+                    Text(tr("העוזרת האישית החכמה שלך", "Your smart personal assistant"))
                         .font(.title3.weight(.medium))
                         .foregroundStyle(.limorMuted)
                         .opacity(animateLogo ? 1 : 0)
@@ -48,11 +48,11 @@ struct SignInView: View {
                 VStack(spacing: 14) {
                     VStack(spacing: 8) {
                         HStack(spacing: 10) {
-                            FeaturePill(icon: "bell.fill", text: "תזכורות")
-                            FeaturePill(icon: "bubble.left.fill", text: "צ'אט")
-                            FeaturePill(icon: "sun.max.fill", text: "מזג אוויר")
+                            FeaturePill(icon: "bell.fill", text: tr("תזכורות", "Reminders"))
+                            FeaturePill(icon: "bubble.left.fill", text: tr("צ'אט", "Chat"))
+                            FeaturePill(icon: "sun.max.fill", text: tr("מזג אוויר", "Weather"))
                         }
-                        Text("ועוד הרבה דברים מגניבים ✨")
+                        Text(tr("ועוד הרבה דברים מגניבים ✨", "And lots more cool stuff ✨"))
                             .font(.caption.weight(.medium))
                             .foregroundStyle(.limorMuted)
                     }
@@ -71,7 +71,7 @@ struct SignInView: View {
                         Task { await handleGoogle() }
                     }
 
-                    Text("מתחברים דרך Firebase. הפרטים שלך מוצפנים 🔒")
+                    Text(tr("מתחברים דרך Firebase. הפרטים שלך מוצפנים 🔒", "Sign in via Firebase. Your details are encrypted 🔒"))
                         .font(.caption)
                         .foregroundStyle(.limorMuted)
                         .multilineTextAlignment(.center)

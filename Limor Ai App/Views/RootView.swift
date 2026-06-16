@@ -179,16 +179,79 @@ struct RootView: View {
 // MARK: - Splash
 
 private struct SplashView: View {
-    @State private var animateLogo = false
-    @State private var animateText = false
+    // The soft colour washes + loading dots are NOT part of
+    // LaunchScreen.storyboard, so they start fully transparent and fade
+    // in. That keeps the FIRST rendered frame pixel-identical to the
+    // launch storyboard — the logo + tagline are already at their final
+    // position, size and colour, so the hand-off has no visible jump.
+    @State private var decorVisible = false
     @State private var dotsActive = false
 
     var body: some View {
         ZStack {
-            // Soft pastel base — pale lavender that lets the colorful logo pop.
-            // Must match UILaunchScreen color so there's no flash on transition.
+            // Base lavender. Matches UILaunchScreen color (SplashBase asset)
+            // in both light and dark so there's no flash on transition.
             Color.splashBase.ignoresSafeArea()
 
+            backgroundWashes
+                .opacity(decorVisible ? 1 : 0)
+
+            // CORE — kept 1:1 with LaunchScreen.storyboard: the
+            // LimorLogoMark asset rendered ~120pt wide, bold-64 "לימור",
+            // system-18 subtitle, all in the storyboard's colours, with
+            // "לימור" centred on the safe-area centreY. Rendered
+            // statically from the first frame — no entrance pop — so the
+            // launch → SwiftUI hand-off is seamless.
+            VStack(spacing: 0) {
+                LimorLogoMark(size: 136)
+                    .background(
+                        // Soft glow — a decoration, so it fades in with the
+                        // rest rather than being on the launch screen.
+                        Circle()
+                            .fill(Color.limorViolet.opacity(0.14))
+                            .frame(width: 240, height: 240)
+                            .blur(radius: 44)
+                            .opacity(decorVisible ? 1 : 0)
+                    )
+
+                Text(tr("לימור", "Limor"))
+                    .font(.system(size: 64, weight: .bold))
+                    .foregroundStyle(.limorInk)
+                    .padding(.top, 20)
+
+                Text(tr("העוזרת האישית החכמה שלך", "Your smart personal assistant"))
+                    .font(.system(size: 18))
+                    .foregroundStyle(.limorMuted)
+                    .padding(.top, 12)
+            }
+            // Centre the "לימור" label (not the whole stack) on centreY,
+            // exactly like the storyboard. Content above the label is
+            // 156pt (136 logo + 20 gap) and below is ~34pt (12 gap + ~22
+            // subtitle); shifting the centred stack up by (156-34)/2 ≈ 61
+            // lands the label on centreY.
+            .offset(y: -61)
+
+            // Loading dots pinned to the bottom — also a decoration, so
+            // they fade in over the matched core.
+            VStack {
+                Spacer()
+                dots
+                    .padding(.bottom, 72)
+            }
+            .opacity(decorVisible ? 1 : 0)
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.6)) { decorVisible = true }
+            // Dot anim must start in a separate runloop pass for delayed
+            // .repeatForever animations to register correctly.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                dotsActive = true
+            }
+        }
+    }
+
+    private var backgroundWashes: some View {
+        ZStack {
             // Subtle radial bloom right behind the logo.
             RadialGradient(
                 colors: [Color.limorViolet.opacity(0.18), .clear],
@@ -214,63 +277,7 @@ private struct SplashView: View {
                 .blur(radius: 100)
                 .offset(x: 120, y: 300)
                 .ignoresSafeArea()
-
-            VStack(spacing: 28) {
-                Spacer()
-
-                logoMark
-
-                tagline
-
-                Spacer()
-
-                dots
-                    .padding(.bottom, 72)
-            }
         }
-        .onAppear {
-            withAnimation(.spring(response: 0.7, dampingFraction: 0.7)) {
-                animateLogo = true
-            }
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.85).delay(0.18)) {
-                animateText = true
-            }
-            // Dot anim must start in a separate runloop pass for delayed
-            // .repeatForever animations to register correctly.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                dotsActive = true
-            }
-        }
-    }
-
-    private var logoMark: some View {
-        ZStack {
-            // Soft outer glow — keeps the logo from looking pasted-on.
-            Circle()
-                .fill(Color.limorViolet.opacity(0.14))
-                .frame(width: 240, height: 240)
-                .blur(radius: 44)
-
-            LimorLogoMark(size: 156)
-                .shadow(color: Color.limorIndigo.opacity(0.18), radius: 22, y: 12)
-        }
-        .scaleEffect(animateLogo ? 1 : 0.55)
-        .opacity(animateLogo ? 1 : 0)
-    }
-
-    private var tagline: some View {
-        VStack(spacing: 6) {
-            Text("לימור")
-                .font(.system(size: 64, weight: .heavy, design: .rounded))
-                .foregroundStyle(.limorInk)
-                .shadow(color: Color.limorIndigo.opacity(0.10), radius: 12, y: 4)
-
-            Text("העוזרת האישית החכמה שלך")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.limorMuted)
-        }
-        .opacity(animateText ? 1 : 0)
-        .offset(y: animateText ? 0 : 18)
     }
 
     private var dots: some View {
@@ -289,7 +296,6 @@ private struct SplashView: View {
                     )
             }
         }
-        .opacity(animateText ? 1 : 0)
     }
 }
 
@@ -306,8 +312,8 @@ enum CustomTabKind: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .shoppingList: return "קניות"
-        case .meetings:     return "פגישות"
+        case .shoppingList: return tr("קניות", "Shopping")
+        case .meetings:     return tr("פגישות", "Meetings")
         }
     }
 
@@ -321,6 +327,7 @@ enum CustomTabKind: String, CaseIterable, Identifiable {
 
 struct MainTabs: View {
     @EnvironmentObject private var router: AppRouter
+    @State private var showNoAccess = false
     @AppStorage("limor.customTabKind", store: SharedStore.appGroupDefaults)
     private var customTabRaw: String = ""
 
@@ -351,7 +358,7 @@ struct MainTabs: View {
     var body: some View {
         TabView(selection: tabSelection) {
             NowView()
-                .tabItem { Label("הפיד שלי", systemImage: "sparkles") }
+                .tabItem { Label(tr("הפיד שלי", "My Feed"), systemImage: "sparkles") }
                 .tag(AppRouter.Tab.now)
             if let custom = customTab {
                 customTabContent(custom)
@@ -359,13 +366,13 @@ struct MainTabs: View {
                     .tag(AppRouter.Tab.custom)
             }
             RemindersView()
-                .tabItem { Label("תזכורות", systemImage: "bell.fill") }
+                .tabItem { Label(tr("תזכורות", "Reminders"), systemImage: "bell.fill") }
                 .tag(AppRouter.Tab.reminders)
             ChatView()
-                .tabItem { Label("צ'אט", systemImage: "bubble.left.and.bubble.right.fill") }
+                .tabItem { Label(tr("צ'אט", "Chat"), systemImage: "bubble.left.and.bubble.right.fill") }
                 .tag(AppRouter.Tab.chat)
             SettingsView()
-                .tabItem { Label("הגדרות", systemImage: "gearshape.fill") }
+                .tabItem { Label(tr("הגדרות", "Settings"), systemImage: "gearshape.fill") }
                 .tag(AppRouter.Tab.settings)
         }
         // Dynamic tint — brand indigo on light surfaces, brighter indigo
@@ -375,6 +382,12 @@ struct MainTabs: View {
         // chrome around it — "הפיד שלי בקושי רואים" was the user's
         // exact phrasing.
         .tint(.limorTabTint)
+        .onReceive(NotificationCenter.default.publisher(for: .limorNoAccess)) { _ in
+            showNoAccess = true
+        }
+        .sheet(isPresented: $showNoAccess) {
+            NoAccessView { showNoAccess = false }
+        }
     }
 
     @ViewBuilder
@@ -423,11 +436,11 @@ struct MainSidebar: View {
                     .listRowBackground(Color.clear)
 
                 Section {
-                    row(.now, "הפיד שלי", "sparkles")
+                    row(.now, tr("הפיד שלי", "My Feed"), "sparkles")
                     if let custom = customTab { row(.custom, custom.title, custom.icon) }
-                    row(.reminders, "תזכורות", "bell.fill")
-                    row(.chat, "צ'אט", "bubble.left.and.bubble.right.fill")
-                    row(.settings, "הגדרות", "gearshape.fill")
+                    row(.reminders, tr("תזכורות", "Reminders"), "bell.fill")
+                    row(.chat, tr("צ'אט", "Chat"), "bubble.left.and.bubble.right.fill")
+                    row(.settings, tr("הגדרות", "Settings"), "gearshape.fill")
                 }
             }
             .navigationTitle("")
@@ -447,11 +460,11 @@ struct MainSidebar: View {
         HStack(spacing: 12) {
             ProfileAvatar(photoB64: auth.photoB64, size: 46, bordered: false)
             VStack(alignment: .leading, spacing: 2) {
-                Text(auth.displayName ?? "לימור")
+                Text(auth.displayName ?? tr("לימור", "Limor"))
                     .font(.headline.weight(.bold))
                     .foregroundStyle(.limorInk)
                     .lineLimit(1)
-                Text("העוזרת האישית שלך ✨")
+                Text(tr("העוזרת האישית שלך ✨", "Your personal assistant ✨"))
                     .font(.caption)
                     .foregroundStyle(.limorMuted)
                     .lineLimit(1)

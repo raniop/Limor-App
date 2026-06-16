@@ -43,6 +43,10 @@ struct NowView: View {
     /// forcing the user into the Reminders tab to undo.
     @State private var pendingCompleteFromHero: Reminder?
 
+    /// Bumped by the toolbar refresh button → the ScrollView scrolls to the
+    /// top so the refresh is visibly "doing something".
+    @State private var scrollToTopNonce = UUID()
+
     private var tod: LimorTimeOfDay { .current }
 
     var body: some View {
@@ -61,9 +65,11 @@ struct NowView: View {
                 // viewport edge only removes off-screen overflow, so nothing
                 // visible — card shadows included — is affected.
                 GeometryReader { geo in
+                    ScrollViewReader { scrollProxy in
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 18) {
                             greetingHeader
+                                .id("homeTop")
                             limorStatusChip
                                 .animation(.easeInOut(duration: 0.25), value: sync.chipState)
                             cardLayout(width: geo.size.width)
@@ -88,6 +94,16 @@ struct NowView: View {
                         .frame(width: geo.size.width)
                         .clipped()
                     }
+                    // The toolbar refresh button bumps this nonce — scroll
+                    // back to the top so the user actually SEES the status
+                    // chip and the cards updating instead of wondering
+                    // whether the tap did anything.
+                    .onChange(of: scrollToTopNonce) { _, _ in
+                        withAnimation(.easeInOut(duration: 0.35)) {
+                            scrollProxy.scrollTo("homeTop", anchor: .top)
+                        }
+                    }
+                    }
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -105,6 +121,7 @@ struct NowView: View {
                                 .foregroundStyle(.limorInk)
                         }
                         Button {
+                            scrollToTopNonce = UUID()
                             Task { await fullRefresh() }
                         } label: {
                             Image(systemName: "arrow.clockwise")
@@ -127,12 +144,12 @@ struct NowView: View {
                 .presentationDetents([.medium, .large])
             }
             .sheet(item: $flightDetail) { flight in
-                FlightDetailView(flight: flight)
+                FlightDetailView(flight: flight, hotel: hotel(for: flight))
                     .environment(\.layoutDirection, .rightToLeft)
                     .environment(\.locale, Locale(identifier: "he_IL"))
             }
             .confirmationDialog(
-                "לסמן כבוצע?",
+                tr("לסמן כבוצע?", "Mark as done?"),
                 isPresented: Binding(
                     get: { pendingCompleteFromHero != nil },
                     set: { if !$0 { pendingCompleteFromHero = nil } }
@@ -144,12 +161,12 @@ struct NowView: View {
                 // the dialog half-way up the screen. The card sits right
                 // behind the dialog so the user can already see which
                 // reminder is being acted on.
-                Button("סמן כבוצע", role: .none) {
+                Button(tr("סמן כבוצע", "Mark as done"), role: .none) {
                     let target = r
                     pendingCompleteFromHero = nil
                     Task { await completeNextReminder(target) }
                 }
-                Button("ביטול", role: .cancel) {
+                Button(tr("ביטול", "Cancel"), role: .cancel) {
                     pendingCompleteFromHero = nil
                 }
             }
@@ -214,43 +231,71 @@ struct NowView: View {
     /// flights / triages tasks it shows what she's doing; when the batch
     /// finishes it settles into a friendly "done" line that persists (so
     /// the user sees she finished) until the next activity starts.
+    /// A thin gradient highlight that sweeps left→right forever — an
+    /// indeterminate progress bar for the status chip.
+    private struct IndeterminateBar: View {
+        let tint: Color
+        @State private var animate = false
+
+        var body: some View {
+            GeometryReader { geo in
+                let w = geo.size.width
+                Capsule()
+                    .fill(LinearGradient(
+                        colors: [tint.opacity(0), tint, tint.opacity(0)],
+                        startPoint: .leading, endPoint: .trailing))
+                    .frame(width: w * 0.45)
+                    .offset(x: animate ? w * 1.0 : -w * 0.45)
+            }
+            .frame(height: 3)
+            .background(tint.opacity(0.14))
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: false)) {
+                    animate = true
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private var limorStatusChip: some View {
         switch sync.chipState {
         case .idle:
             EmptyView()
         case .working(let label):
-            statusChip(icon: "sparkles", text: "לימור \(label)…", tint: .limorViolet, working: true)
+            statusChip(icon: "sparkles", text: tr("לימור \(label)…", "Limor \(label)…"), tint: .limorViolet, working: true)
         case .done(let label):
             statusChip(icon: "checkmark.circle.fill", text: label, tint: .limorSuccess, working: false)
         }
     }
 
     private func statusChip(icon: String, text: String, tint: Color, working: Bool) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(tint)
-                .symbolEffect(.pulse, isActive: working)
-            // Text crossfades in place so the label swap doesn't reflow the row.
-            Text(text)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.limorInk)
-                .lineLimit(1)
-                .contentTransition(.opacity)
-            Spacer(minLength: 0)
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(tint)
+                    .symbolEffect(.pulse, isActive: working)
+                // Text crossfades in place so the label swap doesn't reflow the row.
+                Text(text)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.limorInk)
+                    .lineLimit(1)
+                    .contentTransition(.opacity)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            // A sweeping indeterminate bar at the bottom edge while working —
+            // reads as "something's happening" far better than a tiny spinner.
             if working {
-                ProgressView()
-                    .controlSize(.mini)
-                    .tint(tint)
+                IndeterminateBar(tint: tint)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(height: 34)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Capsule().fill(tint.opacity(0.10)))
-        .overlay(Capsule().stroke(tint.opacity(0.18), lineWidth: 0.5))
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(tint.opacity(0.10)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(tint.opacity(0.18), lineWidth: 0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         // Fade in/out without shifting the cards below — no vertical move.
         // The driving .animation lives at the call site (keyed to chipState).
         .transition(.opacity)
@@ -280,7 +325,7 @@ struct NowView: View {
             .font(.callout.weight(.medium))
             .foregroundStyle(.limorMuted)
 
-            Text(name?.isEmpty == false ? name! : "שלום")
+            Text(name?.isEmpty == false ? name! : tr("שלום", "Hello"))
                 .font(.system(size: 32, weight: .heavy, design: .rounded))
                 .foregroundStyle(.limorInk)
         }
@@ -307,8 +352,22 @@ struct NowView: View {
                 }
             }
         } else {
+            // iPhone: direct on-screen drag was tried three ways (system
+            // .onDrag, SwiftUI gestures, a UIKit recognizer) and none felt
+            // right inside this ScrollView. Long-press opens the customize
+            // sheet instead — via the system context menu, NOT a SwiftUI
+            // LongPressGesture: a gesture on every card made the scroll
+            // intermittently unresponsive (it competed for every touch),
+            // while the UIKit context-menu interaction coexists cleanly.
             ForEach(visible) { card in
-                reorderableCard(card)
+                cardView(for: card)
+                    .contextMenu {
+                        Button {
+                            showingCustomize = true
+                        } label: {
+                            Label(tr("סדר את המסך הראשי", "Arrange home screen"), systemImage: "arrow.up.arrow.down")
+                        }
+                    }
             }
         }
     }
@@ -349,6 +408,9 @@ struct NowView: View {
         case .emailActions:    EmailActionsCard()
         case .feed:            feedCard
         case .nextFlight:      nextFlightCard
+        case .worldCup:        worldCupCard
+        case .briefing:        BriefingCard()
+        case .expenses:        expensesCard
         case .weather:         weatherCard
         case .shopping:        ShoppingListCard()
         case .health:          healthCard
@@ -637,11 +699,11 @@ struct NowView: View {
                                     .foregroundStyle(.white)
                             }
                             VStack(alignment: .leading, spacing: 0) {
-                                Text(overdue ? "תזכורת באיחור" : "התזכורת הבאה")
+                                Text(overdue ? tr("תזכורת באיחור", "Overdue reminder") : tr("התזכורת הבאה", "Next reminder"))
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundStyle(.white)
                                 if overdue {
-                                    Text("דורש טיפול עכשיו")
+                                    Text(tr("דורש טיפול עכשיו", "Needs attention now"))
                                         .font(.caption2.weight(.medium))
                                         .foregroundStyle(.white.opacity(0.75))
                                 }
@@ -676,14 +738,14 @@ struct NowView: View {
                             Button {
                                 pendingCompleteFromHero = r
                             } label: {
-                                actionLabel(systemImage: "checkmark.circle.fill", title: "בוצע", primary: true, tint: overdue ? .limorDanger : .limorIndigo)
+                                actionLabel(systemImage: "checkmark.circle.fill", title: tr("בוצע", "Done"), primary: true, tint: overdue ? .limorDanger : .limorIndigo)
                             }
                             .buttonStyle(.plain)
 
                             Button {
                                 Task { await snoozeNextReminder(r, minutes: 10) }
                             } label: {
-                                actionLabel(systemImage: "alarm", title: "נודניק 10'", primary: false, tint: .white)
+                                actionLabel(systemImage: "alarm", title: tr("נודניק 10'", "Snooze 10'"), primary: false, tint: .white)
                             }
                             .buttonStyle(.plain)
                         }
@@ -780,7 +842,7 @@ struct NowView: View {
                 // keep the "all quiet" / reminder card in place so the layout
                 // doesn't jump on every silent re-fetch.
                 GlassCard {
-                    HStack { ProgressView().tint(.limorIndigo); Text("טוען…").foregroundStyle(.secondary) }
+                    HStack { ProgressView().tint(.limorIndigo); Text(tr("טוען…", "Loading…")).foregroundStyle(.secondary) }
                 }
             } else {
                 // The hero is filtered to a 48h window — but a user may
@@ -799,11 +861,11 @@ struct NowView: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 38))
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(laterCount > 0 ? "פנוי ליומיים הקרובים 🌿" : "הכל רגוע 🌿")
+                            Text(laterCount > 0 ? tr("פנוי ליומיים הקרובים 🌿", "Clear for the next two days 🌿") : tr("הכל רגוע 🌿", "All calm 🌿"))
                                 .font(.title3.weight(.bold))
                             Text(laterCount > 0
-                                 ? "\(laterCount) תזכורות בהמשך"
-                                 : "אין תזכורות פעילות")
+                                 ? tr("\(laterCount) תזכורות בהמשך", "\(laterCount) reminders later")
+                                 : tr("אין תזכורות פעילות", "No active reminders"))
                                 .font(.subheadline)
                         }
                         Spacer()
@@ -836,7 +898,7 @@ struct NowView: View {
         GlassCard {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    SectionLabel(icon: "thermometer.medium", title: "מזג אוויר עכשיו")
+                    SectionLabel(icon: "thermometer.medium", title: tr("מזג אוויר עכשיו", "Weather now"))
                     Spacer()
                     if let city = location.cityName {
                         HStack(spacing: 4) {
@@ -881,13 +943,23 @@ struct NowView: View {
                 } else if location.authorizationStatus == .denied || location.authorizationStatus == .restricted {
                     HStack(spacing: 10) {
                         Image(systemName: "location.slash").foregroundStyle(.limorMuted)
-                        Text("אישור מיקום נדרש בהגדרות → לימור")
+                        Text(tr("אישור מיקום נדרש בהגדרות → לימור", "Location permission required in Settings → Limor"))
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                } else if location.coordinate != nil {
+                    // We know WHERE the user is — the weather provider just
+                    // didn't answer (e.g. Open-Meteo outage). Saying
+                    // "מאתר מיקום" here was a lie that sent the user to
+                    // debug location permissions.
+                    HStack(spacing: 10) {
+                        Image(systemName: "cloud.slash").foregroundStyle(.limorMuted)
+                        Text(tr("שירות מזג האוויר לא זמין כרגע — ננסה שוב מיד", "Weather service is unavailable right now — we'll try again shortly"))
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
                 } else {
                     HStack(spacing: 10) {
                         ProgressView().tint(.limorIndigo)
-                        Text("מאתר מיקום…").font(.subheadline).foregroundStyle(.secondary)
+                        Text(tr("מאתר מיקום…", "Finding location…")).font(.subheadline).foregroundStyle(.secondary)
                     }
                 }
             }
@@ -938,6 +1010,30 @@ struct NowView: View {
         )
     }
 
+    // MARK: World Cup 2026 (tournament-window card)
+
+    @ViewBuilder
+    private var worldCupCard: some View {
+        if WorldCupSeason.isActive {
+            WorldCupCard()
+        }
+    }
+
+    // MARK: Monthly expenses (receipts auto-extracted from email)
+
+    @ViewBuilder
+    private var expensesCard: some View {
+        let receipts = insights?.receipts ?? []
+        if let currentMonth = ExpenseMonth.group(receipts).first {
+            NavigationLink {
+                ExpensesDetailView(receipts: receipts)
+            } label: {
+                ExpensesCard(month: currentMonth)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     // MARK: Next flight (auto-detected from Gmail)
 
     @ViewBuilder
@@ -970,7 +1066,8 @@ struct NowView: View {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         flightHeroIndex = (safeIndex + 1) % total
                     }
-                }
+                },
+                hotel: hotel(for: flight)
             )
             .contentShape(Rectangle())
             .onTapGesture {
@@ -1016,6 +1113,17 @@ struct NowView: View {
             .sorted { ($0.departureDate ?? .distantPast) < ($1.departureDate ?? .distantPast) }
     }
 
+    /// The hotel matched to a given flight (linked by the backend via
+    /// destination + dates or shared booking reference). When several stays
+    /// matched the same flight, prefer the earliest check-in.
+    private func hotel(for flight: FlightInsight) -> HotelInsight? {
+        guard let hotels = insights?.hotels else { return nil }
+        return hotels
+            .filter { $0.matched_flight_id == flight.id }
+            .sorted { ($0.checkInDate ?? .distantFuture) < ($1.checkInDate ?? .distantFuture) }
+            .first
+    }
+
     // MARK: Health
 
     @ViewBuilder
@@ -1029,7 +1137,7 @@ struct NowView: View {
                         VStack(alignment: .leading, spacing: 14) {
                             // Header with chevron
                             HStack {
-                                SectionLabel(icon: "heart.fill", title: "בריאות היום")
+                                SectionLabel(icon: "heart.fill", title: tr("בריאות היום", "Today's health"))
                                 Spacer()
                                 Text("Apple Health")
                                     .font(.caption2.weight(.medium))
@@ -1053,16 +1161,16 @@ struct NowView: View {
                                     spacing: 8
                                 ) {
                                     if let steps = h.steps {
-                                        HealthStat(icon: "figure.walk", value: stepsString(steps), label: "צעדים", tint: .limorMint)
+                                        HealthStat(icon: "figure.walk", value: stepsString(steps), label: tr("צעדים", "Steps"), tint: .limorMint)
                                     }
                                     if let cals = h.active_calories_kcal, cals > 0 {
                                         HealthStat(icon: "flame.fill", value: "\(Int(cals.rounded()))", label: "kcal", tint: .limorCoral)
                                     }
                                     if let mins = h.exercise_minutes, mins > 0 {
-                                        HealthStat(icon: "stopwatch.fill", value: "\(mins)", label: "דק' פעילות", tint: .limorViolet)
+                                        HealthStat(icon: "stopwatch.fill", value: "\(mins)", label: tr("דק' פעילות", "Active min"), tint: .limorViolet)
                                     }
                                     if let stand = h.stand_hours, stand > 0 {
-                                        HealthStat(icon: "figure.stand", value: "\(stand)", label: "ש' עמידה", tint: .limorIndigo)
+                                        HealthStat(icon: "figure.stand", value: "\(stand)", label: tr("ש' עמידה", "Stand hrs"), tint: .limorIndigo)
                                     }
                                 }
                             }
@@ -1085,7 +1193,7 @@ struct NowView: View {
                             // Tap hint
                             HStack(spacing: 4) {
                                 Spacer()
-                                Text("הצג עוד")
+                                Text(tr("הצג עוד", "Show more"))
                                     .font(.caption2.weight(.semibold))
                                 Image(systemName: "arrow.left")
                                     .font(.caption2.weight(.bold))
@@ -1109,8 +1217,8 @@ struct NowView: View {
                 HStack(spacing: 12) {
                     Image(systemName: "heart.fill").foregroundStyle(.limorCoral)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("חבר את Apple Health").font(.subheadline.weight(.semibold))
-                        Text("ראי צעדים, קלוריות ועוד").font(.caption).foregroundStyle(.secondary)
+                        Text(tr("חבר את Apple Health", "Connect Apple Health")).font(.subheadline.weight(.semibold))
+                        Text(tr("ראי צעדים, קלוריות ועוד", "See steps, calories and more")).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button {
@@ -1119,7 +1227,7 @@ struct NowView: View {
                             await health.loadToday()
                         }
                     } label: {
-                        Text("הפעל")
+                        Text(tr("הפעל", "Enable"))
                             .font(.caption.weight(.bold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 12).padding(.vertical, 6)
@@ -1159,7 +1267,7 @@ struct NowView: View {
             items.append(.init(icon: "moon.zzz.fill", text: String(format: "%.1fh", sleep), tint: .limorViolet))
         }
         if let dist = h.distance_km, dist > 0 {
-            items.append(.init(icon: "map.fill", text: String(format: "%.1f ק\"מ", dist), tint: .limorIndigo))
+            items.append(.init(icon: "map.fill", text: String(format: tr("%.1f ק\"מ", "%.1f km"), dist), tint: .limorIndigo))
         }
         return Array(items.prefix(3))
     }
@@ -1167,15 +1275,15 @@ struct NowView: View {
     private func healthDetailRows(_ h: HealthSummary) -> [HealthDetailRowData] {
         var rows: [HealthDetailRowData] = []
         if let sleep = h.sleep_hours, sleep > 0 {
-            rows.append(.init(icon: "moon.zzz.fill", label: "שינה אתמול",
-                              value: String(format: "%.1f שעות", sleep), tint: .limorViolet))
+            rows.append(.init(icon: "moon.zzz.fill", label: tr("שינה אתמול", "Sleep last night"),
+                              value: String(format: tr("%.1f שעות", "%.1f hrs"), sleep), tint: .limorViolet))
         }
         if let rhr = h.resting_heart_rate {
-            rows.append(.init(icon: "heart.fill", label: "דופק במנוחה",
+            rows.append(.init(icon: "heart.fill", label: tr("דופק במנוחה", "Resting heart rate"),
                               value: "\(rhr) bpm", tint: .limorCoral))
         }
         if let walking = h.walking_heart_rate_avg {
-            rows.append(.init(icon: "figure.walk.motion", label: "דופק בהליכה",
+            rows.append(.init(icon: "figure.walk.motion", label: tr("דופק בהליכה", "Walking heart rate"),
                               value: "\(walking) bpm", tint: .limorCoral))
         }
         if let hrv = h.heart_rate_variability_ms {
@@ -1183,24 +1291,24 @@ struct NowView: View {
                               value: String(format: "%.0f ms", hrv), tint: .limorCoral))
         }
         if let dist = h.distance_km, dist > 0 {
-            rows.append(.init(icon: "map.fill", label: "מרחק",
-                              value: String(format: "%.2f ק\"מ", dist), tint: .limorIndigo))
+            rows.append(.init(icon: "map.fill", label: tr("מרחק", "Distance"),
+                              value: String(format: tr("%.2f ק\"מ", "%.2f km"), dist), tint: .limorIndigo))
         }
         if let vo2 = h.vo2_max {
             rows.append(.init(icon: "lungs.fill", label: "VO2 Max",
                               value: String(format: "%.1f", vo2), tint: .limorMint))
         }
         if let weight = h.weight_kg {
-            rows.append(.init(icon: "scalemass.fill", label: "משקל",
-                              value: String(format: "%.1f ק\"ג", weight), tint: .limorIndigo))
+            rows.append(.init(icon: "scalemass.fill", label: tr("משקל", "Weight"),
+                              value: String(format: tr("%.1f ק\"ג", "%.1f kg"), weight), tint: .limorIndigo))
         }
         if let bf = h.body_fat_percent, bf > 0 {
-            rows.append(.init(icon: "drop.fill", label: "אחוז שומן",
+            rows.append(.init(icon: "drop.fill", label: tr("אחוז שומן", "Body fat"),
                               value: String(format: "%.1f%%", bf), tint: .limorViolet))
         }
         if let mindful = h.mindful_minutes, mindful > 0 {
-            rows.append(.init(icon: "brain.head.profile", label: "מיינדפולנס",
-                              value: "\(Int(mindful)) דק'", tint: .limorMint))
+            rows.append(.init(icon: "brain.head.profile", label: tr("מיינדפולנס", "Mindfulness"),
+                              value: tr("\(Int(mindful)) דק'", "\(Int(mindful)) min"), tint: .limorMint))
         }
         return rows
     }
@@ -1214,9 +1322,9 @@ struct NowView: View {
         let done = allReminders.filter { $0.status == .completed }.count
 
         return HStack(spacing: 10) {
-            StatPill(icon: "exclamationmark.triangle.fill", value: "\(overdue)", label: "באיחור", tint: .limorDanger)
-            StatPill(icon: "calendar", value: "\(todayCount)", label: "היום", tint: .limorIndigo)
-            StatPill(icon: "checkmark.circle.fill", value: "\(done)", label: "הושלמו", tint: .limorSuccess)
+            StatPill(icon: "exclamationmark.triangle.fill", value: "\(overdue)", label: tr("באיחור", "Overdue"), tint: .limorDanger)
+            StatPill(icon: "calendar", value: "\(todayCount)", label: tr("היום", "Today"), tint: .limorIndigo)
+            StatPill(icon: "checkmark.circle.fill", value: "\(done)", label: tr("הושלמו", "Done"), tint: .limorSuccess)
         }
     }
 
@@ -1255,6 +1363,14 @@ struct NowView: View {
         }
         lastAutoFullRefresh = Date()
         sync.beginFullRefresh()
+        // Global cards (World Cup, war index) regenerate server-side in the
+        // background — they run web searches (~30s when stale), so they must
+        // not hold up the pull-to-refresh spinner. The cards observe
+        // `lastGlobalCardsRefresh` and re-fetch when this lands.
+        Task { @MainActor in
+            _ = try? await APIClient.shared.refreshWorldCup(force: forced)
+            SyncManager.shared.markGlobalCardsRefresh()
+        }
         await SyncManager.shared.syncAll(force: forced)
         sync.startActivity(.feed)
         if let fresh = try? await APIClient.shared.refreshFeed(force: forced) {
@@ -1464,7 +1580,7 @@ struct LastWorkoutCard: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Label("האימון האחרון", systemImage: "trophy.fill")
+                    Label(tr("האימון האחרון", "Last workout"), systemImage: "trophy.fill")
                         .font(.subheadline.weight(.semibold))
                     Spacer()
                     Text(relativeTime).font(.caption.weight(.medium))
@@ -1494,7 +1610,7 @@ struct LastWorkoutCard: View {
                         WorkoutMetric(icon: "flame.fill", value: "\(Int(cals.rounded()))", unit: "kcal")
                     }
                     if let dist = workout.distance_km, dist > 0 {
-                        WorkoutMetric(icon: "map.fill", value: String(format: "%.1f", dist), unit: "ק\"מ")
+                        WorkoutMetric(icon: "map.fill", value: String(format: "%.1f", dist), unit: tr("ק\"מ", "km"))
                     }
                     if let hr = workout.avg_heart_rate {
                         WorkoutMetric(icon: "heart.fill", value: "\(hr)", unit: "bpm")
@@ -1505,7 +1621,7 @@ struct LastWorkoutCard: View {
                 if let weekCount, weekCount > 0 {
                     HStack(spacing: 6) {
                         Image(systemName: "calendar.badge.checkmark")
-                        Text("השבוע: \(weekCount) אימונים\(weekMinutes.map { " • \(Int($0)) דק'" } ?? "")")
+                        Text(tr("השבוע: \(weekCount) אימונים\(weekMinutes.map { " • \(Int($0)) דק'" } ?? "")", "This week: \(weekCount) workouts\(weekMinutes.map { " • \(Int($0)) min" } ?? "")"))
                     }
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.85))
@@ -1535,9 +1651,9 @@ struct LastWorkoutCard: View {
         let mins = Int(workout.duration_minutes.rounded())
         if mins >= 60 {
             let h = mins / 60, m = mins % 60
-            return m == 0 ? "\(h) שעות" : "\(h)ש' \(m)דק'"
+            return m == 0 ? tr("\(h) שעות", "\(h) hrs") : tr("\(h)ש' \(m)דק'", "\(h)h \(m)m")
         }
-        return "\(mins) דקות"
+        return tr("\(mins) דקות", "\(mins) min")
     }
 }
 
@@ -1581,6 +1697,10 @@ private struct FlightCard: View {
     /// clipShape they can't leak past the card bounds.
     var position: (index: Int, total: Int)? = nil
     var onAdvance: (() -> Void)? = nil
+    /// Hotel matched to this flight (same destination + dates, or shared
+    /// booking reference). Rendered as a strip under the route; nil when no
+    /// stay matched this flight.
+    var hotel: HotelInsight? = nil
     @State private var showingDismissConfirm = false
 
     // Aviation palette — deep ocean → bright teal. Pushed darker on the
@@ -1594,6 +1714,7 @@ private struct FlightCard: View {
             topRow
             routeStrip
             metaLine
+            if let hotel { hotelStrip(hotel) }
             if let position, position.total > 1 {
                 LimorPageDots(
                     count: position.total,
@@ -1659,7 +1780,7 @@ private struct FlightCard: View {
                     .foregroundStyle(.white)
             }
             VStack(alignment: .leading, spacing: 0) {
-                Text("הטיסה הקרובה שלך")
+                Text(tr("הטיסה הקרובה שלך", "Your upcoming flight"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                 if let airline = flight.airline {
@@ -1686,11 +1807,11 @@ private struct FlightCard: View {
                         .foregroundStyle(.white.opacity(0.7))
                 }
                 .buttonStyle(.plain)
-                .confirmationDialog("הטיסה לא נכונה?", isPresented: $showingDismissConfirm) {
-                    Button("מחק את הטיסה הזו", role: .destructive) { onDismiss?() }
-                    Button("ביטול", role: .cancel) {}
+                .confirmationDialog(tr("הטיסה לא נכונה?", "Wrong flight?"), isPresented: $showingDismissConfirm) {
+                    Button(tr("מחק את הטיסה הזו", "Delete this flight"), role: .destructive) { onDismiss?() }
+                    Button(tr("ביטול", "Cancel"), role: .cancel) {}
                 } message: {
-                    Text("הטיסה תוסר מהמסך. אם תופיע שוב — סימן שלימור מזהה אותה ממייל; אפשר לדווח לנו.")
+                    Text(tr("הטיסה תוסר מהמסך. אם תופיע שוב — סימן שלימור מזהה אותה ממייל; אפשר לדווח לנו.", "The flight will be removed from the screen. If it reappears, Limor is detecting it from an email — feel free to let us know."))
                 }
             }
         }
@@ -1823,6 +1944,55 @@ private struct FlightCard: View {
             .frame(width: 3, height: 3)
     }
 
+    // MARK: - Hotel strip (matched stay)
+
+    private func hotelStrip(_ hotel: HotelInsight) -> some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Circle().fill(.white.opacity(0.18)).frame(width: 26, height: 26)
+                Image(systemName: "bed.double.fill")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(hotel.hotel_name)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                if let sub = hotelSubtitle(hotel) {
+                    Text(sub)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.72))
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.white.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(.white.opacity(0.18), lineWidth: 0.8)
+        )
+    }
+
+    /// "City · 20 Jun–24 Jun" — whichever parts are available.
+    private func hotelSubtitle(_ hotel: HotelInsight) -> String? {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "he_IL")
+        f.dateFormat = "d MMM"
+        var dates: String? = nil
+        if let ci = hotel.checkInDate {
+            dates = hotel.checkOutDate.map { "\(f.string(from: ci))–\(f.string(from: $0))" } ?? f.string(from: ci)
+        }
+        let parts = [hotel.city, dates].compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     // MARK: - Helpers
 
     private var daysAway: Int? {
@@ -1834,10 +2004,10 @@ private struct FlightCard: View {
     }
 
     private func daysAwayLabel(_ days: Int) -> String {
-        if days == 0 { return "היום" }
-        if days == 1 { return "מחר" }
-        if days == 2 { return "מחרתיים" }
-        return "בעוד \(days) ימים"
+        if days == 0 { return tr("היום", "Today") }
+        if days == 1 { return tr("מחר", "Tomorrow") }
+        if days == 2 { return tr("מחרתיים", "In 2 days") }
+        return tr("בעוד \(days) ימים", "In \(days) days")
     }
 
     private var dateLabel: String {
@@ -1949,21 +2119,21 @@ private struct RecKindStyle {
     static func from(_ kind: String) -> RecKindStyle {
         switch kind {
         case "movement":
-            return .init(icon: "figure.run", tint: .limorMint, label: "תנועה")
+            return .init(icon: "figure.run", tint: .limorMint, label: tr("תנועה", "Movement"))
         case "sleep":
-            return .init(icon: "moon.stars.fill", tint: .limorIndigo, label: "שינה")
+            return .init(icon: "moon.stars.fill", tint: .limorIndigo, label: tr("שינה", "Sleep"))
         case "recovery":
-            return .init(icon: "heart.text.square.fill", tint: .limorViolet, label: "התאוששות")
+            return .init(icon: "heart.text.square.fill", tint: .limorViolet, label: tr("התאוששות", "Recovery"))
         case "nutrition":
-            return .init(icon: "leaf.fill", tint: .limorMint, label: "תזונה")
+            return .init(icon: "leaf.fill", tint: .limorMint, label: tr("תזונה", "Nutrition"))
         case "calendar":
-            return .init(icon: "calendar.badge.exclamationmark", tint: .limorCoral, label: "יומן")
+            return .init(icon: "calendar.badge.exclamationmark", tint: .limorCoral, label: tr("יומן", "Calendar"))
         case "mindfulness":
-            return .init(icon: "brain.head.profile", tint: .limorViolet, label: "ראש")
+            return .init(icon: "brain.head.profile", tint: .limorViolet, label: tr("ראש", "Mind"))
         case "celebration":
-            return .init(icon: "trophy.fill", tint: .limorWarning, label: "כל הכבוד")
+            return .init(icon: "trophy.fill", tint: .limorWarning, label: tr("כל הכבוד", "Well done"))
         default:
-            return .init(icon: "sparkles", tint: .limorIndigo, label: "טיפ")
+            return .init(icon: "sparkles", tint: .limorIndigo, label: tr("טיפ", "Tip"))
         }
     }
 }
@@ -1988,7 +2158,7 @@ private struct RecommendationsCard: View {
                         colors: [Color.limorPink, Color.limorViolet, Color.limorIndigo],
                         startPoint: .leading, endPoint: .trailing
                     ))
-                Text("טיפ אישי מלימור")
+                Text(tr("טיפ אישי מלימור", "A personal tip from Limor"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.limorInk)
                 Spacer()
@@ -2136,7 +2306,7 @@ private struct RecommendationContent: View {
                         // about WHAT?), so we prepend the recommendation's
                         // title so Limor knows the subject.
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        router.sendToLimor("\(cta) — בקשר ל'\(rec.title)' (\(rec.body))")
+                        router.sendToLimor(tr("\(cta) — בקשר ל'\(rec.title)' (\(rec.body))", "\(cta) — regarding '\(rec.title)' (\(rec.body))"))
                     } label: {
                         HStack(spacing: 4) {
                             Text(cta)
@@ -2165,6 +2335,8 @@ private struct RecommendationContent: View {
 /// them (subject + body) so the user can verify what Limor extracted.
 struct FlightDetailView: View {
     let flight: FlightInsight
+    /// Hotel matched to this flight, shown as its own section. nil if none.
+    var hotel: HotelInsight? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var email: EmailDTO?
@@ -2177,17 +2349,18 @@ struct FlightDetailView: View {
                 VStack(spacing: 16) {
                     routeHero
                     extractedFieldsCard
+                    if let hotel { hotelCard(hotel) }
                     sourceEmailCard
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
                 .padding(.bottom, 32)
             }
-            .navigationTitle("פרטי טיסה")
+            .navigationTitle(tr("פרטי טיסה", "Flight details"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("סגור") { dismiss() }
+                    Button(tr("סגור", "Close")) { dismiss() }
                         .foregroundStyle(.limorIndigo)
                 }
             }
@@ -2215,7 +2388,7 @@ struct FlightDetailView: View {
                         Text(flight.departure_airport ?? "—")
                             .font(.system(size: 36, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
-                        Text("יציאה")
+                        Text(tr("יציאה", "Departure"))
                             .font(.caption)
                             .foregroundStyle(.white.opacity(0.75))
                     }
@@ -2226,7 +2399,7 @@ struct FlightDetailView: View {
                         Text(flight.arrival_airport ?? "—")
                             .font(.system(size: 36, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
-                        Text("יעד")
+                        Text(tr("יעד", "Destination"))
                             .font(.caption)
                             .foregroundStyle(.white.opacity(0.75))
                     }
@@ -2248,16 +2421,38 @@ struct FlightDetailView: View {
     private var extractedFieldsCard: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 14) {
-                SectionLabel(icon: "list.bullet.rectangle", title: "מה לימור חילצה")
-                detailRow(icon: "building.2", label: "חברת תעופה", value: flight.airline)
-                detailRow(icon: "number", label: "מספר טיסה", value: flight.flight_number)
-                detailRow(icon: "person.fill", label: "נוסע", value: flight.passenger_name)
-                detailRow(icon: "ticket", label: "מספר הזמנה", value: flight.booking_reference)
-                detailRow(icon: "airplane.departure", label: "שדה יציאה", value: flight.departure_airport)
-                detailRow(icon: "airplane.arrival", label: "שדה יעד", value: flight.arrival_airport)
+                SectionLabel(icon: "list.bullet.rectangle", title: tr("מה לימור חילצה", "What Limor extracted"))
+                detailRow(icon: "building.2", label: tr("חברת תעופה", "Airline"), value: flight.airline)
+                detailRow(icon: "number", label: tr("מספר טיסה", "Flight number"), value: flight.flight_number)
+                detailRow(icon: "person.fill", label: tr("נוסע", "Passenger"), value: flight.passenger_name)
+                detailRow(icon: "ticket", label: tr("מספר הזמנה", "Booking reference"), value: flight.booking_reference)
+                detailRow(icon: "airplane.departure", label: tr("שדה יציאה", "Departure airport"), value: flight.departure_airport)
+                detailRow(icon: "airplane.arrival", label: tr("שדה יעד", "Arrival airport"), value: flight.arrival_airport)
                 if let d = flight.departureDate {
-                    detailRow(icon: "calendar", label: "המראה", value: formattedDateLong(d))
+                    detailRow(icon: "calendar", label: tr("המראה", "Takeoff"), value: formattedDateLong(d))
                 }
+            }
+        }
+    }
+
+    // MARK: Matched hotel
+
+    @ViewBuilder
+    private func hotelCard(_ hotel: HotelInsight) -> some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionLabel(icon: "bed.double.fill", title: tr("המלון לטיסה הזו", "Hotel for this flight"))
+                detailRow(icon: "building", label: tr("מלון", "Hotel"), value: hotel.hotel_name)
+                detailRow(icon: "mappin.and.ellipse", label: tr("עיר", "City"), value: hotel.city)
+                detailRow(icon: "location", label: tr("כתובת", "Address"), value: hotel.address)
+                if let ci = hotel.checkInDate {
+                    detailRow(icon: "calendar.badge.plus", label: tr("צ'ק-אין", "Check-in"), value: formattedDateLong(ci))
+                }
+                if let co = hotel.checkOutDate {
+                    detailRow(icon: "calendar.badge.minus", label: tr("צ'ק-אאוט", "Check-out"), value: formattedDateLong(co))
+                }
+                detailRow(icon: "person.fill", label: tr("אורח", "Guest"), value: hotel.guest_name)
+                detailRow(icon: "ticket", label: tr("מספר הזמנה", "Booking reference"), value: hotel.booking_reference)
             }
         }
     }
@@ -2288,11 +2483,11 @@ struct FlightDetailView: View {
     private var sourceEmailCard: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 12) {
-                SectionLabel(icon: "envelope", title: "המייל המקורי")
+                SectionLabel(icon: "envelope", title: tr("המייל המקורי", "Original email"))
                 if loadingEmail {
                     HStack(spacing: 8) {
                         ProgressView().tint(.limorIndigo)
-                        Text("טוען את המייל…")
+                        Text(tr("טוען את המייל…", "Loading email…"))
                             .font(.subheadline)
                             .foregroundStyle(.limorMuted)
                     }
@@ -2304,7 +2499,7 @@ struct FlightDetailView: View {
                         .font(.subheadline)
                         .foregroundStyle(.limorMuted)
                 } else {
-                    Text("המייל המקורי כבר לא מסונכרן (יוצא מהרשימה אחרי שעבר מספיק זמן).")
+                    Text(tr("המייל המקורי כבר לא מסונכרן (יוצא מהרשימה אחרי שעבר מספיק זמן).", "The original email is no longer synced (it drops off the list after enough time passes)."))
                         .font(.subheadline)
                         .foregroundStyle(.limorMuted)
                 }
@@ -2315,7 +2510,7 @@ struct FlightDetailView: View {
     private func emailContent(_ email: EmailDTO) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("נושא")
+                Text(tr("נושא", "Subject"))
                     .font(.caption).foregroundStyle(.limorMuted)
                 Text(email.subject.isEmpty ? "—" : email.subject)
                     .font(.subheadline.weight(.semibold))
@@ -2323,7 +2518,7 @@ struct FlightDetailView: View {
                     .textSelection(.enabled)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text("מאת")
+                Text(tr("מאת", "From"))
                     .font(.caption).foregroundStyle(.limorMuted)
                 Text(email.from_name?.isEmpty == false ? "\(email.from_name!) <\(email.from)>" : email.from)
                     .font(.subheadline)
@@ -2332,7 +2527,7 @@ struct FlightDetailView: View {
             }
             if let date = parseEmailDate(email.received_at) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("התקבל")
+                    Text(tr("התקבל", "Received"))
                         .font(.caption).foregroundStyle(.limorMuted)
                     Text(formattedDateLong(date))
                         .font(.subheadline)
@@ -2348,7 +2543,7 @@ struct FlightDetailView: View {
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                Text("גוף המייל לא נשמר.")
+                Text(tr("גוף המייל לא נשמר.", "The email body wasn't saved."))
                     .font(.subheadline)
                     .foregroundStyle(.limorMuted)
             }
@@ -2365,7 +2560,7 @@ struct FlightDetailView: View {
         do {
             email = try await APIClient.shared.emailById(messageId: id)
         } catch {
-            emailError = "טעינת המייל נכשלה: \(error.localizedDescription)"
+            emailError = tr("טעינת המייל נכשלה: \(error.localizedDescription)", "Failed to load the email: \(error.localizedDescription)")
         }
         loadingEmail = false
     }

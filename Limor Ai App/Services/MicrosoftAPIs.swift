@@ -43,11 +43,11 @@ struct MicrosoftAPIs {
 
         var errorDescription: String? {
             switch self {
-            case .notConfigured:         return "החיבור ל-Outlook לא הוגדר. חסר Client ID."
-            case .notSignedIn:           return "לא הצלחתי לפתוח את חלון ההתחברות של Microsoft."
-            case .missingScope(let s):   return "Microsoft לא אישר את ההרשאה הנדרשת (\(s))."
-            case .http(let status, _):   return "Microsoft Graph החזיר \(status)."
-            case .decodingFailed(let s): return "כשל בפענוח תשובה: \(s)"
+            case .notConfigured:         return tr("החיבור ל-Outlook לא הוגדר. חסר Client ID.", "The Outlook connection isn't set up. Client ID is missing.")
+            case .notSignedIn:           return tr("לא הצלחתי לפתוח את חלון ההתחברות של Microsoft.", "Couldn't open the Microsoft sign-in window.")
+            case .missingScope(let s):   return tr("Microsoft לא אישר את ההרשאה הנדרשת (\(s)).", "Microsoft didn't grant the required permission (\(s)).")
+            case .http(let status, _):   return tr("Microsoft Graph החזיר \(status).", "Microsoft Graph returned \(status).")
+            case .decodingFailed(let s): return tr("כשל בפענוח תשובה: \(s)", "Failed to parse response: \(s)")
             }
         }
     }
@@ -237,6 +237,12 @@ struct MicrosoftAPIs {
         clearGrantedScopes()
     }
 
+    /// The connected Outlook/Microsoft account address, e.g. "rani@outlook.com".
+    /// Used to tag synced emails so the action report can attribute each item.
+    static func accountEmail() -> String? {
+        (try? application().allAccounts())?.first?.username
+    }
+
     // MARK: - Calendar
 
     static func fetchCalendarEvents(daysAhead: Int = 60) async throws -> [CalendarEventDTO] {
@@ -263,7 +269,7 @@ struct MicrosoftAPIs {
                   let endDate = parseGraphDateTime(item.end) else { return nil }
             return CalendarEventDTO(
                 event_id: item.id,
-                title: item.subject ?? "(ללא כותרת)",
+                title: item.subject ?? tr("(ללא כותרת)", "(No title)"),
                 notes: item.bodyPreview,
                 location: item.location?.displayName,
                 start_at: formatter.string(from: start),
@@ -308,7 +314,7 @@ struct MicrosoftAPIs {
                 message_id: msg.id,
                 from: fromEmail,
                 from_name: (fromName?.isEmpty == false) ? fromName : nil,
-                subject: msg.subject ?? "(ללא נושא)",
+                subject: msg.subject ?? tr("(ללא נושא)", "(No subject)"),
                 snippet: msg.bodyPreview ?? "",
                 received_at: msg.receivedDateTime ?? formatter.string(from: Date()),
                 is_unread: !(msg.isRead ?? true),
@@ -322,14 +328,17 @@ struct MicrosoftAPIs {
         // Newest first (server already sorts, but be defensive).
         out.sort { $0.received_at > $1.received_at }
 
-        // Fetch full bodies for travel-likely emails (flight extractor) PLUS
-        // the most-recent N (executive action extractor needs thread content,
+        // Fetch full bodies for travel-likely emails (flight extractor), the
+        // newest receipt-likely emails (the receipt extractor needs the
+        // charged amount — bodyPreview often cuts it off), PLUS the
+        // most-recent N (executive action extractor needs thread content,
         // not just bodyPreview). Deduped and capped.
         let travelIndices = out.indices.filter { isTravelLikely(out[$0]) }
+        let receiptIndices = Array(out.indices.filter { isReceiptLikely(out[$0]) }.prefix(40))
         let recentIndices = Array(out.indices.prefix(30))
         var bodyIndices: [Int] = []
         var seenIdx = Set<Int>()
-        for idx in travelIndices + recentIndices where seenIdx.insert(idx).inserted {
+        for idx in travelIndices + receiptIndices + recentIndices where seenIdx.insert(idx).inserted {
             bodyIndices.append(idx)
         }
 
@@ -372,6 +381,19 @@ struct MicrosoftAPIs {
             "airways", "airlines", "bluebird", "blue bird",
             "el al", "אל על", "easyjet", "ryanair", "wizz",
             "booking.com", "trip.com", "kiwi", "issta",
+        ]
+        return keys.contains { h.contains($0) }
+    }
+
+    /// Heuristic mirror of the backend's receipt prefilter — only decides
+    /// which emails get a full-body fetch; Claude does the real extraction.
+    private static func isReceiptLikely(_ e: EmailDTO) -> Bool {
+        let h = "\(e.subject) \(e.from_name ?? "") \(e.from) \(e.snippet)".lowercased()
+        let keys = [
+            "receipt", "invoice", "payment", "paid", "charged",
+            "your order", "order confirmation", "purchase", "transaction", "billing",
+            "קבלה", "חשבונית", "תשלום", "חיוב", "חויב", "שילמת",
+            "רכישה", "הזמנתך", "אישור תשלום", "מנוי",
         ]
         return keys.contains { h.contains($0) }
     }

@@ -9,16 +9,16 @@ struct HealthDetailView: View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 14) {
                 if !activityRows.isEmpty {
-                    sectionCard(icon: "figure.run", title: "פעילות", tint: .limorMint, rows: activityRows)
+                    sectionCard(icon: "figure.run", title: tr("פעילות", "Activity"), tint: .limorMint, rows: activityRows)
                 }
                 if !heartRows.isEmpty {
-                    sectionCard(icon: "heart.fill", title: "לב וכושר", tint: .limorCoral, rows: heartRows)
+                    sectionCard(icon: "heart.fill", title: tr("לב וכושר", "Heart & Fitness"), tint: .limorCoral, rows: heartRows)
                 }
                 if !recoveryRows.isEmpty {
-                    sectionCard(icon: "moon.zzz.fill", title: "מנוחה ושינה", tint: .limorViolet, rows: recoveryRows)
+                    sectionCard(icon: "moon.zzz.fill", title: tr("מנוחה ושינה", "Rest & Sleep"), tint: .limorViolet, rows: recoveryRows)
                 }
                 if !bodyRows.isEmpty {
-                    sectionCard(icon: "figure.arms.open", title: "גוף", tint: .limorIndigo, rows: bodyRows)
+                    sectionCard(icon: "figure.arms.open", title: tr("גוף", "Body"), tint: .limorIndigo, rows: bodyRows)
                 }
                 if let workout = summary.last_workout {
                     LastWorkoutCard(
@@ -32,7 +32,7 @@ struct HealthDetailView: View {
             .padding(.bottom, 32)
         }
         .background(LiquidBackdrop().ignoresSafeArea())
-        .navigationTitle("בריאות")
+        .navigationTitle(tr("בריאות", "Health"))
         .navigationBarTitleDisplayMode(.large)
     }
 
@@ -41,28 +41,28 @@ struct HealthDetailView: View {
     private var activityRows: [HealthDetailRowData] {
         var rows: [HealthDetailRowData] = []
         if let steps = summary.steps {
-            rows.append(.init(icon: "figure.walk", label: "צעדים",
+            rows.append(.init(icon: "figure.walk", label: tr("צעדים", "Steps"),
                               value: stepsString(steps), tint: .limorMint))
         }
         if let cals = summary.active_calories_kcal, cals > 0 {
-            rows.append(.init(icon: "flame.fill", label: "קלוריות פעילות",
+            rows.append(.init(icon: "flame.fill", label: tr("קלוריות פעילות", "Active calories"),
                               value: "\(Int(cals.rounded())) kcal", tint: .limorCoral))
         }
         if let cals = summary.resting_calories_kcal, cals > 0 {
-            rows.append(.init(icon: "moon.fill", label: "קלוריות מנוחה",
+            rows.append(.init(icon: "moon.fill", label: tr("קלוריות מנוחה", "Resting calories"),
                               value: "\(Int(cals.rounded())) kcal", tint: .limorMuted))
         }
         if let mins = summary.exercise_minutes, mins > 0 {
-            rows.append(.init(icon: "stopwatch.fill", label: "דקות פעילות",
+            rows.append(.init(icon: "stopwatch.fill", label: tr("דקות פעילות", "Exercise minutes"),
                               value: "\(mins)", tint: .limorViolet))
         }
         if let stand = summary.stand_hours, stand > 0 {
-            rows.append(.init(icon: "figure.stand", label: "שעות עמידה",
+            rows.append(.init(icon: "figure.stand", label: tr("שעות עמידה", "Stand hours"),
                               value: "\(stand)", tint: .limorIndigo))
         }
         if let dist = summary.distance_km, dist > 0 {
-            rows.append(.init(icon: "map.fill", label: "מרחק",
-                              value: String(format: "%.2f ק\"מ", dist), tint: .limorIndigo))
+            rows.append(.init(icon: "map.fill", label: tr("מרחק", "Distance"),
+                              value: String(format: tr("%.2f ק\"מ", "%.2f km"), dist), tint: .limorIndigo))
         }
         return rows
     }
@@ -70,11 +70,11 @@ struct HealthDetailView: View {
     private var heartRows: [HealthDetailRowData] {
         var rows: [HealthDetailRowData] = []
         if let rhr = summary.resting_heart_rate {
-            rows.append(.init(icon: "heart.fill", label: "דופק במנוחה",
+            rows.append(.init(icon: "heart.fill", label: tr("דופק במנוחה", "Resting heart rate"),
                               value: "\(rhr) bpm", tint: .limorCoral))
         }
         if let walking = summary.walking_heart_rate_avg {
-            rows.append(.init(icon: "figure.walk.motion", label: "דופק בהליכה",
+            rows.append(.init(icon: "figure.walk.motion", label: tr("דופק בהליכה", "Walking heart rate"),
                               value: "\(walking) bpm", tint: .limorCoral))
         }
         if let hrv = summary.heart_rate_variability_ms {
@@ -91,24 +91,24 @@ struct HealthDetailView: View {
     private var recoveryRows: [HealthDetailRowData] {
         var rows: [HealthDetailRowData] = []
         if let sleep = summary.sleep_hours, sleep > 0 {
-            rows.append(.init(icon: "moon.zzz.fill", label: "שינה אתמול",
-                              value: String(format: "%.1f שעות", sleep), tint: .limorViolet))
+            rows.append(.init(icon: "moon.zzz.fill", label: tr("שינה אתמול", "Sleep last night"),
+                              value: String(format: tr("%.1f שעות", "%.1f hrs"), sleep), tint: .limorViolet))
         }
         if let bedtime = summary.sleep_bedtime_iso, let date = isoDate(bedtime) {
-            rows.append(.init(icon: "bed.double.fill", label: "הלכת לישון",
+            rows.append(.init(icon: "bed.double.fill", label: tr("הלכת לישון", "Went to bed"),
                               value: hourMinute(date), tint: .limorIndigo))
         }
         if let wake = summary.sleep_wake_time_iso, let date = isoDate(wake) {
-            rows.append(.init(icon: "sunrise.fill", label: "התעוררת",
+            rows.append(.init(icon: "sunrise.fill", label: tr("התעוררת", "Woke up"),
                               value: hourMinute(date), tint: .limorWarning))
         }
         if let avg = summary.sleep_avg_hours_last_7, avg > 0 {
-            rows.append(.init(icon: "chart.bar.fill", label: "ממוצע 7 ימים",
-                              value: String(format: "%.1f שעות", avg), tint: .limorMint))
+            rows.append(.init(icon: "chart.bar.fill", label: tr("ממוצע 7 ימים", "7-day average"),
+                              value: String(format: tr("%.1f שעות", "%.1f hrs"), avg), tint: .limorMint))
         }
         if let mindful = summary.mindful_minutes, mindful > 0 {
-            rows.append(.init(icon: "brain.head.profile", label: "מיינדפולנס",
-                              value: "\(Int(mindful)) דק'", tint: .limorMint))
+            rows.append(.init(icon: "brain.head.profile", label: tr("מיינדפולנס", "Mindfulness"),
+                              value: tr("\(Int(mindful)) דק'", "\(Int(mindful)) min"), tint: .limorMint))
         }
         return rows
     }
@@ -127,11 +127,11 @@ struct HealthDetailView: View {
     private var bodyRows: [HealthDetailRowData] {
         var rows: [HealthDetailRowData] = []
         if let weight = summary.weight_kg {
-            rows.append(.init(icon: "scalemass.fill", label: "משקל",
-                              value: String(format: "%.1f ק\"ג", weight), tint: .limorIndigo))
+            rows.append(.init(icon: "scalemass.fill", label: tr("משקל", "Weight"),
+                              value: String(format: tr("%.1f ק\"ג", "%.1f kg"), weight), tint: .limorIndigo))
         }
         if let bf = summary.body_fat_percent, bf > 0 {
-            rows.append(.init(icon: "drop.fill", label: "אחוז שומן",
+            rows.append(.init(icon: "drop.fill", label: tr("אחוז שומן", "Body fat"),
                               value: String(format: "%.1f%%", bf), tint: .limorViolet))
         }
         return rows
