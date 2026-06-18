@@ -122,7 +122,7 @@ struct WeatherDetailView: View {
             }
             .foregroundStyle(.white)
             .shadow(color: .black.opacity(0.25), radius: 18, y: 6)
-            Text(current.condition)
+            Text(localizedWeatherCondition(current.condition))
                 .font(.title3.weight(.medium))
                 .foregroundStyle(.white.opacity(0.9))
             Text(tr("מורגש כמו \(Int(current.feels_like_c.rounded()))°", "Feels like \(Int(current.feels_like_c.rounded()))°"))

@@ -926,7 +926,7 @@ struct NowView: View {
                             Text("\(Int(w.temp_c.rounded()))°")
                                 .font(.system(size: 38, weight: .bold, design: .rounded))
                                 .foregroundStyle(.limorInk)
-                            Text(w.condition)
+                            Text(localizedWeatherCondition(w.condition))
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(.secondary)
                         }
@@ -2057,43 +2057,47 @@ private enum AirportCityLookup {
         return mapping[code]
     }
 
-    private static let mapping: [String: String] = [
+    // Computed (not `let`) so the tr() values re-resolve when the language
+    // toggle flips — a stored `static let` would freeze them at first access.
+    private static var mapping: [String: String] {
+        [
         // Israel
-        "TLV": "תל אביב", "ETM": "אילת רמון", "VDA": "עובדה",
+        "TLV": tr("תל אביב", "Tel Aviv"), "ETM": tr("אילת רמון", "Eilat Ramon"), "VDA": tr("עובדה", "Ovda"),
         // Europe
-        "LHR": "לונדון", "LGW": "לונדון", "STN": "לונדון", "LTN": "לונדון",
-        "CDG": "פריז", "ORY": "פריז",
-        "AMS": "אמסטרדם",
-        "FRA": "פרנקפורט", "MUC": "מינכן", "BER": "ברלין",
-        "FCO": "רומא", "CIA": "רומא", "MXP": "מילאנו", "LIN": "מילאנו",
-        "MAD": "מדריד", "BCN": "ברצלונה",
-        "ATH": "אתונה", "SKG": "סלוניקי",
-        "VIE": "וינה", "ZRH": "ציריך", "GVA": "ז׳נבה",
-        "PRG": "פראג", "BUD": "בודפשט", "WAW": "ורשה",
-        "CPH": "קופנהגן", "ARN": "סטוקהולם", "HEL": "הלסינקי", "OSL": "אוסלו",
-        "DUB": "דבלין", "LIS": "ליסבון", "BRU": "בריסל",
-        "IST": "איסטנבול", "SAW": "איסטנבול",
-        "LCA": "לרנקה", "PFO": "פאפוס",
-        "BUH": "בוקרשט", "OTP": "בוקרשט", "SOF": "סופיה",
+        "LHR": tr("לונדון", "London"), "LGW": tr("לונדון", "London"), "STN": tr("לונדון", "London"), "LTN": tr("לונדון", "London"),
+        "CDG": tr("פריז", "Paris"), "ORY": tr("פריז", "Paris"),
+        "AMS": tr("אמסטרדם", "Amsterdam"),
+        "FRA": tr("פרנקפורט", "Frankfurt"), "MUC": tr("מינכן", "Munich"), "BER": tr("ברלין", "Berlin"),
+        "FCO": tr("רומא", "Rome"), "CIA": tr("רומא", "Rome"), "MXP": tr("מילאנו", "Milan"), "LIN": tr("מילאנו", "Milan"),
+        "MAD": tr("מדריד", "Madrid"), "BCN": tr("ברצלונה", "Barcelona"),
+        "ATH": tr("אתונה", "Athens"), "SKG": tr("סלוניקי", "Thessaloniki"),
+        "VIE": tr("וינה", "Vienna"), "ZRH": tr("ציריך", "Zurich"), "GVA": tr("ז׳נבה", "Geneva"),
+        "PRG": tr("פראג", "Prague"), "BUD": tr("בודפשט", "Budapest"), "WAW": tr("ורשה", "Warsaw"),
+        "CPH": tr("קופנהגן", "Copenhagen"), "ARN": tr("סטוקהולם", "Stockholm"), "HEL": tr("הלסינקי", "Helsinki"), "OSL": tr("אוסלו", "Oslo"),
+        "DUB": tr("דבלין", "Dublin"), "LIS": tr("ליסבון", "Lisbon"), "BRU": tr("בריסל", "Brussels"),
+        "IST": tr("איסטנבול", "Istanbul"), "SAW": tr("איסטנבול", "Istanbul"),
+        "LCA": tr("לרנקה", "Larnaca"), "PFO": tr("פאפוס", "Paphos"),
+        "BUH": tr("בוקרשט", "Bucharest"), "OTP": tr("בוקרשט", "Bucharest"), "SOF": tr("סופיה", "Sofia"),
         // Middle East
-        "DXB": "דובאי", "AUH": "אבו דאבי", "DOH": "דוחה", "AMM": "עמאן",
-        "RUH": "ריאד", "JED": "ג׳דה",
+        "DXB": tr("דובאי", "Dubai"), "AUH": tr("אבו דאבי", "Abu Dhabi"), "DOH": tr("דוחה", "Doha"), "AMM": tr("עמאן", "Amman"),
+        "RUH": tr("ריאד", "Riyadh"), "JED": tr("ג׳דה", "Jeddah"),
         // Americas
-        "JFK": "ניו יורק", "LGA": "ניו יורק", "EWR": "ניו יורק / ניוארק",
-        "LAX": "לוס אנג׳לס", "SFO": "סן פרנסיסקו",
-        "MIA": "מיאמי", "ORD": "שיקגו", "BOS": "בוסטון",
-        "YUL": "מונטריאול", "YYZ": "טורונטו",
-        "MEX": "מקסיקו סיטי",
+        "JFK": tr("ניו יורק", "New York"), "LGA": tr("ניו יורק", "New York"), "EWR": tr("ניו יורק / ניוארק", "New York / Newark"),
+        "LAX": tr("לוס אנג׳לס", "Los Angeles"), "SFO": tr("סן פרנסיסקו", "San Francisco"),
+        "MIA": tr("מיאמי", "Miami"), "ORD": tr("שיקגו", "Chicago"), "BOS": tr("בוסטון", "Boston"),
+        "YUL": tr("מונטריאול", "Montreal"), "YYZ": tr("טורונטו", "Toronto"),
+        "MEX": tr("מקסיקו סיטי", "Mexico City"),
         // Asia / Pacific
-        "BKK": "בנגקוק", "DMK": "בנגקוק",
-        "HKT": "פוקט", "USM": "קוסמוי",
-        "SIN": "סינגפור", "KUL": "קואלה לומפור",
-        "HKG": "הונג קונג", "ICN": "סיאול", "NRT": "טוקיו", "HND": "טוקיו",
-        "DEL": "דלהי", "BOM": "מומבאי",
-        "SYD": "סידני", "MEL": "מלבורן",
+        "BKK": tr("בנגקוק", "Bangkok"), "DMK": tr("בנגקוק", "Bangkok"),
+        "HKT": tr("פוקט", "Phuket"), "USM": tr("קוסמוי", "Koh Samui"),
+        "SIN": tr("סינגפור", "Singapore"), "KUL": tr("קואלה לומפור", "Kuala Lumpur"),
+        "HKG": tr("הונג קונג", "Hong Kong"), "ICN": tr("סיאול", "Seoul"), "NRT": tr("טוקיו", "Tokyo"), "HND": tr("טוקיו", "Tokyo"),
+        "DEL": tr("דלהי", "Delhi"), "BOM": tr("מומבאי", "Mumbai"),
+        "SYD": tr("סידני", "Sydney"), "MEL": tr("מלבורן", "Melbourne"),
         // Africa
-        "JNB": "יוהנסבורג", "CPT": "קייפטאון", "NBO": "ניירובי", "CAI": "קהיר",
-    ]
+        "JNB": tr("יוהנסבורג", "Johannesburg"), "CPT": tr("קייפטאון", "Cape Town"), "NBO": tr("ניירובי", "Nairobi"), "CAI": tr("קהיר", "Cairo"),
+        ]
+    }
 }
 
 private struct WeatherMinMaxLabel: LabelStyle {

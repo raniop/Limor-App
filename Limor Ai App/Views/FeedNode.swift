@@ -45,6 +45,22 @@ struct FeedNode: Identifiable, Hashable {
 extension FeedNode {
     static let root: [FeedNode] = [sports, news, tech, finance, culture]
 
+    /// The current-language label for a saved topic id, found by matching it
+    /// against the (now bilingual) topic tree. Saved topics store the label
+    /// that was current when the user picked them (often Hebrew); this lets the
+    /// displayed chip follow the language toggle. Falls back to the stored
+    /// label for custom free-text topics that aren't in the tree.
+    static func localizedLabel(forTopicId id: String, fallback: String) -> String {
+        func search(_ nodes: [FeedNode]) -> String? {
+            for n in nodes {
+                if n.id == id { return n.label }
+                if let hit = search(n.children) { return hit }
+            }
+            return nil
+        }
+        return search(root) ?? fallback
+    }
+
     // MARK: - Sports
 
     static let sports = FeedNode(

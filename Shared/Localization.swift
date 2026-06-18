@@ -43,3 +43,35 @@ enum AppLangBox {
 func tr(_ he: String, _ en: String) -> String {
     AppLangBox.current == .en ? en : he
 }
+
+/// The backend sends weather conditions as Hebrew strings (from a fixed WMO
+/// code table). Rather than thread language through the cached weather
+/// pipeline, map the known Hebrew conditions to English on the client. Unknown
+/// strings pass through unchanged.
+func localizedWeatherCondition(_ condition: String) -> String {
+    guard AppLangBox.current == .en else { return condition }
+    let map: [String: String] = [
+        "בהיר": "Clear",
+        "בהיר ברובו": "Mostly clear",
+        "מעונן חלקית": "Partly cloudy",
+        "מעונן": "Cloudy",
+        "ערפל": "Fog",
+        "ערפל קופא": "Freezing fog",
+        "טפטוף קל": "Light drizzle",
+        "טפטוף": "Drizzle",
+        "טפטוף חזק": "Heavy drizzle",
+        "גשם קל": "Light rain",
+        "גשם": "Rain",
+        "גשם חזק": "Heavy rain",
+        "שלג קל": "Light snow",
+        "שלג": "Snow",
+        "שלג חזק": "Heavy snow",
+        "ממטרים": "Showers",
+        "ממטרים חזקים": "Heavy showers",
+        "ממטרים אלימים": "Violent showers",
+        "סופת רעמים": "Thunderstorm",
+        "סופת רעמים עם ברד": "Thunderstorm with hail",
+        "סופת רעמים חזקה": "Severe thunderstorm",
+    ]
+    return map[condition] ?? condition
+}

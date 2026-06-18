@@ -195,7 +195,7 @@ private struct FeedTopicRow: View {
         HStack(alignment: .top, spacing: 12) {
             accentBar
             VStack(alignment: .leading, spacing: 6) {
-                Text(topic.label)
+                Text(FeedNode.localizedLabel(forTopicId: topic.id, fallback: topic.label))
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.limorIndigo)
                     .padding(.horizontal, 8).padding(.vertical, 3)
