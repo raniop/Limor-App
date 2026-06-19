@@ -445,6 +445,24 @@ struct APIClient {
         var charge_usd: Double?
     }
 
+    // MARK: Usage breakdown ("what's eating tokens") — owner only
+
+    struct UsageBreakdown: Decodable {
+        struct Feature: Decodable, Identifiable { var id: String { feature }; let feature: String; let cost: Double; let calls: Int }
+        struct ModelRow: Decodable, Identifiable { var id: String { model }; let model: String; let cost: Double; let calls: Int }
+        struct UserRow: Decodable, Identifiable { var id: String { user_id }; let user_id: String; let email: String?; let cost: Double; let calls: Int }
+        let days: Int
+        let total_cost: Double
+        let total_calls: Int
+        let by_feature: [Feature]
+        let by_model: [ModelRow]
+        let by_user: [UserRow]
+    }
+
+    func adminUsageBreakdown(days: Int = 7) async throws -> UsageBreakdown {
+        try await get("/api/orgs/admin/usage-breakdown?days=\(days)")
+    }
+
     // MARK: Company manager (a customer who manages their own company)
 
     struct CompanyBilling: Codable, Hashable {

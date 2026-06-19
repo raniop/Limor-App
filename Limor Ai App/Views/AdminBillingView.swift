@@ -74,6 +74,7 @@ struct AdminBillingView: View {
     @State private var orgToDelete: APIClient.OrgFull?
     @State private var shareItem: ShareItem?
     @State private var copiedId: String?
+    @State private var usage: APIClient.UsageBreakdown?
 
     private var tint: Color { .limorIndigo }
 
@@ -87,6 +88,7 @@ struct AdminBillingView: View {
                         GlassCard { Text(errorMessage).font(.subheadline).foregroundStyle(.limorCoral) }
                     }
                     billingCard
+                    usageCard
                     usersCard
                 }
                 .padding(.horizontal, 18)
@@ -178,6 +180,52 @@ struct AdminBillingView: View {
                 } else {
                     Text(tr("עוד אין חברות. צור חברה ראשונה למעלה.", "No companies yet. Create your first one above."))
                         .font(.subheadline).foregroundStyle(.limorMuted)
+                }
+            }
+        }
+    }
+
+    // MARK: Usage breakdown — what's eating tokens (last 7 days)
+
+    private var usageCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    SectionLabel(icon: "bolt.fill", title: tr("מה זולל טוקנים (7 ימים)", "What's eating tokens (7 days)"), tint: tint)
+                    Spacer()
+                    if let u = usage {
+                        Text("$\(String(format: "%.2f", u.total_cost)) · $\(String(format: "%.2f", u.total_cost / Double(max(u.days, 1))))\(tr("/יום", "/day"))")
+                            .font(.subheadline.weight(.bold)).foregroundStyle(.limorInk)
+                    }
+                }
+                Text(tr("העלות בפועל שלך מול Anthropic. הפילוח לפי פיצ'ר מתמלא קדימה מרגע ההפעלה.", "Your actual Anthropic cost. The per-feature breakdown fills in going forward from when this shipped."))
+                    .font(.caption2).foregroundStyle(.limorMuted)
+
+                if usage == nil {
+                    ProgressView().tint(tint).frame(maxWidth: .infinity).padding(.vertical, 16)
+                } else if let u = usage {
+                    usageSection(tr("לפי פיצ'ר", "By feature"), u.by_feature.map { ($0.feature, $0.cost, $0.calls) })
+                    Divider().opacity(0.4)
+                    usageSection(tr("לפי מודל", "By model"), u.by_model.map { ($0.model, $0.cost, $0.calls) })
+                    Divider().opacity(0.4)
+                    usageSection(tr("לפי משתמש", "By user"), u.by_user.map { ($0.email ?? $0.user_id, $0.cost, $0.calls) })
+                }
+            }
+        }
+    }
+
+    private func usageSection(_ title: String, _ rows: [(String, Double, Int)]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.caption.weight(.bold)).foregroundStyle(.limorMuted)
+            ForEach(Array(rows.prefix(12).enumerated()), id: \.offset) { _, row in
+                HStack(spacing: 8) {
+                    Text(row.0).font(.subheadline).foregroundStyle(.limorInk).lineLimit(1)
+                    Spacer(minLength: 8)
+                    Text("\(row.2)").font(.caption2).foregroundStyle(.limorMuted)
+                    Text("$\(String(format: "%.2f", row.1))")
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(.limorInk)
+                        .frame(width: 64, alignment: .trailing)
                 }
             }
         }
@@ -368,8 +416,10 @@ struct AdminBillingView: View {
         do {
             async let ov = APIClient.shared.adminOverview()
             async let us = APIClient.shared.adminUsers()
+            async let ub = APIClient.shared.adminUsageBreakdown(days: 7)
             overview = try await ov
             users = try await us
+            usage = try? await ub
         }
         catch { errorMessage = tr("טעינה נכשלה — ודא שאתה מחובר עם חשבון הבעלים.", "Loading failed — make sure you're signed in with the owner account.") }
     }
