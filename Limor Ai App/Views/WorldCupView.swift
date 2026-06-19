@@ -29,7 +29,13 @@ struct WorldCupView: View {
             .sorted { ($0.kickoffDate ?? .distantPast) > ($1.kickoffDate ?? .distantPast) }
     }
     private var upcomingMatches: [WorldCupMatch] {
-        matches.filter { !$0.isLive && !$0.isFinished }
+        // A match is over ~2.5h after kickoff. The global bundle refreshes only
+        // a couple of times a day, so a finished match's `status` is often
+        // still stale — also drop anything whose kickoff is already well in the
+        // past, or games that already ended keep showing as "upcoming".
+        let cutoff = Date().addingTimeInterval(-2.5 * 3600)
+        return matches
+            .filter { !$0.isLive && !$0.isFinished && ($0.kickoffDate ?? .distantFuture) >= cutoff }
             .sorted { ($0.kickoffDate ?? .distantFuture) < ($1.kickoffDate ?? .distantFuture) }
     }
 
@@ -198,8 +204,11 @@ struct WorldCupCard: View {
         bundle?.matches.first(where: \.isLive)
     }
     private var nextMatch: WorldCupMatch? {
-        bundle?.matches
-            .filter { !$0.isLive && !$0.isFinished }
+        // Skip games already over (~2.5h past kickoff) even if the stale bundle
+        // still marks them "scheduled" — otherwise "next match" shows a result.
+        let cutoff = Date().addingTimeInterval(-2.5 * 3600)
+        return bundle?.matches
+            .filter { !$0.isLive && !$0.isFinished && ($0.kickoffDate ?? .distantFuture) >= cutoff }
             .sorted { ($0.kickoffDate ?? .distantFuture) < ($1.kickoffDate ?? .distantFuture) }
             .first
     }
