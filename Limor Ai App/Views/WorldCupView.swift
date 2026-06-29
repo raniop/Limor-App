@@ -197,8 +197,34 @@ struct WorldCupCard: View {
     @ObservedObject private var sync = SyncManager.shared
     @State private var bundle: WorldCupBundle?
     @State private var loadedOnce = false
+    @State private var refreshing = false
 
     private var tint: Color { HomeCardKind.worldCup.tint }
+
+    /// The ONLY way the (expensive) World Cup bundle regenerates — an explicit
+    /// tap here forces a fresh Sonnet + web_search pass. Nothing else triggers
+    /// generation; the rest of the app only ever reads the cached bundle.
+    private var refreshButton: some View {
+        Button {
+            Task {
+                refreshing = true
+                if let fresh = try? await APIClient.shared.refreshWorldCup(force: true) {
+                    bundle = fresh
+                }
+                refreshing = false
+            }
+        } label: {
+            Image(systemName: "arrow.clockwise")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(tint)
+                .padding(8)
+                .background(Circle().fill(tint.opacity(0.14)))
+                .rotationEffect(.degrees(refreshing ? 360 : 0))
+                .animation(refreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: refreshing)
+        }
+        .buttonStyle(.plain)
+        .disabled(refreshing)
+    }
 
     private var liveMatch: WorldCupMatch? {
         bundle?.matches.first(where: \.isLive)
@@ -221,6 +247,7 @@ struct WorldCupCard: View {
     }
 
     var body: some View {
+        ZStack(alignment: .topTrailing) {
         NavigationLink {
             WorldCupView()
         } label: {
@@ -237,9 +264,8 @@ struct WorldCupCard: View {
                                     .foregroundStyle(.limorCoral)
                             }
                         }
-                        Image(systemName: "chevron.left")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.limorMuted)
+                        // Reserve room for the overlaid refresh button.
+                        Color.clear.frame(width: 32, height: 18)
                     }
 
                     if let match = liveMatch ?? nextMatch {
@@ -261,9 +287,14 @@ struct WorldCupCard: View {
             }
         }
         .buttonStyle(.plain)
+
+            refreshButton
+                .padding(.top, 14)
+                .padding(.trailing, 16)
+        }
         .task { await load() }
-        // A home full-refresh regenerated the global bundle — pick it up
-        // without requiring the user to open the detail page.
+        // A home full-refresh re-FETCHES the cached global bundle (never
+        // regenerates) — pick it up without opening the detail page.
         .onChange(of: sync.lastGlobalCardsRefresh) { _, _ in
             Task {
                 if !DemoMode.isOn,

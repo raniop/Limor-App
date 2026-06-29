@@ -1363,17 +1363,18 @@ struct NowView: View {
         }
         lastAutoFullRefresh = Date()
         sync.beginFullRefresh()
-        // Global cards (World Cup, war index) regenerate server-side in the
-        // background — they run web searches (~30s when stale), so they must
-        // not hold up the pull-to-refresh spinner. The cards observe
-        // `lastGlobalCardsRefresh` and re-fetch when this lands.
+        // News + World Cup are EXPENSIVE (Sonnet + web_search) and NEVER
+        // regenerate automatically — not even on a full pull-to-refresh. We
+        // only re-FETCH their cached bundles here (force:false = cache read,
+        // no generation). Regeneration happens solely via the dedicated
+        // refresh button on each card.
         Task { @MainActor in
-            _ = try? await APIClient.shared.refreshWorldCup(force: forced)
+            _ = try? await APIClient.shared.refreshWorldCup(force: false)
             SyncManager.shared.markGlobalCardsRefresh()
         }
         await SyncManager.shared.syncAll(force: forced)
         sync.startActivity(.feed)
-        if let fresh = try? await APIClient.shared.refreshFeed(force: forced) {
+        if let fresh = try? await APIClient.shared.refreshFeed(force: false) {
             feed = fresh
         }
         sync.finishActivity(.feed)
