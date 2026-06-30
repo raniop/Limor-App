@@ -1,6 +1,7 @@
 import FirebaseCore
 import Foundation
 import GoogleSignIn
+import PDFKit
 import UIKit
 
 /// REST client for Google Calendar + Gmail using the OAuth access token from
@@ -238,6 +239,7 @@ struct GoogleAPIs {
             "airways", "airlines", "bluebird", "blue bird",
             "el al", "אל על", "easyjet", "ryanair", "wizz",
             "booking.com", "trip.com", "kiwi", "issta",
+            "israir", "ישראייר", "arkia", "ארקיע", "nextravel", "e-ticket", "eticket",
         ]
         return keys.contains { h.contains($0) }
     }
@@ -255,13 +257,54 @@ struct GoogleAPIs {
         return keys.contains { h.contains($0) }
     }
 
-    /// Pull the full message in `format=full` and decode the first text part.
+    /// Pull the full message in `format=full` and decode the text part. Flight
+    /// confirmations (e.g. Israir/Nextravel e-tickets) often carry the actual
+    /// flight details ONLY in an attached PDF, so we also extract text from any
+    /// PDF attachment and append it — otherwise Limor's extractor sees a body
+    /// with no flight in it.
     private static func fetchEmailFullBody(id: String) async throws -> String? {
         var components = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages/\(id)")!
         components.queryItems = [.init(name: "format", value: "full")]
         let data = try await get(components.url!)
         let msg = try decode(GmailFullMessage.self, from: data)
-        return extractPlainText(from: msg.payload)
+
+        let plain = extractPlainText(from: msg.payload)
+        let pdfText = await extractPdfAttachmentsText(messageId: id, payload: msg.payload)
+
+        let combined = [plain, pdfText].compactMap { $0 }.joined(separator: "\n\n")
+        return combined.isEmpty ? nil : combined
+    }
+
+    /// Walk the payload for PDF attachments, fetch each, and pull its text via
+    /// PDFKit. Capped so a huge boarding-pass bundle can't blow up the payload.
+    private static func extractPdfAttachmentsText(messageId: String, payload: GmailPayloadFull?) async -> String? {
+        guard let payload else { return nil }
+        var ids: [String] = []
+        func walk(_ p: GmailPayloadFull) {
+            let isPdf = (p.mimeType == "application/pdf")
+                || ((p.filename ?? "").lowercased().hasSuffix(".pdf"))
+            if isPdf, let aid = p.body?.attachmentId { ids.append(aid) }
+            p.parts?.forEach(walk)
+        }
+        walk(payload)
+        guard !ids.isEmpty else { return nil }
+
+        var chunks: [String] = []
+        for aid in ids.prefix(4) {
+            guard let url = URL(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages/\(messageId)/attachments/\(aid)"),
+                  let data = try? await get(url),
+                  let att = try? decode(GmailAttachment.self, from: data),
+                  let b64 = att.data,
+                  let pdfData = decodeBase64UrlData(b64),
+                  let doc = PDFDocument(data: pdfData) else { continue }
+            var text = ""
+            for i in 0..<doc.pageCount {
+                if let s = doc.page(at: i)?.string { text += s + "\n" }
+            }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { chunks.append(String(trimmed.prefix(8000))) }
+        }
+        return chunks.isEmpty ? nil : chunks.joined(separator: "\n\n")
     }
 
     private static func extractPlainText(from payload: GmailPayloadFull?) -> String? {
@@ -293,12 +336,18 @@ struct GoogleAPIs {
     }
 
     private static func decodeBase64Url(_ s: String) -> String? {
+        guard let data = decodeBase64UrlData(s) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Raw bytes from a base64url string (Gmail attachment payloads). Tolerates
+    /// missing padding and large data (PDFs).
+    private static func decodeBase64UrlData(_ s: String) -> Data? {
         var base64 = s.replacingOccurrences(of: "-", with: "+")
                       .replacingOccurrences(of: "_", with: "/")
         let padding = (4 - base64.count % 4) % 4
         base64 += String(repeating: "=", count: padding)
-        guard let data = Data(base64Encoded: base64) else { return nil }
-        return String(data: data, encoding: .utf8)
+        return Data(base64Encoded: base64)
     }
 
     private static func stripHTML(_ html: String) -> String {
@@ -476,12 +525,17 @@ private struct GmailFullMessage: Decodable {
 }
 struct GmailPayloadFull: Decodable {
     let mimeType: String?
+    let filename: String?
     let body: GmailBody?
     let parts: [GmailPayloadFull]?
 }
 struct GmailBody: Decodable {
     let data: String?
     let size: Int?
+    let attachmentId: String?
+}
+private struct GmailAttachment: Decodable {
+    let data: String?   // base64url
 }
 
 // MARK: - EmailDTO body builder
