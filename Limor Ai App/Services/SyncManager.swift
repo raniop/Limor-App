@@ -142,7 +142,15 @@ final class SyncManager: ObservableObject {
         let batch = ranThisBatch
         finalizeTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(900))
-            guard let self, !Task.isCancelled, self.activities.isEmpty else { return }
+            // Don't settle to "done" while a sync is still running. A second,
+            // uncoordinated refresh (RootView fires its own syncAll on
+            // foreground, in parallel with NowView's fullRefresh) churns
+            // calendar → contacts → health BEFORE it reaches email — so without
+            // this guard the chip flips to "refreshed everything" and only THEN
+            // shows "scanning your email". When that sync finishes it re-arms
+            // finalize, so the chip settles once everything is genuinely done.
+            guard let self, !Task.isCancelled,
+                  self.activities.isEmpty, !self.isSyncing else { return }
             self.chipState = .done(self.doneMessage(for: batch))
             self.ranThisBatch.removeAll()
         }
@@ -367,7 +375,12 @@ final class SyncManager: ObservableObject {
     func syncAll(force: Bool = false) async {
         guard !isSyncing else { return }
         isSyncing = true
-        defer { isSyncing = false }
+        defer {
+            isSyncing = false
+            // Re-arm a finalize that was suppressed while we were syncing, so
+            // the chip can settle to "done" once nothing else is running.
+            if activities.isEmpty { scheduleFinalize() }
+        }
         await syncCalendar(force: force)
         // Drain Limor's create_event outbox — writes any events whose silent
         // push iOS never delivered. Dedup-guarded, so it never duplicates an
