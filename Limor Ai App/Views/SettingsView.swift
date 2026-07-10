@@ -36,6 +36,7 @@ struct SettingsView: View {
 
     // Organization / B2B license.
     @State private var currentOrg: APIClient.OrgInfo?
+    @State private var myUsage: APIClient.MyUsage?
     @State private var licenseDraft: String = ""
     @State private var joiningOrg = false
     @State private var orgError: String?
@@ -53,10 +54,12 @@ struct SettingsView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
-                        if isOwner { ownerAdminCard }
-                        if myCompany != nil { companyManagerCard }
                         profileCard
                         languageCard
+                        // Company management + billing sit right under Language.
+                        if isOwner { ownerAdminCard }
+                        if myCompany != nil { companyManagerCard }
+                        usageCard
                         memoryCard
                         familyCard
                         notificationsCard
@@ -87,6 +90,7 @@ struct SettingsView: View {
                 await loadCrmStatus()
                 currentOrg = try? await APIClient.shared.getMyOrg()
                 myCompany = try? await APIClient.shared.getMyCompany()
+                myUsage = try? await APIClient.shared.myUsage()
             }
             .navigationDestination(isPresented: $crmPushPending) {
                 if let status = crmStatus, status.allowed {
@@ -988,6 +992,53 @@ struct SettingsView: View {
                 .font(.caption).foregroundStyle(.limorMuted)
                 .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    // MARK: What's using my tokens (per-user, own data)
+
+    @ViewBuilder
+    private var usageCard: some View {
+        if let u = myUsage, !u.by_feature.isEmpty {
+            let top = u.by_feature.first!.cost
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(icon: "chart.bar.fill", title: tr("מה משתמש בטוקנים שלך", "What's using your tokens"), tint: .limorIndigo)
+                    Text(tr("פירוט לפי פיצ'ר, \(u.days) הימים האחרונים · \(u.total_calls) פעולות AI.", "By feature, last \(u.days) days · \(u.total_calls) AI actions."))
+                        .font(.caption2).foregroundStyle(.limorMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    ForEach(u.by_feature.prefix(8)) { f in
+                        let pct = u.total_cost > 0 ? Int((f.cost / u.total_cost * 100).rounded()) : 0
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) {
+                                Text(usageFeatureName(f.feature))
+                                    .font(.subheadline.weight(.medium)).foregroundStyle(.limorInk)
+                                Spacer()
+                                Text("\(pct)%").font(.caption.weight(.bold)).foregroundStyle(.limorIndigo)
+                                Text("· \(f.calls)").font(.caption2).foregroundStyle(.limorMuted)
+                            }
+                            ProgressView(value: f.cost, total: max(top, 0.0001))
+                                .tint(.limorIndigo)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func usageFeatureName(_ key: String) -> String {
+        switch key {
+        case "chat":            return tr("צ'אט", "Chat")
+        case "news":            return tr("חדשות", "News")
+        case "worldcup":        return tr("מונדיאל", "World Cup")
+        case "briefing":        return tr("תקציר מנהלים", "Executive briefing")
+        case "recommendations": return tr("טיפ אישי", "Personal tips")
+        case "flights":         return tr("טיסות", "Flights")
+        case "hotels":          return tr("מלונות", "Hotels")
+        case "receipts":        return tr("קבלות", "Receipts")
+        case "email_actions":   return tr("מוקד מייל", "Email focus")
+        case "feed_suggest":    return tr("הצעות נושאים", "Topic suggestions")
+        default:                return tr("אחר", "Other")
         }
     }
 

@@ -72,22 +72,27 @@ struct CreateReminderIntent: AppIntent {
         "יוצר תזכורת חדשה בלימור ובאפליקציית התזכורות של iOS."
     )
 
-    @Parameter(title: "מה לזכור", description: "תיאור המשימה.")
+    @Parameter(title: "מה לזכור", description: "תיאור המשימה.",
+               requestValueDialog: "מה תרצה שאזכיר לך?")
     var task: String
 
-    @Parameter(title: "מתי", description: "תאריך ושעה לתזכורת.")
-    var dueAt: Date
+    // Optional — if the shortcut/Siri doesn't supply a time, we default to one
+    // hour from now so a bare "add a reminder: X" creates it immediately
+    // without forcing the user to pick a date.
+    @Parameter(title: "מתי (לא חובה)", description: "תאריך ושעה לתזכורת. אם ריק — בעוד שעה.")
+    var dueAt: Date?
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let trimmedTask = task.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTask.isEmpty else {
             return .result(dialog: "מה תרצה שאזכיר?")
         }
+        let due = dueAt ?? Date().addingTimeInterval(3600)
         do {
             let created = try await APIClient.shared.createReminder(
                 token: "",
                 task: trimmedTask,
-                dueAt: dueAt
+                dueAt: due
             )
             // Best-effort mirror to iOS Reminders.app + Apple Calendar —
             // the user wanted these to live in both Apple surfaces, and
@@ -107,7 +112,7 @@ struct CreateReminderIntent: AppIntent {
             formatter.locale = Locale(identifier: "he_IL")
             formatter.dateStyle = .short
             formatter.timeStyle = .short
-            let when = formatter.string(from: dueAt)
+            let when = formatter.string(from: due)
             return .result(dialog: "⏰ נקבעה תזכורת: \(trimmedTask) — \(when)")
         } catch {
             return .result(dialog: "לא הצלחתי לקבוע תזכורת: \(error.localizedDescription)")
@@ -211,7 +216,10 @@ struct LimorShortcutsProvider: AppShortcutsProvider {
             phrases: [
                 "תזכורת חדשה ב־\(.applicationName)",
                 "צור תזכורת ב־\(.applicationName)",
+                "תזכיר לי ב־\(.applicationName)",
+                "הוסף תזכורת ב־\(.applicationName)",
                 "New reminder in \(.applicationName)",
+                "Remind me in \(.applicationName)",
             ],
             shortTitle: "תזכורת חדשה",
             systemImageName: "bell.badge.fill"

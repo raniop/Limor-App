@@ -463,6 +463,25 @@ struct APIClient {
         try await get("/api/orgs/admin/usage-breakdown?days=\(days)")
     }
 
+    /// The CALLER's own usage by feature (any user, own data) — the personal
+    /// "what's using my tokens" card.
+    struct MyUsage: Decodable {
+        struct Feature: Decodable, Identifiable {
+            var id: String { feature }
+            let feature: String
+            let cost: Double
+            let calls: Int
+        }
+        let days: Int
+        let total_cost: Double
+        let total_calls: Int
+        let by_feature: [Feature]
+    }
+
+    func myUsage(days: Int = 30) async throws -> MyUsage {
+        try await get("/api/orgs/me/usage?days=\(days)")
+    }
+
     // MARK: Company manager (a customer who manages their own company)
 
     struct CompanyBilling: Codable, Hashable {
