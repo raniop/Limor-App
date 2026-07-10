@@ -3,6 +3,7 @@ import UIKit
 
 struct RemindersView: View {
     @EnvironmentObject private var auth: AuthManager
+    @EnvironmentObject private var router: AppRouter
     @State private var reminders: [Reminder] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -74,7 +75,15 @@ struct RemindersView: View {
                 }
             }
             .refreshable { await reload() }
-            .task { await reload() }
+            .task {
+                await reload()
+                // Action-Button / Siri "quick add reminder" landed us here —
+                // open the entry sheet right away (covers cold launch).
+                consumeQuickAddIfNeeded()
+            }
+            // Covers the warm case: app already open, button switches tab + sets
+            // the flag while this view is already alive.
+            .onChange(of: router.pendingNewReminder) { _, _ in consumeQuickAddIfNeeded() }
             .sheet(isPresented: $showingNew) {
                 NewReminderSheet(initial: nil) { task, dueAt in
                     await create(task: task, dueAt: dueAt)
@@ -298,6 +307,15 @@ struct RemindersView: View {
         // Preserve the server's original order — the API decides the
         // sort, this filter just drops duplicates.
         return list.filter { keep.contains($0.id) }
+    }
+
+    /// If the quick-add signal is set (Action Button / Siri), present the
+    /// new-reminder sheet and clear the flag so it fires exactly once.
+    private func consumeQuickAddIfNeeded() {
+        guard router.pendingNewReminder else { return }
+        router.pendingNewReminder = false
+        editingReminder = nil
+        showingNew = true
     }
 
     private func create(task: String, dueAt: Date) async {

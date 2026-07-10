@@ -120,6 +120,24 @@ struct CreateReminderIntent: AppIntent {
     }
 }
 
+/// "הוסף תזכורת מהירה" — opens the app straight onto the new-reminder entry
+/// sheet. This is the intent to bind to the iPhone Action Button: one press
+/// launches Limor and pops the reminder input, ready to type. No parameters,
+/// so the button runs it with zero prompts.
+struct QuickAddReminderIntent: AppIntent {
+    static var title: LocalizedStringResource = "הוסף תזכורת מהירה"
+    static var description = IntentDescription(
+        "פותח את לימור ישר על מסך הוספת תזכורת — מושלם לכפתור הפעולה (Action Button)."
+    )
+    static var openAppWhenRun: Bool = true
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        AppRouter.shared.openNewReminder()
+        return .result()
+    }
+}
+
 /// "התזכורות שלי בלימור" — returns the user's pending reminders. Useful
 /// inside Shortcuts that build dashboards / morning routines.
 struct ShowRemindersIntent: AppIntent {
@@ -210,6 +228,16 @@ struct LimorShortcutsProvider: AppShortcutsProvider {
             ],
             shortTitle: "רשימת הקניות",
             systemImageName: "cart.fill"
+        )
+        AppShortcut(
+            intent: QuickAddReminderIntent(),
+            phrases: [
+                "הוסף תזכורת מהירה ב־\(.applicationName)",
+                "פתח תזכורת חדשה ב־\(.applicationName)",
+                "Quick add reminder in \(.applicationName)",
+            ],
+            shortTitle: "תזכורת מהירה",
+            systemImageName: "bell.badge.waveform.fill"
         )
         AppShortcut(
             intent: CreateReminderIntent(),

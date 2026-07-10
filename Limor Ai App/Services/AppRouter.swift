@@ -27,6 +27,18 @@ final class AppRouter: ObservableObject {
         let filename: String
     }
 
+    /// Set true to pop the "new reminder" sheet on the Reminders tab — used by
+    /// the Action-Button / Siri "quick add reminder" intent so pressing the
+    /// button opens the app straight onto a reminder-entry screen. RemindersView
+    /// reads it, presents the sheet, and clears it.
+    @Published var pendingNewReminder = false
+
+    /// Jump to the Reminders tab and open the new-reminder input.
+    func openNewReminder() {
+        pendingNewReminder = true
+        selectedTab = .reminders
+    }
+
     /// Bumped every time the user re-taps the Chat tab while already on
     /// it. ChatView observes this and scrolls to the latest message —
     /// overrides iOS's default "tap tab again → scroll to top", which
