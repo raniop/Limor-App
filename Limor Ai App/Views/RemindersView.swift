@@ -43,35 +43,31 @@ struct RemindersView: View {
             .navigationTitle(tr("תזכורות", "Reminders"))
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                // Bare icons only — the system toolbar supplies the glass
+                // capsule on iOS 26; a hand-drawn filled circle inside that
+                // capsule rendered as a blob-within-a-blob.
                 ToolbarItem(placement: .topBarLeading) {
                     NavigationLink(destination: RecurringRemindersView()) {
                         Image(systemName: "alarm")
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(.limorIndigo)
-                            .frame(width: 36, height: 36)
-                            .background(Circle().fill(Color.limorIndigo.opacity(0.12)))
+                            .fontWeight(.semibold)
                     }
+                    .tint(.limorIndigo)
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     NavigationLink(destination: TasksView()) {
                         Image(systemName: "checklist")
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(.limorIndigo)
-                            .frame(width: 36, height: 36)
-                            .background(Circle().fill(Color.limorIndigo.opacity(0.12)))
+                            .fontWeight(.semibold)
                     }
+                    .tint(.limorIndigo)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingNew = true
                     } label: {
                         Image(systemName: "plus")
-                            .font(.headline.weight(.bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 36, height: 36)
-                            .background(Circle().fill(LimorGradient.brand))
-                            .shadow(color: Color.limorIndigo.opacity(0.4), radius: 10, y: 4)
+                            .fontWeight(.bold)
                     }
+                    .tint(.limorIndigo)
                 }
             }
             .refreshable { await reload() }

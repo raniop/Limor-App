@@ -251,16 +251,15 @@ struct RecurringRemindersView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                // Bare icon — the system toolbar supplies the glass capsule
+                // on iOS 26 (see RemindersView).
                 Button {
                     showingNew = true
                 } label: {
                     Image(systemName: "plus")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 36, height: 36)
-                        .background(Circle().fill(LimorGradient.brand))
-                        .shadow(color: Color.limorIndigo.opacity(0.4), radius: 10, y: 4)
+                        .fontWeight(.bold)
                 }
+                .tint(.limorIndigo)
             }
         }
         .sheet(isPresented: $showingNew) {
