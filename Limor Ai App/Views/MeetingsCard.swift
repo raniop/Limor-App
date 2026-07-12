@@ -228,11 +228,11 @@ struct MeetingsListView: View {
                     hideBirthdays.toggle()
                     Task { await reload() }
                 } label: {
+                    // Bare icon — the system toolbar draws the glass capsule
+                    // on iOS 26; the icon's fill + color still signal state.
                     Image(systemName: hideBirthdays ? "birthday.cake" : "birthday.cake.fill")
-                        .font(.subheadline.weight(.semibold))
+                        .fontWeight(.semibold)
                         .foregroundStyle(hideBirthdays ? Color.limorMuted : Color.limorPink)
-                        .frame(width: 36, height: 36)
-                        .background(Circle().fill(Color.limorPink.opacity(hideBirthdays ? 0.05 : 0.18)))
                 }
                 .accessibilityLabel(hideBirthdays ? tr("הצג ימי הולדת", "Show birthdays") : tr("הסתר ימי הולדת", "Hide birthdays"))
             }

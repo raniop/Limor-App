@@ -230,14 +230,15 @@ struct ShoppingListView: View {
             await sharedStore.load()
         }
         .toolbar {
+            // Bare icons only — the system toolbar draws its own glass
+            // capsule on iOS 26; a hand-drawn tinted capsule inside it
+            // looked like a purple blob (see RemindersView).
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink(destination: SharedShoppingView()) {
                     Image(systemName: "person.2.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.limorIndigo)
-                        .padding(.horizontal, 10).padding(.vertical, 6)
-                        .background(Capsule().fill(Color.limorIndigo.opacity(0.12)))
+                        .fontWeight(.semibold)
                 }
+                .tint(.limorIndigo)
             }
             // Archive button on the leading side — only renders once the
             // user has at least one archived group to look back at.
@@ -248,15 +249,13 @@ struct ShoppingListView: View {
                     NavigationLink(destination: ShoppingArchiveView()) {
                         HStack(spacing: 4) {
                             Image(systemName: "tray.full")
-                                .font(.subheadline.weight(.semibold))
+                                .fontWeight(.semibold)
                             Text("\(store.archive.count)")
                                 .font(.caption.weight(.bold))
                                 .monospacedDigit()
                         }
-                        .foregroundStyle(.limorIndigo)
-                        .padding(.horizontal, 10).padding(.vertical, 6)
-                        .background(Capsule().fill(Color.limorIndigo.opacity(0.12)))
                     }
+                    .tint(.limorIndigo)
                 }
             }
             if store.items.contains(where: { $0.completed }) {
