@@ -408,7 +408,6 @@ struct NowView: View {
         case .emailActions:    EmailActionsCard()
         case .feed:            feedCard
         case .nextFlight:      nextFlightCard
-        case .worldCup:        worldCupCard
         case .briefing:        BriefingCard()
         case .expenses:        expensesCard
         case .weather:         weatherCard
@@ -1010,15 +1009,6 @@ struct NowView: View {
         )
     }
 
-    // MARK: World Cup 2026 (tournament-window card)
-
-    @ViewBuilder
-    private var worldCupCard: some View {
-        if WorldCupSeason.isActive {
-            WorldCupCard()
-        }
-    }
-
     // MARK: Monthly expenses (receipts auto-extracted from email)
 
     @ViewBuilder
@@ -1363,13 +1353,12 @@ struct NowView: View {
         }
         lastAutoFullRefresh = Date()
         sync.beginFullRefresh()
-        // News + World Cup are EXPENSIVE (Sonnet + web_search) and NEVER
-        // regenerate automatically — not even on a full pull-to-refresh. We
-        // only re-FETCH their cached bundles here (force:false = cache read,
-        // no generation). Regeneration happens solely via the dedicated
-        // refresh button on each card.
+        // News is EXPENSIVE (Sonnet + web_search) and NEVER regenerates
+        // automatically — not even on a full pull-to-refresh. Only the
+        // cached bundle is re-fetched below (force:false = cache read, no
+        // generation). Regeneration happens solely via the card's refresh
+        // button.
         Task { @MainActor in
-            _ = try? await APIClient.shared.refreshWorldCup(force: false)
             SyncManager.shared.markGlobalCardsRefresh()
         }
         await SyncManager.shared.syncAll(force: forced)

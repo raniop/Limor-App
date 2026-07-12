@@ -25,7 +25,6 @@
 		2EF9E0494BFA826E3FA01631 /* ShareAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D216AE6CC0C93E78A29C3EFF /* ShareAPI.swift */; };
 		2F4DC61B3FE6D8EE1F8E7C26 /* UserGender.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01B7CB8C8D8A38E2194BA54E /* UserGender.swift */; };
 		311C01C2EAF3B5193E40A7F3 /* LimorReminderAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C88EC958269D59320A5A646 /* LimorReminderAttributes.swift */; };
-		312A92CBF6CFD63E14BBEA14 /* WorldCupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFC05B527EA0CE1A878DE489 /* WorldCupView.swift */; };
 		34DFDA76FE33363AE21BC1B6 /* RecurringRemindersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797212B58CC04F38D7A27921 /* RecurringRemindersView.swift */; };
 		34FDD193905F9C0FD3456ECA /* WatchSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF3296F31333CB7E1689D20 /* WatchSyncManager.swift */; };
 		35D584ECEF6598DF9CE8B423 /* NowWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F5700C27913E7F3435CEC5 /* NowWidget.swift */; };
@@ -260,7 +259,6 @@
 		ACD64DB77635DA9DB274B60E /* LimorWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimorWidgetBundle.swift; sourceTree = "<group>"; };
 		ADD7F1B823C26AD027A926D4 /* Limor Ai App Widget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.extensionkit-extension"; path = "Limor Ai App Widget.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AEC3D49F681FA0119E135BE1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		AFC05B527EA0CE1A878DE489 /* WorldCupView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorldCupView.swift; sourceTree = "<group>"; };
 		B202F02E4586363CB10439EC /* SharedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedStore.swift; sourceTree = "<group>"; };
 		B54FB305BDEB96228F61AB55 /* RemindersWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersWriter.swift; sourceTree = "<group>"; };
 		B8ACC80FD61915399AB229C1 /* TaskAnalyticsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskAnalyticsView.swift; sourceTree = "<group>"; };
@@ -450,7 +448,6 @@
 				9AAF1026FA235E65B5654C5F /* TasksView.swift */,
 				C618026F345F9E24575DEE95 /* SharedShoppingView.swift */,
 				C6BEDBB71DBA47C00576E85F /* ExpensesView.swift */,
-				AFC05B527EA0CE1A878DE489 /* WorldCupView.swift */,
 				1A2EE216E42907747E63C465 /* BriefingView.swift */,
 				53A684DF01F97C1D6D86DAC4 /* AdminBillingView.swift */,
 				B8ACC80FD61915399AB229C1 /* TaskAnalyticsView.swift */,
@@ -819,7 +816,6 @@
 				D4E73982C6C292C698E644C1 /* SharedShoppingView.swift in Sources */,
 				BF14968159607F15B20C6B03 /* DemoMode.swift in Sources */,
 				49A477C0583F516EE87821CA /* ExpensesView.swift in Sources */,
-				312A92CBF6CFD63E14BBEA14 /* WorldCupView.swift in Sources */,
 				9591ECC230A2087004DE1BB3 /* BriefingView.swift in Sources */,
 				751BF025083414B39E2A8193 /* AdminBillingView.swift in Sources */,
 				F9CBE98E2A0011EBCBF09EE4 /* TaskAnalyticsView.swift in Sources */,
@@ -1047,7 +1043,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Limor Ai App/Limor Ai App.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 67;
+				CURRENT_PROJECT_VERSION = 69;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = "Limor Ai App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Limor AI";
@@ -1118,7 +1114,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Limor Ai App/Limor Ai App.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 67;
+				CURRENT_PROJECT_VERSION = 69;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = "Limor Ai App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Limor AI";

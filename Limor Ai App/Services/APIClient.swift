@@ -584,21 +584,6 @@ struct APIClient {
         return try await post("/api/briefing/refresh?lang=\(lang)", body: Empty(), longRunning: true)
     }
 
-    // MARK: - World Cup 2026
-
-    func getWorldCup() async throws -> WorldCupBundle {
-        try await get("/api/worldcup")
-    }
-
-    /// Regenerate the global fixtures bundle (Claude + web_search on the
-    /// server). `force: true` = pull-to-refresh, still floor-limited
-    /// server-side. Generation can take ~30s — use the long session.
-    func refreshWorldCup(force: Bool = false) async throws -> WorldCupBundle {
-        struct Empty: Encodable {}
-        let path = force ? "/api/worldcup/refresh?force=1" : "/api/worldcup/refresh"
-        return try await post(path, body: Empty(), longRunning: true)
-    }
-
     // MARK: - Executive email action report
 
     func getEmailActions() async throws -> EmailActionReport {

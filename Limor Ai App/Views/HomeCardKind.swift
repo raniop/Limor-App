@@ -11,7 +11,6 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
     case emailActions    = "email_actions"
     case feed            = "feed"
     case nextFlight      = "flight"
-    case worldCup        = "worldcup"
     case briefing        = "briefing"
     case expenses        = "expenses"
     case weather         = "weather"
@@ -30,7 +29,6 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
         case .emailActions:    return tr("מוקד המייל", "Email focus")
         case .feed:            return tr("חדשות אחרונות", "Latest news")
         case .nextFlight:      return tr("טיסה קרובה", "Upcoming flight")
-        case .worldCup:        return tr("מונדיאל 2026", "World Cup 2026")
         case .briefing:        return tr("תקציר מנהלים", "Executive briefing")
         case .expenses:        return tr("הוצאות החודש", "This month's expenses")
         case .weather:         return tr("מזג אוויר", "Weather")
@@ -49,7 +47,6 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
         case .emailActions:    return "tray.full.fill"
         case .feed:            return "newspaper.fill"
         case .nextFlight:      return "airplane.departure"
-        case .worldCup:        return "soccerball"
         case .briefing:        return "briefcase.fill"
         case .expenses:        return "creditcard.fill"
         case .weather:         return "thermometer.medium"
@@ -68,7 +65,6 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
         case .emailActions:    return .limorViolet
         case .feed:            return .limorPink
         case .nextFlight:      return Color(red: 0.20, green: 0.66, blue: 0.62)
-        case .worldCup:        return Color(red: 0.16, green: 0.55, blue: 0.34)
         case .briefing:        return Color(red: 0.27, green: 0.32, blue: 0.55)
         case .expenses:        return Color(red: 0.93, green: 0.60, blue: 0.20)
         case .weather:         return .limorWarning
@@ -85,7 +81,6 @@ enum HomeCardKind: String, Codable, Hashable, CaseIterable, Identifiable {
 enum HomeCardOrder {
     static let defaultOrder: [HomeCardKind] = [
         .nextReminder,
-        .worldCup,
         .meetings,
         .tasks,
         .emailActions,

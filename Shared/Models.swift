@@ -478,36 +478,6 @@ struct CeoBriefing: Codable, Hashable {
 
 // MARK: - World Cup 2026
 
-/// One World Cup fixture/result from the backend's global bundle. Team names
-/// arrive in Hebrew, flags as emoji, kickoff in UTC ISO.
-struct WorldCupMatch: Codable, Identifiable, Hashable {
-    let id: String
-    let stage: String
-    let group: String?
-    let home_team: String
-    let away_team: String
-    let home_flag: String?
-    let away_flag: String?
-    let kickoff_iso: String
-    let venue: String?
-    let status: String        // scheduled | live | finished
-    let home_score: Int?
-    let away_score: Int?
-
-    var kickoffDate: Date? {
-        if let d = ISO8601DateFormatter.limor.date(from: kickoff_iso) { return d }
-        return ISO8601DateFormatter().date(from: kickoff_iso)
-    }
-
-    var isLive: Bool { status == "live" }
-    var isFinished: Bool { status == "finished" }
-}
-
-struct WorldCupBundle: Codable {
-    let matches: [WorldCupMatch]
-    let generated_at: String?
-}
-
 // MARK: - Recurring reminders (local-only, scheduled via UNUserNotificationCenter)
 
 /// On-device recurring reminder — fires at the chosen hour/minute on the

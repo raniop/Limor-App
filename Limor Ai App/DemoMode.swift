@@ -85,34 +85,6 @@ enum DemoData {
         )
     }
 
-    static var worldCup: WorldCupBundle {
-        WorldCupBundle(
-            matches: [
-                WorldCupMatch(id: "mexico-poland-demo", stage: "שלב הבתים", group: "A",
-                              home_team: "מקסיקו", away_team: "פולין",
-                              home_flag: "🇲🇽", away_flag: "🇵🇱",
-                              kickoff_iso: iso(-2 * 3600), venue: "אצטדיון אצטקה, מקסיקו סיטי",
-                              status: "live", home_score: 1, away_score: 0),
-                WorldCupMatch(id: "usa-wales-demo", stage: "שלב הבתים", group: "B",
-                              home_team: "ארה״ב", away_team: "ויילס",
-                              home_flag: "🇺🇸", away_flag: "🏴",
-                              kickoff_iso: iso(5 * 3600), venue: "SoFi Stadium, לוס אנג'לס",
-                              status: "scheduled", home_score: nil, away_score: nil),
-                WorldCupMatch(id: "argentina-nigeria-demo", stage: "שלב הבתים", group: "C",
-                              home_team: "ארגנטינה", away_team: "ניגריה",
-                              home_flag: "🇦🇷", away_flag: "🇳🇬",
-                              kickoff_iso: iso(26 * 3600), venue: "MetLife Stadium, ניו יורק",
-                              status: "scheduled", home_score: nil, away_score: nil),
-                WorldCupMatch(id: "france-norway-demo", stage: "שלב הבתים", group: "D",
-                              home_team: "צרפת", away_team: "נורווגיה",
-                              home_flag: "🇫🇷", away_flag: "🇳🇴",
-                              kickoff_iso: iso(-20 * 3600), venue: "BMO Field, טורונטו",
-                              status: "finished", home_score: 3, away_score: 1),
-            ],
-            generated_at: iso()
-        )
-    }
-
     static var briefing: CeoBriefing {
         let html = """
         <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.6; color:#1a1a1a; max-width:680px;">
