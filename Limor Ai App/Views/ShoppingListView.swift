@@ -583,6 +583,10 @@ struct ShoppingArchiveView: View {
 
 struct ShoppingListCard: View {
     @StateObject private var store = ShoppingListStore.shared
+    /// The shared (couple) list — the card was reading only the personal
+    /// store, so a user whose items live in the shared list saw "empty"
+    /// on the home screen. Both are shown now, shared first.
+    @StateObject private var sharedStore = SharedShoppingStore.shared
 
     private let displayLimit = 4
 
@@ -605,7 +609,7 @@ struct ShoppingListCard: View {
                             .foregroundStyle(.limorMuted)
                     }
 
-                    if store.items.isEmpty {
+                    if allItems.isEmpty {
                         Text(tr("ריק בינתיים — אמור לי מילה אחת בצ'אט (\"חלב\") ואוסיף אותה", "Empty for now — say a single word in chat (\"Milk\") and I'll add it"))
                             .font(.subheadline)
                             .foregroundStyle(.limorMuted)
@@ -621,11 +625,16 @@ struct ShoppingListCard: View {
                                         .font(.subheadline.weight(item.completed ? .regular : .semibold))
                                         .foregroundStyle(item.completed ? .limorMuted : .limorInk)
                                         .strikethrough(item.completed)
+                                    if sharedIds.contains(item.id) {
+                                        Image(systemName: "person.2.fill")
+                                            .font(.caption2)
+                                            .foregroundStyle(.limorMuted)
+                                    }
                                     Spacer()
                                 }
                             }
-                            if store.items.count > displayLimit {
-                                Text(tr("ועוד \(store.items.count - displayLimit)…", "\(store.items.count - displayLimit) more…"))
+                            if allItems.count > displayLimit {
+                                Text(tr("ועוד \(allItems.count - displayLimit)…", "\(allItems.count - displayLimit) more…"))
                                     .font(.caption)
                                     .foregroundStyle(.limorMuted)
                             }
@@ -635,15 +644,25 @@ struct ShoppingListCard: View {
             }
         }
         .buttonStyle(.plain)
+        .task { await sharedStore.load() }
+    }
+
+    /// Shared items first — that's the list both partners work off.
+    private var allItems: [ShoppingItem] {
+        sharedStore.items + store.items
+    }
+
+    private var sharedIds: Set<UUID> {
+        Set(sharedStore.items.map(\.id))
     }
 
     private var openCount: Int {
-        store.items.filter { !$0.completed }.count
+        allItems.filter { !$0.completed }.count
     }
 
     private var visibleItems: [ShoppingItem] {
         // Show open items first, then recently completed.
-        store.items.sorted { lhs, rhs in
+        allItems.sorted { lhs, rhs in
             if lhs.completed != rhs.completed { return !lhs.completed }
             return lhs.added_at > rhs.added_at
         }
