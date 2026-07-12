@@ -85,12 +85,10 @@ struct LimorAiApp: App {
                         // simulator pairs where App Group + iCloud don't
                         // bridge between the iPhone and Watch processes.
                         WatchSyncManager.shared.pushSnapshot()
-                        // Clear the app-icon red dot now that the user is
-                        // looking at the app. The backend sends `aps.badge=1`
-                        // on every visible push so the icon picks up a dot
-                        // for any waiting notification; resetting on .active
-                        // means the dot disappears the moment the user
-                        // actually opens us, which is what they asked for.
+                        // The backend no longer sends `aps.badge` at all —
+                        // the user asked for no red dot on the icon, ever.
+                        // This reset stays to wipe a badge left over from
+                        // pushes sent by older backend revisions.
                         Task {
                             try? await UNUserNotificationCenter.current()
                                 .setBadgeCount(0)
