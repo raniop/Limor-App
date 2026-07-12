@@ -196,6 +196,10 @@ final class ShoppingListStore: ObservableObject {
 
 struct ShoppingListView: View {
     @StateObject private var store = ShoppingListStore.shared
+    /// The shared (couple) list — backend-owned. When the user is a member,
+    /// it's pinned at the top of this screen so it's never "hidden" behind
+    /// the toolbar button again.
+    @StateObject private var sharedStore = SharedShoppingStore.shared
     @State private var newItemDraft: String = ""
     @FocusState private var inputFocused: Bool
     @State private var showingArchive = false
@@ -206,7 +210,7 @@ struct ShoppingListView: View {
             LiquidBackdrop()
             VStack(spacing: 0) {
                 addBar
-                if store.items.isEmpty {
+                if store.items.isEmpty && !sharedStore.isActive {
                     emptyState
                 } else {
                     list
@@ -221,6 +225,9 @@ struct ShoppingListView: View {
             // the last poll without waiting up to 5 seconds.
             NSUbiquitousKeyValueStore.default.synchronize()
             store.refreshFromICloud()
+            // Refresh the shared list too — otherwise the pinned card
+            // only appears after visiting the shared screen once.
+            await sharedStore.load()
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -297,6 +304,13 @@ struct ShoppingListView: View {
 
     private var list: some View {
         ScrollView {
+            if sharedStore.isActive {
+                sharedCard
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .frame(maxWidth: hSizeClass == .regular ? 1100 : .infinity)
+                    .frame(maxWidth: .infinity)
+            }
             Group {
                 if hSizeClass == .regular {
                     // iPad → flow items into 2–3 columns to use the width.
@@ -353,6 +367,70 @@ struct ShoppingListView: View {
         .padding(14)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    /// Pinned shared-list card — always the first thing on the screen when
+    /// the user is in a shared list. Open items can be ticked right here;
+    /// tapping the header opens the full shared screen (invite QR, delete,
+    /// completed items).
+    private var sharedCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            NavigationLink(destination: SharedShoppingView()) {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.2.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.limorIndigo)
+                    Text(tr("רשימה משותפת", "Shared list"))
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.limorInk)
+                    Spacer()
+                    Text("\(sharedStore.openItems.count)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.limorIndigo)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Capsule().fill(Color.limorIndigo.opacity(0.15)))
+                    Image(systemName: "chevron.forward")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.limorMuted)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if sharedStore.openItems.isEmpty {
+                Text(tr("אין פריטים פתוחים — הוסיפו במסך המשותף או בצ'אט.", "No open items — add some on the shared screen or in chat."))
+                    .font(.caption)
+                    .foregroundStyle(.limorMuted)
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(sharedStore.openItems) { item in
+                        HStack(spacing: 12) {
+                            Button {
+                                Task { await sharedStore.toggle(item.id) }
+                            } label: {
+                                Image(systemName: "circle")
+                                    .font(.title3)
+                                    .foregroundStyle(.limorIndigo)
+                            }
+                            .buttonStyle(.plain)
+                            Text(item.name)
+                                .font(.body)
+                                .foregroundStyle(.limorInk)
+                            Spacer()
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.limorIndigo.opacity(0.07))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.limorIndigo.opacity(0.25), lineWidth: 1)
+        )
     }
 
     private var emptyState: some View {
