@@ -1038,6 +1038,10 @@ struct SettingsView: View {
         case "receipts":        return tr("קבלות", "Receipts")
         case "email_actions":   return tr("מוקד מייל", "Email focus")
         case "feed_suggest":    return tr("הצעות נושאים", "Topic suggestions")
+        // Usage rows logged before feature tagging existed (≤ mid-June 2026)
+        // have no feature field; the server groups them as "(untagged)".
+        // They age out of the 30-day window on their own.
+        case "(untagged)":      return tr("שימוש ישן (לפני סיווג)", "Older usage (pre-tagging)")
         default:                return tr("אחר", "Other")
         }
     }
