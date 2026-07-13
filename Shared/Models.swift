@@ -688,6 +688,9 @@ struct PendingCalendarEvent: Codable, Identifiable, Hashable {
     let start_at: String       // ISO
     let end_at: String?
     let location: String?
+    /// Emails to invite. When present the event goes to the user's Google
+    /// calendar (Google emails the invitations) instead of EventKit.
+    let attendees: [String]?
 }
 
 struct EmailDTO: Codable, Identifiable, Hashable {

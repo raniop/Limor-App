@@ -148,7 +148,7 @@ struct SettingsView: View {
                 Task {
                     var failed: Set<DataSource> = []
                     if added.contains(.google) {
-                        do { try await GoogleAPIs.ensureScopes([GoogleAPIs.calendarReadOnlyScope]) }
+                        do { try await GoogleAPIs.ensureScopes([GoogleAPIs.calendarReadOnlyScope, GoogleAPIs.calendarEventsScope]) }
                         catch {
                             failed.insert(.google)
                             errorMessage = error.localizedDescription
@@ -1233,7 +1233,7 @@ struct SettingsView: View {
 
     private func connectGoogleCalendar() async {
         do {
-            try await GoogleAPIs.ensureScopes([GoogleAPIs.calendarReadOnlyScope])
+            try await GoogleAPIs.ensureScopes([GoogleAPIs.calendarReadOnlyScope, GoogleAPIs.calendarEventsScope])
             await SyncManager.shared.syncCalendar(force: true)
         } catch {
             errorMessage = error.localizedDescription

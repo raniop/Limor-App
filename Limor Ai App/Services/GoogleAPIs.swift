@@ -11,6 +11,9 @@ import UIKit
 struct GoogleAPIs {
 
     static let calendarReadOnlyScope = "https://www.googleapis.com/auth/calendar.readonly"
+    /// Write scope for creating events WITH ATTENDEES — Google emails the
+    /// calendar invitations itself (EventKit can't add attendees at all).
+    static let calendarEventsScope   = "https://www.googleapis.com/auth/calendar.events"
     static let gmailReadOnlyScope    = "https://www.googleapis.com/auth/gmail.readonly"
 
     enum APIError: LocalizedError {
@@ -150,6 +153,38 @@ struct GoogleAPIs {
                 calendar_name: "Google"
             )
         }
+    }
+
+    /// Create an event in the user's primary GOOGLE calendar with attendees —
+    /// Google emails a real calendar invitation to each (sendUpdates=all),
+    /// with RSVP buttons and automatic updates/cancellations. This is the
+    /// invite path Limor's `create_event` tool uses when `attendees` is set;
+    /// EventKit can't do this (its attendees are read-only by Apple design).
+    /// Background-safe: throws `.missingScope` instead of prompting.
+    static func createEventWithInvites(
+        title: String,
+        start: Date,
+        end: Date,
+        location: String?,
+        attendees: [String]
+    ) async throws {
+        try requireScopes([calendarEventsScope])
+
+        var components = URLComponents(string: "https://www.googleapis.com/calendar/v3/calendars/primary/events")!
+        components.queryItems = [.init(name: "sendUpdates", value: "all")]
+
+        let formatter = ISO8601DateFormatter.limor
+        var body: [String: Any] = [
+            "summary": title,
+            "start": ["dateTime": formatter.string(from: start), "timeZone": "Asia/Jerusalem"],
+            "end":   ["dateTime": formatter.string(from: end),   "timeZone": "Asia/Jerusalem"],
+            "attendees": attendees.map { ["email": $0] },
+            "description": tr("נוצר על ידי לימור.", "Created by Limor."),
+        ]
+        if let location, !location.trimmingCharacters(in: .whitespaces).isEmpty {
+            body["location"] = location
+        }
+        _ = try await post(components.url!, json: body)
     }
 
     // MARK: - Gmail
@@ -409,6 +444,14 @@ struct GoogleAPIs {
     // MARK: - HTTP
 
     private static func get(_ url: URL) async throws -> Data {
+        try await request(url, method: "GET", jsonBody: nil)
+    }
+
+    private static func post(_ url: URL, json: [String: Any]) async throws -> Data {
+        try await request(url, method: "POST", jsonBody: json)
+    }
+
+    private static func request(_ url: URL, method: String, jsonBody: [String: Any]?) async throws -> Data {
         guard let user = GIDSignIn.sharedInstance.currentUser else {
             throw APIError.notSignedInWithGoogle
         }
@@ -417,8 +460,13 @@ struct GoogleAPIs {
         let token = GIDSignIn.sharedInstance.currentUser?.accessToken.tokenString ?? ""
 
         var req = URLRequest(url: url)
+        req.httpMethod = method
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let jsonBody {
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.httpBody = try JSONSerialization.data(withJSONObject: jsonBody)
+        }
 
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else {

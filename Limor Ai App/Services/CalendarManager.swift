@@ -154,8 +154,14 @@ final class CalendarManager: ObservableObject {
     /// `eventId`. Safe to call from BOTH the silent push and the outbox drain —
     /// the first call wins, the second is a no-op. Returns true if the event now
     /// exists on the device (created just now OR already created earlier).
+    ///
+    /// When `attendees` is non-empty the event is created in the user's GOOGLE
+    /// calendar instead of EventKit — Google emails a real invitation to each
+    /// attendee (EventKit attendees are read-only, so it can't send invites).
+    /// If the Google write scope isn't granted / Google isn't connected, we
+    /// fall back to a local EKEvent WITHOUT invites so the slot isn't lost.
     @MainActor @discardableResult
-    func createTrackedEvent(eventId: String, title: String, start: Date, end: Date, location: String?) async -> Bool {
+    func createTrackedEvent(eventId: String, title: String, start: Date, end: Date, location: String?, attendees: [String]? = nil) async -> Bool {
         if SharedStore.createdCalendarEventIds.contains(eventId) { return true }
         // Reserve the id BEFORE the async write so a concurrent caller (push vs
         // drain) can't pass the check and create a duplicate. This read-modify-
@@ -164,7 +170,24 @@ final class CalendarManager: ObservableObject {
         ids.insert(eventId)
         SharedStore.createdCalendarEventIds = ids
 
-        let ok = await createEvent(title: title, start: start, end: end, location: location)
+        var ok = false
+        if let attendees, !attendees.isEmpty {
+            do {
+                try await GoogleAPIs.createEventWithInvites(
+                    title: title, start: start, end: end, location: location, attendees: attendees
+                )
+                ok = true
+                print("[calendar-write] Google event '\(title)' with \(attendees.count) invite(s)")
+                // No EKEvent on purpose — the Google calendar syncs to the
+                // iPhone's Calendar app on its own; a second EKEvent would
+                // show as a duplicate.
+            } catch {
+                print("[calendar-write] Google invite failed (\(error.localizedDescription)) — falling back to local event without invites")
+            }
+        }
+        if !ok {
+            ok = await createEvent(title: title, start: start, end: end, location: location)
+        }
         if !ok {
             // Write failed (e.g. access not yet granted) — release the
             // reservation so a later drain retries.
@@ -196,7 +219,7 @@ final class CalendarManager: ObservableObject {
             let end = p.end_at
                 .flatMap { ISO8601DateFormatter.limor.date(from: $0) ?? ISO8601DateFormatter().date(from: $0) }
                 ?? start.addingTimeInterval(60 * 60)
-            let ok = await createTrackedEvent(eventId: p.event_id, title: p.title, start: start, end: end, location: p.location)
+            let ok = await createTrackedEvent(eventId: p.event_id, title: p.title, start: start, end: end, location: p.location, attendees: p.attendees)
             if ok { toAck.append(p.event_id) }
             // If !ok (e.g. calendar access not yet granted) leave it queued for
             // the next drain.

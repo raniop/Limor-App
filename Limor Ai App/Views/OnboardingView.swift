@@ -290,7 +290,7 @@ struct OnboardingView: View {
     private func requestGoogleCalendar() async {
         permissionStatus[.calendar] = .working
         do {
-            try await GoogleAPIs.ensureScopes([GoogleAPIs.calendarReadOnlyScope])
+            try await GoogleAPIs.ensureScopes([GoogleAPIs.calendarReadOnlyScope, GoogleAPIs.calendarEventsScope])
             SharedStore.calendarSources = [.google]
             permissionStatus[.calendar] = .granted
         } catch {

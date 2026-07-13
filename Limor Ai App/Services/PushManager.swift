@@ -277,7 +277,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNU
                         .flatMap { ISO8601DateFormatter.limor.date(from: $0) ?? ISO8601DateFormatter().date(from: $0) }
                         ?? start.addingTimeInterval(60 * 60)
                     let location = userInfo["location"] as? String
-                    let ok = await CalendarManager.shared.createTrackedEvent(eventId: eventId, title: title, start: start, end: end, location: location)
+                    // Attendee emails arrive JSON-encoded (push data values
+                    // must be strings). Non-empty → Google-calendar invite path.
+                    let attendees = (userInfo["attendees"] as? String)
+                        .flatMap { $0.data(using: .utf8) }
+                        .flatMap { try? JSONDecoder().decode([String].self, from: $0) }
+                    let ok = await CalendarManager.shared.createTrackedEvent(eventId: eventId, title: title, start: start, end: end, location: location, attendees: attendees)
                     // Created on this device — clear it from the outbox so the
                     // drain doesn't revisit it.
                     if ok { try? await APIClient.shared.ackPendingCalendarEvents([eventId]) }
