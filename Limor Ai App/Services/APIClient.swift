@@ -370,6 +370,14 @@ struct APIClient {
         let _: Resp = try await post("/api/insights/dismissed-flights", body: Body(ids: Array(ids)))
     }
 
+    /// The user tapped "not interesting" on a personal tip — the backend
+    /// keeps the title so the tip engine avoids similar angles next batches.
+    func rejectTip(title: String) async throws {
+        struct Body: Encodable { let title: String }
+        struct Resp: Decodable { let ok: Bool }
+        let _: Resp = try await post("/api/insights/tips/reject", body: Body(title: title))
+    }
+
     func getInsights() async throws -> InsightsBundle {
         try await get("/api/insights")
     }

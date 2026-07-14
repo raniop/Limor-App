@@ -66,6 +66,7 @@ enum SharedStore {
         static let chatUsageCache = "limor.chatUsageCache"
         static let hideBirthdayEvents = "limor.hideBirthdayEvents"
         static let dismissedFlightIds = "limor.dismissedFlightIds"
+        static let dismissedTipIds = "limor.dismissedTipIds"
         static let dismissedEmailActionKeys = "limor.dismissedEmailActionKeys"
         // event_id's of create_event outbox items already written to EventKit —
         // the dedup guard shared by the silent push + the outbox drain.
@@ -507,6 +508,20 @@ enum SharedStore {
             let arr = Array(newValue)
             defaults.set(arr, forKey: Keys.dismissedFlightIds)
             iCloud?.set(arr, forKey: Keys.dismissedFlightIds)
+        }
+    }
+
+    /// Personal-tip ids the user dismissed with "not interesting". Hides them
+    /// from the home carousel until the next generation batch replaces them
+    /// (ids are per-batch); the backend separately remembers the rejected
+    /// TITLES so similar angles don't come back. Capped so the set doesn't
+    /// grow forever across months of batches.
+    static var dismissedTipIds: Set<String> {
+        get { Set(defaults.stringArray(forKey: Keys.dismissedTipIds) ?? []) }
+        set {
+            let arr = Array(newValue).suffix(60).map { $0 }
+            defaults.set(arr, forKey: Keys.dismissedTipIds)
+            iCloud?.set(arr, forKey: Keys.dismissedTipIds)
         }
     }
 
