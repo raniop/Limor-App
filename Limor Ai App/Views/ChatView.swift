@@ -1229,6 +1229,20 @@ private struct MessageBubble: View, Equatable {
         }
     }
 
+    /// Inline-markdown rendering for bubbles: **bold**, *italic*, `code`
+    /// and [tappable links](url), while keeping newlines as-is. Falls back
+    /// to the raw string if parsing fails. Block markdown (tables, ###)
+    /// isn't supported by SwiftUI Text — the backend prompt tells Limor
+    /// not to emit those in chat.
+    static func rendered(_ content: String) -> AttributedString {
+        (try? AttributedString(
+            markdown: content,
+            options: AttributedString.MarkdownParsingOptions(
+                interpretedSyntax: .inlineOnlyPreservingWhitespace
+            )
+        )) ?? AttributedString(content)
+    }
+
     @ViewBuilder
     private var bubble: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1258,8 +1272,12 @@ private struct MessageBubble: View, Equatable {
                     .padding(.horizontal, 10).padding(.vertical, 6)
                     .background(Capsule().fill(.white.opacity(0.2)))
                 }
-                Text(message.content)
+                Text(Self.rendered(message.content))
                     .font(.body)
+                    // Assistant links (booking pages etc.) — tappable, brand
+                    // color. User bubbles are white-on-gradient, links there
+                    // are rare; white keeps them legible.
+                    .tint(message.role == .user ? .white : .limorIndigo)
             }
         }
         .foregroundStyle(message.role == .user ? .white : .limorInk)
