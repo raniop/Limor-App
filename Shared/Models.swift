@@ -205,6 +205,11 @@ struct ChatMessage: Codable, Identifiable, Hashable {
     /// sandbox-relative and rebuilt on decode from the saved filename.
     var localAudioURL: URL? = nil
     var localAudioDuration: TimeInterval? = nil
+    /// Structured travel results attached to an assistant message — the
+    /// backend persists them on the message doc, so they round-trip through
+    /// history reloads and render as native cards in the bubble.
+    var flights: FlightSearchResults? = nil
+    var hotels: HotelSearchResults? = nil
 
     /// Codable round-trips the audio filename (basename) + duration so
     /// voice bubbles persisted to `SharedStore.chatLocalOverlay` come
@@ -213,6 +218,7 @@ struct ChatMessage: Codable, Identifiable, Hashable {
     /// Image attachments are still view-only — too large to stash.
     private enum CodingKeys: String, CodingKey {
         case role, content, created_at, local_audio_filename, local_audio_duration
+        case flights, hotels
     }
 
     func encode(to encoder: Encoder) throws {
@@ -226,13 +232,17 @@ struct ChatMessage: Codable, Identifiable, Hashable {
         if let duration = localAudioDuration {
             try c.encode(duration, forKey: .local_audio_duration)
         }
+        try c.encodeIfPresent(flights, forKey: .flights)
+        try c.encodeIfPresent(hotels, forKey: .hotels)
     }
 
     init(role: Role, content: String, created_at: String,
          localAttachmentImageData: Data? = nil,
          localAttachmentFilename: String? = nil,
          localAudioURL: URL? = nil,
-         localAudioDuration: TimeInterval? = nil) {
+         localAudioDuration: TimeInterval? = nil,
+         flights: FlightSearchResults? = nil,
+         hotels: HotelSearchResults? = nil) {
         self.role = role
         self.content = content
         self.created_at = created_at
@@ -240,6 +250,8 @@ struct ChatMessage: Codable, Identifiable, Hashable {
         self.localAttachmentFilename = localAttachmentFilename
         self.localAudioURL = localAudioURL
         self.localAudioDuration = localAudioDuration
+        self.flights = flights
+        self.hotels = hotels
     }
 
     init(from decoder: Decoder) throws {
@@ -259,6 +271,10 @@ struct ChatMessage: Codable, Identifiable, Hashable {
             self.localAudioURL = nil
         }
         self.localAudioDuration = try c.decodeIfPresent(TimeInterval.self, forKey: .local_audio_duration)
+        // Tolerant decode — a malformed card should never take down the
+        // whole history payload.
+        self.flights = try? c.decodeIfPresent(FlightSearchResults.self, forKey: .flights)
+        self.hotels = try? c.decodeIfPresent(HotelSearchResults.self, forKey: .hotels)
     }
 
     /// Stable on-disk location for recorded voice-message clips. Lives
@@ -274,6 +290,65 @@ struct ChatMessage: Codable, Identifiable, Hashable {
         let dir = base.appendingPathComponent("voice-messages", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
+    }
+}
+
+// MARK: - Travel search results (native chat cards)
+
+/// Live flight options from Limor's `search_flights` tool (Google Flights
+/// data via SerpAPI). Rendered as a native card inside the chat bubble —
+/// the text reply only carries a one-line summary.
+struct FlightSearchResults: Codable, Hashable {
+    let origin: String?
+    let destination: String?
+    let outbound_date: String?
+    let return_date: String?
+    let options: [Option]
+    let google_flights_url: String?
+    let currency: String?
+    let round_trip: Bool?
+
+    struct Option: Codable, Hashable, Identifiable {
+        var id: String { "\(airline)-\(depart_date)-\(depart_time)-\(price ?? -1)" }
+        let airline: String
+        let flight_numbers: String?
+        let depart_time: String
+        let depart_date: String
+        let depart_airport: String
+        let arrive_time: String
+        let arrive_date: String
+        let arrive_airport: String
+        let stops: Int
+        let stopover_airports: String?
+        let duration_minutes: Int?
+        let price: Double?
+
+        /// "+1" style day-offset marker when the arrival date is after the
+        /// departure date (red-eye landings).
+        var arrivalDayOffset: Int {
+            let f = DateFormatter()
+            f.dateFormat = "yyyy-MM-dd"
+            guard let d0 = f.date(from: depart_date), let d1 = f.date(from: arrive_date) else { return 0 }
+            return max(0, Calendar.current.dateComponents([.day], from: d0, to: d1).day ?? 0)
+        }
+    }
+}
+
+/// Live hotel options from `search_hotels` (Google Hotels data).
+struct HotelSearchResults: Codable, Hashable {
+    let properties: [Property]
+    let currency: String?
+
+    struct Property: Codable, Hashable, Identifiable {
+        var id: String { name + (link ?? "") }
+        let name: String
+        let type: String?
+        let rate_per_night: String?
+        let total_rate: String?
+        let rating: Double?
+        let reviews: Int?
+        let hotel_class: String?
+        let link: String?
     }
 }
 
@@ -308,6 +383,10 @@ struct ChatReply: Decodable {
     /// and sometimes never delivers). Optional + defaulted to empty so
     /// older backend builds keep decoding.
     let shopping_actions: ShoppingActions?
+    /// Structured travel results from this turn — rendered as a native card
+    /// in the assistant bubble. nil when the turn didn't run a travel search.
+    let flights: FlightSearchResults?
+    let hotels: HotelSearchResults?
 
     struct ShoppingActions: Decodable {
         let adds: [String]

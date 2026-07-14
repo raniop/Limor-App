@@ -921,7 +921,9 @@ struct ChatView: View {
                 messages.append(ChatMessage(
                     role: .assistant,
                     content: reply.reply,
-                    created_at: ISO8601DateFormatter.limor.string(from: Date())
+                    created_at: ISO8601DateFormatter.limor.string(from: Date()),
+                    flights: reply.flights,
+                    hotels: reply.hotels
                 ))
             }
         } catch {
@@ -1010,7 +1012,9 @@ struct ChatView: View {
                 messages.append(ChatMessage(
                     role: .assistant,
                     content: reply.reply,
-                    created_at: ISO8601DateFormatter.limor.string(from: Date())
+                    created_at: ISO8601DateFormatter.limor.string(from: Date()),
+                    flights: reply.flights,
+                    hotels: reply.hotels
                 ))
             }
         } catch {
@@ -1220,7 +1224,12 @@ private struct MessageBubble: View, Equatable {
         HStack(alignment: .bottom, spacing: 8) {
             if message.role == .assistant {
                 LimorAvatar(size: 28)
-                bubble.frame(maxWidth: 280, alignment: .leading)
+                // Travel cards get extra width — flight rows need room for
+                // times + price on one line.
+                bubble.frame(
+                    maxWidth: (message.flights != nil || message.hotels != nil) ? 330 : 280,
+                    alignment: .leading
+                )
                 Spacer(minLength: 24)
             } else {
                 Spacer(minLength: 24)
@@ -1278,6 +1287,12 @@ private struct MessageBubble: View, Equatable {
                     // color. User bubbles are white-on-gradient, links there
                     // are rare; white keeps them legible.
                     .tint(message.role == .user ? .white : .limorIndigo)
+                if let flights = message.flights, !flights.options.isEmpty {
+                    FlightResultsCard(results: flights)
+                }
+                if let hotels = message.hotels, !hotels.properties.isEmpty {
+                    HotelResultsCard(results: hotels)
+                }
             }
         }
         .foregroundStyle(message.role == .user ? .white : .limorInk)
@@ -1306,6 +1321,256 @@ private struct MessageBubble: View, Equatable {
             color: message.role == .user ? Color.limorIndigo.opacity(0.25) : .black.opacity(0.05),
             radius: message.role == .user ? 10 : 4,
             y: message.role == .user ? 6 : 2
+        )
+    }
+}
+
+// MARK: - Travel result cards (native rendering for search_flights / search_hotels)
+
+/// Shared currency-symbol mapping for the travel cards.
+private func currencySymbol(_ code: String?) -> String {
+    switch (code ?? "USD").uppercased() {
+    case "ILS": return "₪"
+    case "USD": return "$"
+    case "EUR": return "€"
+    case "GBP": return "£"
+    default:    return (code ?? "") + " "
+    }
+}
+
+/// Flight options as a native card: big times, stops chip, bold price,
+/// the best option highlighted, whole thing tappable into Google Flights.
+private struct FlightResultsCard: View {
+    let results: FlightSearchResults
+    @Environment(\.openURL) private var openURL
+
+    private var symbol: String { currencySymbol(results.currency) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Route header: "TLV ⇄ JFK · 20.7–24.7"
+            HStack(spacing: 6) {
+                Image(systemName: "airplane")
+                    .font(.caption.weight(.bold))
+                Text(routeTitle)
+                    .font(.caption.weight(.bold))
+                Spacer()
+            }
+            .foregroundStyle(.limorIndigo)
+
+            ForEach(Array(results.options.prefix(3).enumerated()), id: \.element.id) { idx, opt in
+                optionRow(opt, isBest: idx == 0)
+            }
+
+            if let urlStr = results.google_flights_url, let url = URL(string: urlStr) {
+                Button {
+                    openURL(url)
+                } label: {
+                    HStack(spacing: 5) {
+                        Text(tr("כל האופציות ב-Google Flights", "All options on Google Flights"))
+                        Image(systemName: "arrow.up.forward.app")
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.limorIndigo)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background(Capsule().fill(Color.limorIndigo.opacity(0.10)))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.limorIndigo.opacity(0.06))
+        )
+    }
+
+    private var routeTitle: String {
+        let route = [results.origin, results.destination].compactMap { $0 }
+            .joined(separator: results.round_trip == true ? " ⇄ " : " ← ")
+        let dates = [results.outbound_date, results.return_date]
+            .compactMap { $0.flatMap(Self.shortDate) }
+            .joined(separator: "–")
+        return dates.isEmpty ? route : "\(route) · \(dates)"
+    }
+
+    /// "2026-07-20" → "20.7"
+    private static func shortDate(_ iso: String) -> String? {
+        let parts = iso.split(separator: "-")
+        guard parts.count == 3, let m = Int(parts[1]), let d = Int(parts[2]) else { return nil }
+        return "\(d).\(m)"
+    }
+
+    @ViewBuilder
+    private func optionRow(_ opt: FlightSearchResults.Option, isBest: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(opt.airline)
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(.limorInk)
+                    .lineLimit(1)
+                if isBest {
+                    Text(tr("מומלץ", "Best"))
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(Color.limorSuccess))
+                }
+                Spacer()
+                if let price = opt.price {
+                    Text("\(symbol)\(Int(price).formatted())")
+                        .font(.subheadline.weight(.heavy).monospacedDigit())
+                        .foregroundStyle(.limorInk)
+                }
+            }
+
+            HStack(spacing: 6) {
+                timeBlock(opt.depart_time, airport: opt.depart_airport)
+                Image(systemName: "arrow.forward")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.limorMuted)
+                timeBlock(opt.arrive_time, airport: opt.arrive_airport, dayOffset: opt.arrivalDayOffset)
+                Spacer()
+                Text(stopsText(opt))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(opt.stops == 0 ? Color.limorSuccess : .limorMuted)
+            }
+
+            if let mins = opt.duration_minutes {
+                Text(durationText(mins, stopovers: opt.stopover_airports))
+                    .font(.caption2)
+                    .foregroundStyle(.limorMuted)
+            }
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.limorBubble)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(isBest ? Color.limorSuccess.opacity(0.55) : .limorBubbleBorder, lineWidth: isBest ? 1.2 : 0.5)
+        )
+    }
+
+    private func timeBlock(_ time: String, airport: String, dayOffset: Int = 0) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 2) {
+            Text(time)
+                .font(.subheadline.weight(.bold).monospacedDigit())
+                .foregroundStyle(.limorInk)
+            if dayOffset > 0 {
+                Text("+\(dayOffset)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.limorCoral)
+            }
+            if !airport.isEmpty {
+                Text(airport)
+                    .font(.caption2)
+                    .foregroundStyle(.limorMuted)
+            }
+        }
+    }
+
+    private func stopsText(_ opt: FlightSearchResults.Option) -> String {
+        switch opt.stops {
+        case 0:  return tr("ישירה", "Nonstop")
+        case 1:  return tr("עצירה אחת", "1 stop")
+        default: return tr("\(opt.stops) עצירות", "\(opt.stops) stops")
+        }
+    }
+
+    private func durationText(_ minutes: Int, stopovers: String?) -> String {
+        let h = minutes / 60, m = minutes % 60
+        let dur = m == 0 ? tr("\(h) שע׳", "\(h)h") : tr("\(h) שע׳ \(m) דק׳", "\(h)h \(m)m")
+        if let s = stopovers, !s.isEmpty {
+            return tr("משך: \(dur) · דרך \(s)", "Duration: \(dur) · via \(s)")
+        }
+        return tr("משך: \(dur)", "Duration: \(dur)")
+    }
+}
+
+/// Hotel options card — name, rating, nightly price; row tap opens the
+/// hotel's page.
+private struct HotelResultsCard: View {
+    let results: HotelSearchResults
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "bed.double.fill")
+                    .font(.caption.weight(.bold))
+                Text(tr("מלונות", "Hotels"))
+                    .font(.caption.weight(.bold))
+                Spacer()
+            }
+            .foregroundStyle(.limorIndigo)
+
+            ForEach(results.properties.prefix(4)) { hotel in
+                Button {
+                    if let link = hotel.link, let url = URL(string: link) { openURL(url) }
+                } label: {
+                    row(hotel)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.limorIndigo.opacity(0.06))
+        )
+    }
+
+    private func row(_ hotel: HotelSearchResults.Property) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(hotel.name)
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(.limorInk)
+                    .lineLimit(1)
+                Spacer()
+                if let rate = hotel.rate_per_night {
+                    Text(tr("\(rate) / לילה", "\(rate) / night"))
+                        .font(.footnote.weight(.heavy).monospacedDigit())
+                        .foregroundStyle(.limorInk)
+                        .lineLimit(1)
+                }
+            }
+            HStack(spacing: 6) {
+                if let rating = hotel.rating {
+                    Text("⭐ \(rating, specifier: "%.1f")")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.limorInk)
+                    if let reviews = hotel.reviews {
+                        Text(tr("(\(reviews.formatted()) ביקורות)", "(\(reviews.formatted()) reviews)"))
+                            .font(.caption2)
+                            .foregroundStyle(.limorMuted)
+                    }
+                }
+                if let cls = hotel.hotel_class, !cls.isEmpty {
+                    Text(cls)
+                        .font(.caption2)
+                        .foregroundStyle(.limorMuted)
+                        .lineLimit(1)
+                }
+                Spacer()
+                if hotel.link != nil {
+                    Image(systemName: "arrow.up.forward.app")
+                        .font(.caption2)
+                        .foregroundStyle(.limorIndigo)
+                }
+            }
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.limorBubble)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(.limorBubbleBorder, lineWidth: 0.5)
         )
     }
 }
