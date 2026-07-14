@@ -2138,6 +2138,8 @@ private struct RecommendationsCard: View {
     let recommendations: [Recommendation]
     @State private var index: Int = 0
     @State private var autoAdvanceTask: Task<Void, Never>?
+    /// Tip the user tapped — drives the dedicated detail sheet.
+    @State private var selectedTip: Recommendation?
     /// How long each tip stays on screen before auto-rotating. 8 seconds
     /// is long enough to read a 2-3 sentence rec but short enough that
     /// a user passively glancing at the home tab sees a few different
@@ -2174,6 +2176,13 @@ private struct RecommendationsCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .transition(.opacity)
                 .animation(.easeInOut(duration: 0.25), value: index)
+                .contentShape(Rectangle())
+                // Tap anywhere on the tip (except the CTA button, which
+                // wins its own frame) → full-screen designed detail sheet.
+                .onTapGesture {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    selectedTip = current
+                }
                 .gesture(
                     DragGesture(minimumDistance: 24)
                         .onEnded { value in
@@ -2214,6 +2223,11 @@ private struct RecommendationsCard: View {
         .onDisappear { autoAdvanceTask?.cancel() }
         .onChange(of: recommendations.count) { _, newCount in
             startAutoAdvance(count: newCount)
+        }
+        .sheet(item: $selectedTip) { tip in
+            TipDetailView(recommendations: recommendations, initial: tip)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -2264,6 +2278,177 @@ private struct RecommendationsCard: View {
         // Use a stable height so swiping doesn't jump.
         let hasAnyCTA = recommendations.contains { ($0.cta ?? "").isEmpty == false }
         return hasAnyCTA ? 130 : 100
+    }
+}
+
+/// Dedicated full detail screen for a personal tip. Opens as a sheet from
+/// the home-card carousel: hero icon in the tip's tint, the full body
+/// (untruncated), the CTA as a primary action, a "talk to Limor about it"
+/// secondary, and the rest of the batch to flip through.
+private struct TipDetailView: View {
+    let recommendations: [Recommendation]
+    @State private var current: Recommendation
+    @EnvironmentObject private var router: AppRouter
+    @Environment(\.dismiss) private var dismiss
+
+    init(recommendations: [Recommendation], initial: Recommendation) {
+        self.recommendations = recommendations
+        _current = State(initialValue: initial)
+    }
+
+    private var others: [Recommendation] {
+        recommendations.filter { $0.id != current.id }
+    }
+
+    var body: some View {
+        let style = RecKindStyle.from(current.kind)
+        ZStack {
+            LiquidBackdrop()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 16) {
+                    // Hero — layered tinted circles behind the kind icon.
+                    ZStack {
+                        Circle()
+                            .fill(style.tint.opacity(0.12))
+                            .frame(width: 104, height: 104)
+                        Circle()
+                            .fill(style.tint.opacity(0.20))
+                            .frame(width: 76, height: 76)
+                        Image(systemName: style.icon)
+                            .font(.system(size: 32, weight: .bold))
+                            .foregroundStyle(style.tint)
+                    }
+                    .padding(.top, 26)
+
+                    // Kind chip
+                    Text(style.label)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(style.tint)
+                        .padding(.horizontal, 12).padding(.vertical, 5)
+                        .background(Capsule().fill(style.tint.opacity(0.12)))
+
+                    Text(current.title)
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
+                        .foregroundStyle(.limorInk)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+
+                    Text(current.body)
+                        .font(.body)
+                        .foregroundStyle(.limorInk.opacity(0.82))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 28)
+
+                    VStack(spacing: 10) {
+                        if let cta = current.cta, !cta.isEmpty {
+                            Button {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                dismiss()
+                                router.sendToLimor(tr("\(cta) — בקשר ל'\(current.title)' (\(current.body))", "\(cta) — regarding '\(current.title)' (\(current.body))"))
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "sparkles")
+                                    Text(cta)
+                                }
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Capsule().fill(LimorGradient.brand))
+                                .shadow(color: Color.limorIndigo.opacity(0.30), radius: 10, y: 5)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        Button {
+                            dismiss()
+                            router.sendToLimor(tr("ספרי לי עוד בקשר ל'\(current.title)' — \(current.body)", "Tell me more about '\(current.title)' — \(current.body)"))
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "bubble.left.and.bubble.right")
+                                Text(tr("דברי איתי על זה בצ'אט", "Chat with me about this"))
+                            }
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.limorIndigo)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Capsule().fill(Color.limorIndigo.opacity(0.10)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 6)
+
+                    if !others.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(tr("עוד טיפים בשבילך", "More tips for you"))
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.limorInk)
+                                .padding(.horizontal, 4)
+                            ForEach(others) { tip in
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.25)) { current = tip }
+                                } label: {
+                                    otherTipRow(tip)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.top, 10)
+                    }
+
+                    if let ts = current.generated_at, let date = ISO8601DateFormatter.limor.date(from: ts) {
+                        Text(tr("נוצר ב-\(date.formatted(date: .omitted, time: .shortened)) · מבוסס על היומן, הבריאות והמיילים שלך", "Generated at \(date.formatted(date: .omitted, time: .shortened)) · based on your calendar, health and email"))
+                            .font(.caption2)
+                            .foregroundStyle(.limorMuted)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 8)
+                    }
+                }
+                .padding(.bottom, 32)
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func otherTipRow(_ tip: Recommendation) -> some View {
+        let style = RecKindStyle.from(tip.kind)
+        return HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(style.tint.opacity(0.15))
+                    .frame(width: 36, height: 36)
+                Image(systemName: style.icon)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(style.tint)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tip.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.limorInk)
+                    .lineLimit(1)
+                Text(tip.body)
+                    .font(.caption)
+                    .foregroundStyle(.limorMuted)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Image(systemName: "chevron.forward")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.limorMuted)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.regularMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(.white.opacity(0.35), lineWidth: 0.5)
+        )
     }
 }
 
