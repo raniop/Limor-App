@@ -360,6 +360,16 @@ struct APIClient {
 
     // MARK: - Insights
 
+    /// Full replace of the dismissed-flight set on the backend. The ❌ on the
+    /// next-flight card marks a flight as "not mine" (someone else's booking
+    /// that landed in the inbox); the backend must know so AI surfaces
+    /// (personal tips) never reference those flights.
+    func syncDismissedFlights(_ ids: Set<String>) async throws {
+        struct Body: Encodable { let ids: [String] }
+        struct Resp: Decodable { let ok: Bool }
+        let _: Resp = try await post("/api/insights/dismissed-flights", body: Body(ids: Array(ids)))
+    }
+
     func getInsights() async throws -> InsightsBundle {
         try await get("/api/insights")
     }

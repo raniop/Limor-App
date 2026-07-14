@@ -1049,6 +1049,11 @@ struct NowView: View {
                     if flightHeroIndex >= total - 1 {
                         flightHeroIndex = max(0, total - 2)
                     }
+                    // Tell the backend too — dismissal means "not my
+                    // flight", and the personal-tip engine must never
+                    // reference it. Best-effort; the foreground sync
+                    // re-pushes the full set anyway.
+                    Task { try? await APIClient.shared.syncDismissedFlights(ids) }
                     Task { await reload() }
                 },
                 position: total > 1 ? (safeIndex, total) : nil,

@@ -57,6 +57,15 @@ struct LimorAiApp: App {
                         // Pick up shared-list edits the partner made while we
                         // were backgrounded.
                         Task { await SharedShoppingStore.shared.load() }
+                        // Re-push the dismissed-flight set (may have changed
+                        // on another device via iCloud KVS) so backend AI
+                        // surfaces filter with the current curation.
+                        Task {
+                            let ids = SharedStore.dismissedFlightIds
+                            if !ids.isEmpty {
+                                try? await APIClient.shared.syncDismissedFlights(ids)
+                            }
+                        }
                         // Belt-and-suspenders for backend push: re-fetch the
                         // current FCM token from Firebase Messaging and re-
                         // upload to the backend. The delegate callback only
