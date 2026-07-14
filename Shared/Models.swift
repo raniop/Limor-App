@@ -349,6 +349,7 @@ struct HotelSearchResults: Codable, Hashable {
         let reviews: Int?
         let hotel_class: String?
         let link: String?
+        let thumbnail: String?
     }
 }
 

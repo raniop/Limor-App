@@ -1524,43 +1524,61 @@ private struct HotelResultsCard: View {
     }
 
     private func row(_ hotel: HotelSearchResults.Property) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .firstTextBaseline) {
+        HStack(spacing: 10) {
+            // Photo thumbnail — makes the card scannable at a glance.
+            // Falls back to a soft bed icon when the property has no image.
+            if let thumb = hotel.thumbnail, let url = URL(string: thumb) {
+                AsyncImage(url: url) { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    ZStack {
+                        Color.limorIndigo.opacity(0.08)
+                        Image(systemName: "bed.double")
+                            .font(.caption)
+                            .foregroundStyle(.limorMuted)
+                    }
+                }
+                .frame(width: 54, height: 54)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
                 Text(hotel.name)
                     .font(.footnote.weight(.bold))
                     .foregroundStyle(.limorInk)
                     .lineLimit(1)
-                Spacer()
+                HStack(spacing: 6) {
+                    if let rating = hotel.rating {
+                        Text("⭐ \(rating, specifier: "%.1f")")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.limorInk)
+                        if let reviews = hotel.reviews {
+                            Text(tr("(\(reviews.formatted()))", "(\(reviews.formatted()))"))
+                                .font(.caption2)
+                                .foregroundStyle(.limorMuted)
+                        }
+                    }
+                    if let cls = hotel.hotel_class, !cls.isEmpty {
+                        Text(cls)
+                            .font(.caption2)
+                            .foregroundStyle(.limorMuted)
+                            .lineLimit(1)
+                    }
+                }
                 if let rate = hotel.rate_per_night {
-                    Text(tr("\(rate) / לילה", "\(rate) / night"))
+                    Text(tr("\(rate) ללילה", "\(rate) / night"))
                         .font(.footnote.weight(.heavy).monospacedDigit())
-                        .foregroundStyle(.limorInk)
+                        .foregroundStyle(.limorIndigo)
                         .lineLimit(1)
                 }
             }
-            HStack(spacing: 6) {
-                if let rating = hotel.rating {
-                    Text("⭐ \(rating, specifier: "%.1f")")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.limorInk)
-                    if let reviews = hotel.reviews {
-                        Text(tr("(\(reviews.formatted()) ביקורות)", "(\(reviews.formatted()) reviews)"))
-                            .font(.caption2)
-                            .foregroundStyle(.limorMuted)
-                    }
-                }
-                if let cls = hotel.hotel_class, !cls.isEmpty {
-                    Text(cls)
-                        .font(.caption2)
-                        .foregroundStyle(.limorMuted)
-                        .lineLimit(1)
-                }
-                Spacer()
-                if hotel.link != nil {
-                    Image(systemName: "arrow.up.forward.app")
-                        .font(.caption2)
-                        .foregroundStyle(.limorIndigo)
-                }
+
+            Spacer()
+
+            if hotel.link != nil {
+                Image(systemName: "chevron.forward")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.limorMuted)
             }
         }
         .padding(8)
