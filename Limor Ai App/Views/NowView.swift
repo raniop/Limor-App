@@ -2126,6 +2126,8 @@ private struct RecKindStyle {
             return .init(icon: "brain.head.profile", tint: .limorViolet, label: tr("ראש", "Mind"))
         case "celebration":
             return .init(icon: "trophy.fill", tint: .limorWarning, label: tr("כל הכבוד", "Well done"))
+        case "travel":
+            return .init(icon: "airplane.departure", tint: Color(red: 0.20, green: 0.66, blue: 0.62), label: tr("נסיעה", "Travel"))
         default:
             return .init(icon: "sparkles", tint: .limorIndigo, label: tr("טיפ", "Tip"))
         }
