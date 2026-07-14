@@ -9,6 +9,9 @@ struct NoAccessView: View {
     @State private var joining = false
     @State private var error: String?
     @State private var joined = false
+    /// Name of the company the code belongs to — shown in the success
+    /// state so the user knows WHICH organization they just joined.
+    @State private var joinedOrgName: String?
 
     var body: some View {
         ZStack {
@@ -19,6 +22,11 @@ struct NoAccessView: View {
                 Text(joined ? tr("מחובר! ✨", "Connected! ✨") : tr("החשבון לא מחובר", "Account not connected"))
                     .font(.title2.weight(.bold)).foregroundStyle(.limorInk)
                 if joined {
+                    if let name = joinedOrgName, !name.isEmpty {
+                        Text(tr("החשבון חובר לחברת \(name) 🎉", "Your account is now connected to \(name) 🎉"))
+                            .font(.subheadline.weight(.semibold)).foregroundStyle(.limorInk)
+                            .multilineTextAlignment(.center)
+                    }
                     Text(tr("עכשיו אפשר להשתמש בלימור.", "You can now use Limor."))
                         .font(.subheadline).foregroundStyle(.limorMuted)
                     Button(tr("המשך", "Continue")) { onDismiss() }
@@ -52,7 +60,8 @@ struct NoAccessView: View {
         joining = true; error = nil
         defer { joining = false }
         do {
-            _ = try await APIClient.shared.joinOrg(licenseCode: code.trimmingCharacters(in: .whitespaces))
+            let org = try await APIClient.shared.joinOrg(licenseCode: code.trimmingCharacters(in: .whitespaces))
+            joinedOrgName = org.name
             joined = true
         } catch {
             self.error = tr("קוד לא תקין או שאינו פעיל.", "Invalid or inactive code.")

@@ -82,19 +82,10 @@ struct LimorIntroChatView: View {
         ),
         // Family relationships moved out of the intro — they're now picked
         // structurally in Settings → המשפחה שלי (linked to iOS Contacts).
-        // This last step is the catch-all so the user can share anything
-        // else that helps Limor personalise (hobbies, preferences, context).
-        Step(
-            factLabel: "היכרות כללית",
-            texts: [
-                .male:   tr("ספר לי קצת על עצמך — תחביבים, מה חשוב לך, או כל דבר שכדאי שאדע כדי לעזור טוב יותר.", "Tell me a bit about yourself — hobbies, what matters to you, or anything I should know to help you better."),
-                .female: tr("ספרי לי קצת על עצמך — תחביבים, מה חשוב לך, או כל דבר שכדאי שאדע כדי לעזור טוב יותר.", "Tell me a bit about yourself — hobbies, what matters to you, or anything I should know to help you better."),
-                .other:  tr("ספר/י לי קצת על עצמך — תחביבים, מה חשוב לך, או כל דבר שכדאי שאדע כדי לעזור טוב יותר.", "Tell me a bit about yourself — hobbies, what matters to you, or anything I should know to help you better."),
-            ],
-            placeholder: tr("טקסט חופשי", "Free text"),
-            prefill: nil,
-            kind: .text
-        ),
+        // The free-text "tell me about yourself" catch-all that used to
+        // close the intro was cut (2026-07): it stalled sign-ups right at
+        // the finish line, and Limor learns those details organically in
+        // chat anyway (remember_about_user).
     ]
 
     @State private var stepIndex: Int = 0
