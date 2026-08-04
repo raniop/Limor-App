@@ -800,6 +800,10 @@ private struct ShareTasksSheet: View {
     @State private var sending = false
     @State private var resultMessage: String?
     @State private var failed = false
+    /// Shown on the "no Limor account" result so the user can fall back to
+    /// a regular email in one tap.
+    @State private var offerEmailFallback = false
+    @Environment(\.openURL) private var openURL
 
     init(initialItem: EmailActionItem, allItems: [EmailActionItem]) {
         self.initialItem = initialItem
@@ -829,8 +833,21 @@ private struct ShareTasksSheet: View {
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundStyle(.limorInk)
                                     .multilineTextAlignment(.center)
-                                Button(tr("סגור", "Close")) { dismiss() }
+                                if offerEmailFallback {
+                                    Button {
+                                        openMailCompose()
+                                    } label: {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: "envelope.fill")
+                                            Text(tr("שלח במייל רגיל", "Send by regular email"))
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                    }
                                     .buttonStyle(.limorPrimary)
+                                }
+                                Button(tr("סגור", "Close")) { dismiss() }
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.limorMuted)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.top, 40)
@@ -891,6 +908,25 @@ private struct ShareTasksSheet: View {
                             }
                             .buttonStyle(.limorPrimary)
                             .disabled(sending || selectedIds.isEmpty || !emailValid)
+
+                            // Regular-email path — works for ANY address (the
+                            // recipient doesn't need Limor): opens the mail
+                            // composer pre-filled with the selected tasks.
+                            Button {
+                                openMailCompose()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "envelope")
+                                    Text(tr("או: שלח במייל רגיל (לכל כתובת)", "Or: send by regular email (any address)"))
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.limorIndigo)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 11)
+                                .background(Capsule().fill(Color.limorIndigo.opacity(0.10)))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(selectedIds.isEmpty)
                         }
                     }
                     .padding(18)
@@ -907,6 +943,31 @@ private struct ShareTasksSheet: View {
         }
     }
 
+    /// Open the system mail composer (mailto:) pre-filled with the selected
+    /// tasks — the fallback/alternative that reaches ANY address, sent from
+    /// the user's own mail account. No extra permissions needed.
+    private func openMailCompose() {
+        let selected = allItems.filter { selectedIds.contains($0.id) }
+        let subject = selected.count == 1
+            ? tr("משימה: \(selected[0].required_action)", "Task: \(selected[0].required_action)")
+            : tr("\(selected.count) משימות בשבילך", "\(selected.count) tasks for you")
+        let lines = selected.map { item in
+            tr("• \(item.required_action) (מ: \(item.sender_name) — \(item.subject))",
+               "• \(item.required_action) (from: \(item.sender_name) — \(item.subject))")
+        }
+        let body = lines.joined(separator: "\n") + tr("\n\n— נשלח מלימור", "\n\n— Sent from Limor")
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = emailValid ? trimmedEmail : ""
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: subject),
+            URLQueryItem(name: "body", value: body),
+        ]
+        if let url = components.url {
+            openURL(url)
+        }
+    }
+
     private func share() async {
         sending = true
         defer { sending = false }
@@ -916,9 +977,10 @@ private struct ShareTasksSheet: View {
             if result.shared.isEmpty {
                 failed = true
                 resultMessage = tr(
-                    "לכתובת \(trimmedEmail) אין חשבון לימור — אפשר לשתף רק עם משתמשי לימור.",
-                    "\(trimmedEmail) has no Limor account — sharing works only with Limor users."
+                    "לכתובת \(trimmedEmail) אין חשבון לימור. אפשר במקום זה לשלוח את המשימות במייל רגיל 👇",
+                    "\(trimmedEmail) has no Limor account. You can send the tasks by regular email instead 👇"
                 )
+                offerEmailFallback = true
             } else {
                 failed = false
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
