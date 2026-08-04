@@ -803,6 +803,8 @@ private struct ShareTasksSheet: View {
     /// Shown on the "no Limor account" result so the user can fall back to
     /// a regular email in one tap.
     @State private var offerEmailFallback = false
+    /// Colleagues from the user's company — one-tap recipient chips.
+    @State private var colleagues: [APIClient.OrgMember] = []
     @Environment(\.openURL) private var openURL
 
     init(initialItem: EmailActionItem, allItems: [EmailActionItem]) {
@@ -820,9 +822,11 @@ private struct ShareTasksSheet: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                LiquidBackdrop()
-                ScrollView(showsIndicators: false) {
+            // LiquidBackdrop as .background (NOT a ZStack sibling) — its
+            // oversized decorative blobs were inflating the ZStack's width,
+            // which pushed the whole sheet content past the screen edge and
+            // let it drift sideways. A background never affects layout.
+            ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 16) {
                         if let resultMessage {
                             VStack(spacing: 12) {
@@ -860,6 +864,65 @@ private struct ShareTasksSheet: View {
                                 .padding(12)
                                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.limorInk.opacity(0.06)))
 
+                            // Company colleagues — one tap fills the address.
+                            if !colleagues.isEmpty {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 8) {
+                                        ForEach(colleagues, id: \.email) { member in
+                                            let isChosen = trimmedEmail == member.email.lowercased()
+                                            Button {
+                                                email = member.email
+                                            } label: {
+                                                HStack(spacing: 5) {
+                                                    Image(systemName: "person.crop.circle.fill")
+                                                        .font(.caption)
+                                                    Text(member.display_name?.isEmpty == false ? member.display_name! : member.email)
+                                                        .font(.caption.weight(.semibold))
+                                                        .lineLimit(1)
+                                                }
+                                                .foregroundStyle(isChosen ? .white : .limorIndigo)
+                                                .padding(.horizontal, 12).padding(.vertical, 7)
+                                                .background(Capsule().fill(isChosen ? Color.limorIndigo : Color.limorIndigo.opacity(0.10)))
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                    .padding(.vertical, 2)
+                                }
+                            }
+
+                            // Primary actions live at the TOP — no scrolling
+                            // past a long task list just to hit "share".
+                            Button {
+                                Task { await share() }
+                            } label: {
+                                HStack {
+                                    if sending { ProgressView().tint(.white) }
+                                    Text(sending
+                                         ? tr("שולח…", "Sending…")
+                                         : tr("שתף \(selectedIds.count) משימות", "Share \(selectedIds.count) tasks"))
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.limorPrimary)
+                            .disabled(sending || selectedIds.isEmpty || !emailValid)
+
+                            Button {
+                                openMailCompose()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "envelope")
+                                    Text(tr("או: שלח במייל רגיל (לכל כתובת)", "Or: send by regular email (any address)"))
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.limorIndigo)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 11)
+                                .background(Capsule().fill(Color.limorIndigo.opacity(0.10)))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(selectedIds.isEmpty)
+
                             SectionLabel(icon: "checklist", title: tr("אילו משימות לשתף?", "Which tasks to share?"))
                             VStack(spacing: 8) {
                                 ForEach(allItems) { item in
@@ -878,13 +941,15 @@ private struct ShareTasksSheet: View {
                                                     .foregroundStyle(.limorInk)
                                                     .multilineTextAlignment(.leading)
                                                     .lineLimit(2)
+                                                    .fixedSize(horizontal: false, vertical: true)
                                                 Text(item.sender_name)
                                                     .font(.caption)
                                                     .foregroundStyle(.limorMuted)
                                                     .lineLimit(1)
                                             }
-                                            Spacer()
+                                            Spacer(minLength: 0)
                                         }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(10)
                                         .background(
                                             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -894,43 +959,14 @@ private struct ShareTasksSheet: View {
                                     .buttonStyle(.plain)
                                 }
                             }
-
-                            Button {
-                                Task { await share() }
-                            } label: {
-                                HStack {
-                                    if sending { ProgressView().tint(.white) }
-                                    Text(sending
-                                         ? tr("שולח…", "Sending…")
-                                         : tr("שתף \(selectedIds.count) משימות", "Share \(selectedIds.count) tasks"))
-                                }
-                                .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.limorPrimary)
-                            .disabled(sending || selectedIds.isEmpty || !emailValid)
-
-                            // Regular-email path — works for ANY address (the
-                            // recipient doesn't need Limor): opens the mail
-                            // composer pre-filled with the selected tasks.
-                            Button {
-                                openMailCompose()
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "envelope")
-                                    Text(tr("או: שלח במייל רגיל (לכל כתובת)", "Or: send by regular email (any address)"))
-                                }
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.limorIndigo)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 11)
-                                .background(Capsule().fill(Color.limorIndigo.opacity(0.10)))
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(selectedIds.isEmpty)
                         }
                     }
                     .padding(18)
-                }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(LiquidBackdrop().ignoresSafeArea())
+            .task {
+                colleagues = (try? await APIClient.shared.getOrgMembers()) ?? []
             }
             .navigationTitle(tr("שיתוף משימות", "Share tasks"))
             .navigationBarTitleDisplayMode(.inline)
@@ -951,11 +987,34 @@ private struct ShareTasksSheet: View {
         let subject = selected.count == 1
             ? tr("משימה: \(selected[0].required_action)", "Task: \(selected[0].required_action)")
             : tr("\(selected.count) משימות בשבילך", "\(selected.count) tasks for you")
-        let lines = selected.map { item in
-            tr("• \(item.required_action) (מ: \(item.sender_name) — \(item.subject))",
-               "• \(item.required_action) (from: \(item.sender_name) — \(item.subject))")
+
+        // Proper paragraphs, not one dense blob: greeting, then each task as
+        // a numbered block (action on its own line, source context indented
+        // under it), blank line between blocks, sign-off at the end.
+        var paragraphs: [String] = [
+            tr("שלום,", "Hi,"),
+            selected.count == 1
+                ? tr("רציתי להעביר אליך את המשימה הבאה:", "I wanted to pass this task on to you:")
+                : tr("רציתי להעביר אליך את המשימות הבאות:", "I wanted to pass these tasks on to you:"),
+        ]
+        for (idx, item) in selected.enumerated() {
+            var block = "\(idx + 1). \(item.required_action)"
+            var contextParts: [String] = []
+            if !item.sender_name.isEmpty {
+                contextParts.append(tr("מקור: \(item.sender_name)", "Source: \(item.sender_name)"))
+            }
+            if !item.subject.isEmpty {
+                contextParts.append(tr("נושא: \"\(item.subject)\"", "Subject: \"\(item.subject)\""))
+            }
+            if !contextParts.isEmpty {
+                block += "\n    " + contextParts.joined(separator: " · ")
+            }
+            paragraphs.append(block)
         }
-        let body = lines.joined(separator: "\n") + tr("\n\n— נשלח מלימור", "\n\n— Sent from Limor")
+        paragraphs.append(tr("תודה!", "Thanks!"))
+        paragraphs.append(tr("— נשלח דרך לימור", "— Sent via Limor"))
+        let body = paragraphs.joined(separator: "\n\n")
+
         var components = URLComponents()
         components.scheme = "mailto"
         components.path = emailValid ? trimmedEmail : ""

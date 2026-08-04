@@ -378,6 +378,17 @@ struct APIClient {
         let _: Resp = try await post("/api/insights/tips/reject", body: Body(title: title))
     }
 
+    /// Colleagues in the caller's company — for share-with suggestions.
+    struct OrgMember: Decodable, Hashable {
+        let email: String
+        let display_name: String?
+    }
+    func getOrgMembers() async throws -> [OrgMember] {
+        struct Resp: Decodable { let members: [OrgMember] }
+        let resp: Resp = try await get("/api/orgs/me/members")
+        return resp.members
+    }
+
     /// Share tasks (Email-Hub action items) with other Limor users by email.
     /// Each recipient gets a copy in their own task list + a visible push.
     func shareTasks(titles: [String], emails: [String], note: String? = nil) async throws -> (shared: [String], notOnLimor: [String]) {
