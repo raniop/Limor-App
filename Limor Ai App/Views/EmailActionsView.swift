@@ -280,6 +280,9 @@ struct EmailActionsView: View {
     @State private var addedReminderItemIds: Set<String> = []
     @State private var errorMessage: String?
     @State private var dismissed: Set<String> = SharedStore.dismissedEmailActionKeys
+    /// Action item the user tapped "שתף" on — opens the share sheet with
+    /// this item pre-selected (more items can be added there).
+    @State private var sharingItem: EmailActionItem?
     // Active account filter (nil = all accounts). Only surfaces when the user
     // has items from more than one connected account.
     @State private var accountFilter: String? = nil
@@ -354,6 +357,15 @@ struct EmailActionsView: View {
             }
         }
         .task { await load() }
+        .sheet(item: $sharingItem) { item in
+            ShareTasksSheet(
+                initialItem: item,
+                allItems: ((report?.top_items ?? []) + (report?.additional_items ?? []))
+                    .filter { !dismissed.contains($0.dismissKey) }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
         .alert(tr("שגיאה", "Error"), isPresented: .init(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -514,6 +526,7 @@ struct EmailActionsView: View {
 
             HStack(spacing: 8) {
                 reminderButton(item)
+                shareButton(item)
                 handledButton(item.dismissKey)
                 Spacer(minLength: 0)
             }
@@ -547,6 +560,25 @@ struct EmailActionsView: View {
         }
         .buttonStyle(.plain)
         .disabled(added)
+        .padding(.top, 2)
+    }
+
+    /// "Share" — hand this action item (and optionally more from the current
+    /// report) to another Limor user as tasks in THEIR task list.
+    private func shareButton(_ item: EmailActionItem) -> some View {
+        Button {
+            sharingItem = item
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "square.and.arrow.up")
+                Text(tr("שתף", "Share"))
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.limorIndigo)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Capsule().fill(Color.limorIndigo.opacity(0.12)))
+        }
+        .buttonStyle(.plain)
         .padding(.top, 2)
     }
 
@@ -748,5 +780,156 @@ private struct UrgencyBadge: View {
             .foregroundStyle(urgency.color)
             .padding(.horizontal, 8).padding(.vertical, 3)
             .background(Capsule().fill(urgency.color.opacity(0.14)))
+    }
+}
+
+// MARK: - Share tasks sheet
+
+/// Share Email-Hub action items with another Limor user: the tapped item
+/// arrives pre-selected, the rest of the current report can be added with a
+/// tap, the recipient is entered by email (the address their Limor account
+/// uses). Each selected item lands as a task in the recipient's task list,
+/// plus a push so they notice.
+private struct ShareTasksSheet: View {
+    let initialItem: EmailActionItem
+    let allItems: [EmailActionItem]
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedIds: Set<String>
+    @State private var email = ""
+    @State private var sending = false
+    @State private var resultMessage: String?
+    @State private var failed = false
+
+    init(initialItem: EmailActionItem, allItems: [EmailActionItem]) {
+        self.initialItem = initialItem
+        self.allItems = allItems
+        _selectedIds = State(initialValue: [initialItem.id])
+    }
+
+    private var trimmedEmail: String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+    private var emailValid: Bool {
+        trimmedEmail.contains("@") && trimmedEmail.contains(".")
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                LiquidBackdrop()
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if let resultMessage {
+                            VStack(spacing: 12) {
+                                Image(systemName: failed ? "exclamationmark.triangle.fill" : "checkmark.seal.fill")
+                                    .font(.system(size: 44))
+                                    .foregroundStyle(failed ? Color.limorWarning : Color.limorSuccess)
+                                Text(resultMessage)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.limorInk)
+                                    .multilineTextAlignment(.center)
+                                Button(tr("סגור", "Close")) { dismiss() }
+                                    .buttonStyle(.limorPrimary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 40)
+                        } else {
+                            SectionLabel(icon: "person.badge.plus", title: tr("למי לשלוח?", "Send to whom?"))
+                            TextField(tr("המייל של המשתמש בלימור", "Their Limor account email"), text: $email)
+                                .keyboardType(.emailAddress)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .padding(12)
+                                .background(RoundedRectangle(cornerRadius: 12).fill(Color.limorInk.opacity(0.06)))
+
+                            SectionLabel(icon: "checklist", title: tr("אילו משימות לשתף?", "Which tasks to share?"))
+                            VStack(spacing: 8) {
+                                ForEach(allItems) { item in
+                                    let selected = selectedIds.contains(item.id)
+                                    Button {
+                                        if selected { selectedIds.remove(item.id) }
+                                        else { selectedIds.insert(item.id) }
+                                    } label: {
+                                        HStack(spacing: 10) {
+                                            Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                                                .font(.title3)
+                                                .foregroundStyle(selected ? Color.limorIndigo : Color.limorMuted)
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(item.required_action)
+                                                    .font(.subheadline.weight(.semibold))
+                                                    .foregroundStyle(.limorInk)
+                                                    .multilineTextAlignment(.leading)
+                                                    .lineLimit(2)
+                                                Text(item.sender_name)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.limorMuted)
+                                                    .lineLimit(1)
+                                            }
+                                            Spacer()
+                                        }
+                                        .padding(10)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                .fill(selected ? Color.limorIndigo.opacity(0.08) : Color.limorInk.opacity(0.03))
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+
+                            Button {
+                                Task { await share() }
+                            } label: {
+                                HStack {
+                                    if sending { ProgressView().tint(.white) }
+                                    Text(sending
+                                         ? tr("שולח…", "Sending…")
+                                         : tr("שתף \(selectedIds.count) משימות", "Share \(selectedIds.count) tasks"))
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.limorPrimary)
+                            .disabled(sending || selectedIds.isEmpty || !emailValid)
+                        }
+                    }
+                    .padding(18)
+                }
+            }
+            .navigationTitle(tr("שיתוף משימות", "Share tasks"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(tr("ביטול", "Cancel")) { dismiss() }
+                        .foregroundStyle(.limorMuted)
+                }
+            }
+        }
+    }
+
+    private func share() async {
+        sending = true
+        defer { sending = false }
+        let titles = allItems.filter { selectedIds.contains($0.id) }.map { $0.required_action }
+        do {
+            let result = try await APIClient.shared.shareTasks(titles: titles, emails: [trimmedEmail])
+            if result.shared.isEmpty {
+                failed = true
+                resultMessage = tr(
+                    "לכתובת \(trimmedEmail) אין חשבון לימור — אפשר לשתף רק עם משתמשי לימור.",
+                    "\(trimmedEmail) has no Limor account — sharing works only with Limor users."
+                )
+            } else {
+                failed = false
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                resultMessage = tr(
+                    "\(titles.count) משימות נשלחו ל-\(trimmedEmail) 🎉 הן יופיעו ברשימת המשימות שלו, עם התראה.",
+                    "\(titles.count) tasks sent to \(trimmedEmail) 🎉 They'll appear in their task list, with a notification."
+                )
+            }
+        } catch {
+            failed = true
+            resultMessage = error.localizedDescription
+        }
     }
 }

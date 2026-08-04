@@ -236,6 +236,9 @@ struct ExpensesDetailView: View {
     @State private var receipts: [ReceiptInsight]
     @State private var selectedMonthId: Date?
     @State private var editingReceipt: ReceiptInsight?
+    /// Receipt the user swiped to delete — drives the confirmation dialog.
+    @State private var pendingDelete: ReceiptInsight?
+    @State private var deleteError: String?
 
     init(receipts: [ReceiptInsight]) {
         _receipts = State(initialValue: receipts)
@@ -279,6 +282,47 @@ struct ExpensesDetailView: View {
             }
             .environment(\.layoutDirection, .rightToLeft)
             .environment(\.locale, Locale(identifier: "he_IL"))
+        }
+        .confirmationDialog(
+            tr("למחוק את החשבונית?", "Delete this receipt?"),
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingDelete
+        ) { receipt in
+            Button(tr("מחק את \(receipt.vendor)", "Delete \(receipt.vendor)"), role: .destructive) {
+                let target = receipt
+                pendingDelete = nil
+                Task { await performDelete(target) }
+            }
+            Button(tr("ביטול", "Cancel"), role: .cancel) { pendingDelete = nil }
+        } message: { receipt in
+            Text(tr("\(receipt.vendor) · \(receipt.amountDisplay). קבלה שנמחקת לא תחזור גם אחרי סריקת מייל מחודשת.", "\(receipt.vendor) · \(receipt.amountDisplay). A deleted receipt won't come back even after a fresh email scan."))
+        }
+        .alert(tr("שגיאה", "Error"), isPresented: .init(
+            get: { deleteError != nil },
+            set: { if !$0 { deleteError = nil } }
+        )) {
+            Button(tr("אוקיי", "OK"), role: .cancel) {}
+        } message: { Text(deleteError ?? "") }
+    }
+
+    private func performDelete(_ receipt: ReceiptInsight) async {
+        // Optimistic removal — the row disappears immediately; a failure
+        // rolls back via the returned bundle / error alert.
+        let before = receipts
+        withAnimation(.easeInOut(duration: 0.25)) {
+            receipts.removeAll { $0.id == receipt.id }
+        }
+        do {
+            let bundle = try await APIClient.shared.deleteReceipt(id: receipt.id)
+            if let updated = bundle.receipts { receipts = updated }
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        } catch {
+            receipts = before
+            deleteError = error.localizedDescription
         }
     }
 
@@ -375,12 +419,14 @@ struct ExpensesDetailView: View {
                         .foregroundStyle(.limorMuted)
                 }
                 ForEach(month.receipts) { receipt in
-                    Button {
-                        editingReceipt = receipt
-                    } label: {
-                        receiptRow(receipt)
+                    SwipeToDeleteRow(onDelete: { pendingDelete = receipt }) {
+                        Button {
+                            editingReceipt = receipt
+                        } label: {
+                            receiptRow(receipt)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                     if receipt.id != month.receipts.last?.id {
                         Divider().opacity(0.4)
                     }
@@ -438,6 +484,65 @@ struct ExpensesDetailView: View {
         f.locale = AppLangBox.current.locale
         f.dateFormat = tr("d בMMMM", "MMMM d")
         return f.string(from: d)
+    }
+}
+
+// MARK: - Swipe-to-delete row
+
+/// List-style swipe-to-delete for rows living inside a ScrollView (where
+/// SwiftUI's `.swipeActions` doesn't work — it's List-only). Dragging the
+/// row rightward reveals a red trash area; releasing past the threshold
+/// fires `onDelete` (the caller shows a confirmation dialog before actually
+/// deleting). The row always springs back, so a cancelled confirmation
+/// leaves the UI clean.
+private struct SwipeToDeleteRow<Content: View>: View {
+    let onDelete: () -> Void
+    @ViewBuilder let content: Content
+
+    @State private var offsetX: CGFloat = 0
+    private let threshold: CGFloat = 70
+
+    var body: some View {
+        content
+            .offset(x: offsetX)
+            .background(alignment: .leading) {
+                if offsetX > 4 {
+                    HStack {
+                        Image(systemName: "trash.fill")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.white)
+                            .opacity(min(1, Double(offsetX / threshold)))
+                        Spacer()
+                    }
+                    .padding(.leading, 14)
+                    .frame(maxHeight: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.limorDanger.opacity(min(0.95, Double(offsetX / threshold))))
+                    )
+                }
+            }
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 20)
+                    .onChanged { value in
+                        let h = value.translation.width
+                        let v = value.translation.height
+                        // Horizontal intent only — vertical drags keep scrolling.
+                        guard abs(h) > abs(v) else { return }
+                        // Rightward reveal, rubber-banded past the threshold.
+                        offsetX = max(0, min(h, threshold * 1.6))
+                    }
+                    .onEnded { value in
+                        let past = offsetX >= threshold
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            offsetX = 0
+                        }
+                        if past {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            onDelete()
+                        }
+                    }
+            )
     }
 }
 
